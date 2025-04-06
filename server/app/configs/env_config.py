@@ -1,0 +1,22 @@
+from dotenv import load_dotenv
+import os
+
+# Tải biến môi trường từ .env
+load_dotenv(override=True)
+
+# Facebook Messenger config
+PAGE_ACCESS_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
+VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
+PAGE_ID = os.getenv("PAGE_ID")
+N8N_MESSAGE_WEBHOOK_URL = os.getenv("N8N_MESSAGE_WEBHOOK_URL")
+N8N_RAG_FILE_WEBHOOK_URL = os.getenv("N8N_RAG_FILE_WEBHOOK_URL")
+CHAT_WAIT_SECONDS = int(os.getenv("CHAT_WAIT_SECONDS", "5"))
+DATABASE_URL = os.getenv("DATABASE_URL")
+QDRANT_URL = os.getenv("QDRANT_URL")
+QDRANT_KNOWLEDGE_COLLECTION_NAME = os.getenv(
+    "QDRANT_KNOWLEDGE_COLLECTION_NAME")
+GOOGLE_CLIENT_ID = os.getenv("GOOGLE_CLIENT_ID")
+GOOGLE_CLIENT_SECRET = os.getenv("GOOGLE_CLIENT_SECRET")
+OLLAMA_API_URL = os.getenv("OLLAMA_API_URL")
+OLLAMA_EMBEDDINGS_MODEL = os.getenv("OLLAMA_EMBEDDINGS_MODEL")
+OLLAMA_EMBEDDINGS_DIMENSION = int(os.getenv("OLLAMA_EMBEDDINGS_DIMENSION"))

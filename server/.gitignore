@@ -1,0 +1,6 @@
+.env
+.venv
+.vscode
+token.json
+credentials.json
+output.json

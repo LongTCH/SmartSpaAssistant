@@ -1,0 +1,86 @@
+{
+"update_url": "https://clients2.google.com/service/update2/crx",
+
+  "manifest_version": 3,
+  "name": "__MSG_name__",
+  "description": "__MSG_description__",
+  "default_locale": "en",
+  "version": "2.13.20",
+  "author": {
+    "name": "William Chen",
+    "email": "fbesuit@gmail.com"
+  },
+  "minimum_chrome_version": "103",
+  "incognito": "not_allowed",
+  "version_name": "2.13.20",
+  "content_scripts": [
+    {
+      "js": [
+        "assets/index.ts-loader-CwjJkQH3.js"
+      ],
+      "matches": [
+        "https://www.facebook.com/*",
+        "https://web.facebook.com/*",
+        "https://*.esuit.dev/*"
+      ],
+      "run_at": "document_end"
+    }
+  ],
+  "background": {
+    "service_worker": "service-worker-loader.js",
+    "type": "module"
+  },
+  "permissions": [
+    "scripting",
+    "storage",
+    "downloads",
+    "downloads.ui",
+    "declarativeNetRequest"
+  ],
+  "optional_permissions": [
+    "activeTab"
+  ],
+  "optional_host_permissions": [
+    "<all_urls>"
+  ],
+  "options_page": "src/pages/options/index.html",
+  "action": {
+    "default_icon": "src/assets/logo/favicon-128.png",
+    "default_popup": "src/pages/popup/index.html"
+  },
+  "host_permissions": [
+    "https://www.facebook.com/*",
+    "https://web.facebook.com/*",
+    "https://*.esuit.dev/*"
+  ],
+  "icons": {
+    "16": "src/assets/logo/favicon-16.png",
+    "19": "src/assets/logo/favicon-19.png",
+    "32": "src/assets/logo/favicon-32.png",
+    "38": "src/assets/logo/favicon-38.png",
+    "48": "src/assets/logo/favicon-48.png",
+    "128": "src/assets/logo/favicon-128.png"
+  },
+  "web_accessible_resources": [
+    {
+      "matches": [
+        "https://*.esuit.dev/*",
+        "https://web.facebook.com/*",
+        "https://www.facebook.com/*"
+      ],
+      "resources": [
+        "*",
+        "assets/const-wL6z_72Y.js",
+        "assets/index.ts-DLT5BuAb.js"
+      ],
+      "use_dynamic_url": false
+    }
+  ],
+  "externally_connectable": {
+    "matches": [
+      "https://www.facebook.com/*",
+      "https://web.facebook.com/*",
+      "https://*.esuit.dev/*"
+    ]
+  }
+}

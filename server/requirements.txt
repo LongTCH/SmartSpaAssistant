@@ -1,0 +1,15 @@
+fastapi
+uvicorn
+python-dotenv
+python-multipart
+qdrant_client
+asyncpg
+sqlalchemy[asyncio]
+pydantic
+google-api-python-client
+google-auth-httplib2
+google-auth-oauthlib
+PyPDF2
+tqdm
+aiohttp
+langchain
