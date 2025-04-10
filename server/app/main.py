@@ -3,7 +3,12 @@ import uvicorn
 from app.route import router
 from app.configs import database
 from contextlib import asynccontextmanager
-from app.configs.env_config import PAGE_ACCESS_TOKEN
+from fastapi.middleware.cors import CORSMiddleware
+
+# cors config
+origins = [
+    "http://localhost:3000",
+]
 
 
 @asynccontextmanager
@@ -15,6 +20,16 @@ async def lifespan(app: FastAPI):
     await database.shutdown_models()
 
 app = FastAPI(lifespan=lifespan)
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],  # Allow all methods (GET, POST, PUT, DELETE, etc.)
+    allow_headers=["*"],  # Allow all headers
+)
+
 app.include_router(router)
 
 if __name__ == "__main__":

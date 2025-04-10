@@ -4,12 +4,11 @@ import { getAccessToken, setAccessToken } from './auth';
 import { ApiResponse } from '@/schemas/api';
 import { APP_ROUTES } from './constants';
 
-const apiVersion = process.env.NEXT_PUBLIC_API_VERSION || 'v1';
 const apiBaseUrl = (
   typeof window == "undefined" && process.env.NEXT_PUBLIC_SSR_API_URL) 
   || process.env.NEXT_PUBLIC_API_URL 
   || 'http://localhost:8080';
-const baseURL = `${apiBaseUrl}/${apiVersion}`;
+const baseURL = `${apiBaseUrl}`;
 
 const api = axios.create({
   baseURL,

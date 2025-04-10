@@ -1,7 +1,7 @@
 export const API_ROUTES = {
   AUTH: {
     LOGIN: "/auth/login",
-    REGISTER: "/auth/register", 
+    REGISTER: "/auth/register",
     LOGOUT: "/auth/logout",
     GOOGLE: "/auth/oauth/google",
     CALLBACK: "/auth/callback",
@@ -10,13 +10,17 @@ export const API_ROUTES = {
   SPACE: {
     ALL: "/spaces",
     CREATE: "/spaces/create",
-    DETAIL:"/space",
+    DETAIL: "/space",
     PUBLIC: "/spaces/public",
-    MINE: "/spaces/me"
+    MINE: "/spaces/me",
   },
   DOCUMENT: {
     UPLOAD: "/documents/upload",
     DETAIL: (id: string) => `/documents/${id}`,
+  },
+  CONVERSATION: {
+    GET: "/conversations",
+    DETAIL: (id: string) => `/conversations/${id}`,
   },
 };
 
@@ -29,9 +33,9 @@ export const APP_ROUTES = {
   AUTH_CALLBACK: "/auth/callback",
   SPACES: {
     PUBLIC: "/spaces/public",
-    MINE: "/spaces/me"
+    MINE: "/spaces/me",
   },
   DOCUMENT: {
     UPLOAD_PROGRESS: (id: string) => `/documents/upload-progress/${id}`,
-  }
+  },
 };

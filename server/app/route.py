@@ -4,7 +4,7 @@ from starlette.responses import Response as HttpResponse
 from app.configs import env_config
 from app.configs.database import get_db
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services import chat_service, file_metadata_service
+from app.services import chat_service, conversation_service, file_metadata_service
 import asyncio
 
 router = APIRouter()
@@ -77,3 +77,25 @@ async def process_document_store(db: AsyncSession = Depends(get_db)):
     asyncio.create_task(file_metadata_service.update_knowledge(db))
     # await file_metadata_service.update_knowledge(db)
     return HttpResponse(status_code=200)
+
+
+@router.get("/conversations")
+async def get_conversations(request: Request, db: AsyncSession = Depends(get_db)):
+    """
+    Get all conversations from the database.
+    """
+    skip = int(request.query_params.get("skip", 0))
+    limit = int(request.query_params.get("limit", 10))
+    conversations = await conversation_service.get_conversations(db, skip, limit)
+    return conversations
+
+
+@router.get("/conversations/{guest_id}")
+async def get_conversation_by_guest_id(request: Request, guest_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Get conversation by guest_id from the database.
+    """
+    skip = int(request.query_params.get("skip", 0))
+    limit = int(request.query_params.get("limit", 10))
+    conversations = await conversation_service.get_chat_by_guest_id(db, guest_id, skip, limit)
+    return conversations

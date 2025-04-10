@@ -1,7 +1,6 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Button } from "@/components/ui/button";
 import { useApp } from "@/context/app-context";
 import {
   Select,
@@ -10,16 +9,150 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Frown, Info } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import { Badge } from "@/components/ui/badge";
+import { useState, useEffect, useRef } from "react";
+import { conversationService } from "@/services/api/conversation.service";
+import { Conversation, Chat } from "@/types";
+import ConversationInfoList from "./components/ConversationInfoList";
 
 export default function ChatInterface() {
   const { contentHeight } = useApp();
+  const [skip, setSkip] = useState<number>(0);
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [hasNext, setHasNext] = useState<boolean>(false);
+  const [selectedConversation, setSelectedConversation] =
+    useState<Conversation | null>(null);
+  const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
+  const [chatSkip, setChatSkip] = useState<number>(0);
+  const [chatList, setChatList] = useState<Chat[]>([]);
+  const conversationLimit = 10; // Giới hạn số lượng cuộc trò chuyện mỗi lần tải
+  const messageLimit = 5; // Giới hạn số lượng tin nhắn mỗi lần tải
+
+  // Thêm state để theo dõi trạng thái tải
+  const [isLoading, setIsLoading] = useState<boolean>(false);
+
+  const fetchConversations = async () => {
+    try {
+      setIsLoading(true);
+      const response = await conversationService.getPagingConversation(
+        skip,
+        conversationLimit
+      );
+
+      if (response.data.length !== 0) {
+        if (skip === 0) {
+          // Trang đầu tiên, thay thế dữ liệu
+          setConversations(response.data);
+
+          // Tự động chọn conversation đầu tiên khi khởi tạo trang
+          if (!selectedConversation) {
+            setSelectedConversation(response.data[0]);
+          }
+        } else {
+          // Trang tiếp theo, nối thêm dữ liệu
+          setConversations((prevConversations) => [
+            ...prevConversations,
+            ...response.data,
+          ]);
+        }
+        setHasNext(response.has_next);
+      }
+    } catch (error) {
+      console.error("Error fetching conversations:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Sửa lại phần tải thêm tin nhắn trong fetchConversationMessages
+  const fetchConversationMessages = async (
+    conversationId: string,
+    loadMore: boolean = false
+  ) => {
+    try {
+      setIsLoadingMessages(true);
+      const response = await conversationService.getChatById(
+        conversationId,
+        chatSkip,
+        messageLimit
+      );
+
+      // Nếu đang tải thêm, thêm tin nhắn mới vào đầu danh sách
+      if (loadMore && response.data.length > 0) {
+        // Bảo toàn chiều cao cuộn bằng cách lưu chiều cao trước khi cập nhật state
+        setChatList((prevMessages) => [...response.data, ...prevMessages]);
+
+        // Bạn cần thêm logic để giữ vị trí cuộn sau khi thêm tin nhắn mới
+        // Điều này cần được xử lý với useRef và useEffect
+      } else {
+        // Nếu tải mới, thay thế danh sách cũ
+        setChatList(response.data);
+      }
+
+      // Cập nhật hasMoreMessages nếu API trả về thông tin này
+      setHasMoreMessages(response.has_next || false);
+    } catch (error) {
+      console.error("Error fetching conversation messages:", error);
+      if (!loadMore) setChatList([]); // Chỉ reset nếu không phải đang tải thêm
+    } finally {
+      setIsLoadingMessages(false);
+    }
+  };
+
+  // Thêm state để quản lý việc tải thêm tin nhắn
+  const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(false);
+
+  // Xử lý khi chọn một conversation
+  const handleSelectConversation = (conversation: Conversation) => {
+    setSelectedConversation(conversation);
+    // Reset chat pagination khi chọn conversation mới
+    setChatSkip(0);
+    if (conversation.id) {
+      fetchConversationMessages(conversation.id);
+    }
+  };
+
+  // Theo dõi việc thay đổi conversation
+  useEffect(() => {
+    if (selectedConversation?.id) {
+      setChatSkip(0); // Reset skip khi đổi conversation
+      fetchConversationMessages(selectedConversation.id);
+    }
+  }, [selectedConversation?.id]);
+
+  // Cập nhật useEffect để không gọi API khi đang tải
+  useEffect(() => {
+    // Chỉ gọi khi skip > 0 (không phải lần đầu tiên) và có conversation được chọn
+    if (chatSkip > 0 && selectedConversation?.id && !isLoadingMessages) {
+      setIsLoadingMessages(true);
+      fetchConversationMessages(selectedConversation.id, true).finally(() => {
+        setIsLoadingMessages(false);
+      });
+    }
+  }, [chatSkip, selectedConversation?.id]);
+
+  useEffect(() => {
+    fetchConversations();
+  }, [skip]);
+
+  // Thêm ở đầu component
+  const chatContainerRef = useRef<HTMLDivElement>(null);
+  const prevScrollHeight = useRef<number>(0);
+  const prevScrollTop = useRef<number>(0);
+
+  // Thêm useEffect để xử lý việc giữ vị trí cuộn
+  useEffect(() => {
+    if (chatContainerRef.current && prevScrollHeight.current > 0) {
+      const newScrollHeight = chatContainerRef.current.scrollHeight;
+      const heightDifference = newScrollHeight - prevScrollHeight.current;
+
+      chatContainerRef.current.scrollTop =
+        prevScrollTop.current + heightDifference;
+
+      // Reset sau khi đã xử lý
+      prevScrollHeight.current = 0;
+      prevScrollTop.current = 0;
+    }
+  }, [chatList]);
 
   return (
     <div className="flex flex-col" style={{ height: contentHeight }}>
@@ -43,263 +176,20 @@ export default function ChatInterface() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-auto">
-            {/* Conversation Items */}
-            {[1, 2, 3, 4, 5, 6, 7, 8].map((item, index) => (
-              <div
-                key={item}
-                className={`p-3 border-b hover:bg-indigo-50 cursor-pointer ${
-                  index === 0
-                    ? "border-l-4 border-l-red-500"
-                    : index === 2
-                    ? "border-l-4 border-l-green-500"
-                    : ""
-                } ${index === 0 ? "bg-indigo-100 font-semibold" : ""}`}
-              >
-                <div className="flex items-start space-x-3">
-                  <Avatar>
-                    <AvatarImage src="/placeholder.svg?height=40&width=40" />
-                    <AvatarFallback>SA</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex justify-between">
-                      <div className="flex items-center space-x-2">
-                        <p className="font-medium truncate">Suporte ADMIN</p>
-                        <Badge
-                          variant="outline"
-                          className="bg-[#0084FF]/10 text-[#0084FF] border-[#0084FF]/20 text-[10px] px-1.5 py-0 h-4 rounded-sm flex items-center"
-                        >
-                          Messenger
-                        </Badge>
-                      </div>
-                      <span className="text-xs text-gray-500">10 min</span>
-                    </div>
-                    <p className="text-sm text-gray-500 truncate">
-                      Supporting line text lorem ipsum dolor sit amet...
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
+          {/* Conversation Items */}
+          <ConversationInfoList
+            conversationLimit={conversationLimit}
+            conversations={conversations}
+            isLoading={isLoading}
+            hasNext={hasNext}
+            setSkip={setSkip}
+            selectedConversation={selectedConversation}
+            handleSelectConversation={handleSelectConversation}
+          />
         </div>
 
         {/* Middle - Chat Area */}
-        <div className="flex-1 flex flex-col bg-gray-50">
-          {/* Chat Header */}
-          <div className="p-3 border-b bg-white flex items-center gap-2">
-            <div className="flex items-center justify-between flex-1">
-              <div className="flex items-center space-x-2">
-                <Popover>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="link"
-                      size="icon"
-                      className="w-10 h-10 rounded-full bg-red-500 flex items-center justify-center mr-4"
-                    >
-                      <Frown className="h-6 w-6 text-white" />
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-80 p-4">
-                    <div className="space-y-2">
-                      <h4 className="font-medium">Dự đoán cảm xúc</h4>
-                      <p className="text-sm text-gray-500">
-                        AI dự đoán cảm xúc của người dùng trong cuộc trò chuyện
-                        này là <strong>tiêu cực</strong>.
-                      </p>
-                    </div>
-                  </PopoverContent>
-                </Popover>
-                <span className="text-sm font-medium text-gray-800">
-                  Suporte ADMIN
-                </span>
-                <Badge
-                  variant="outline"
-                  className="bg-[#0084FF]/10 text-[#0084FF] border-[#0084FF]/20 text-[10px] px-1.5 py-0 h-4 rounded-sm flex items-center"
-                >
-                  Messenger
-                </Badge>
-              </div>
-
-              <div className="flex items-center space-x-2">
-                <span className="text-sm text-gray-600">Giao cho</span>
-                <Select defaultValue="ai">
-                  <SelectTrigger className="w-[120px] h-8">
-                    <SelectValue placeholder="AI" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="ai">AI</SelectItem>
-                    <SelectItem value="me">Tôi</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700"
-                >
-                  <Info className="h-4 w-4" />
-                  <span className="sr-only">Information</span>
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium">Chat Information</h4>
-                  <p className="text-sm text-gray-500">
-                    This conversation is being handled by AI support. Response
-                    time may vary based on query complexity.
-                  </p>
-                </div>
-              </PopoverContent>
-            </Popover>
-          </div>
-
-          {/* Chat Messages Area - Restructured for scrollable messages with fixed bottom note */}
-          <div className="h-[10vh] flex-1 flex flex-col">
-            {/* Scrollable Messages */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-4">
-              {/* Sender Message */}
-              <div className="flex items-start space-x-2 max-w-[80%]">
-                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs">
-                  OP
-                </div>
-                <div>
-                  <div className="bg-white p-3 rounded-lg shadow-sm">
-                    <p className="text-sm">
-                      Lorem Ipsum has been the industry's standard dummy text
-                      ever since the 1500s.
-                    </p>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">8:00 PM</div>
-                </div>
-              </div>
-              {/* Receiver Message */}
-              <div className="flex items-start justify-end space-x-2 max-w-[80%] ml-auto">
-                <div>
-                  <div className="bg-indigo-500 p-3 rounded-lg shadow-sm">
-                    <p className="text-sm text-white">
-                      Lorem Ipsum has been the industry's standard dummy text
-                      ever since the 1500s.
-                    </p>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1 text-right">
-                    8:00 PM
-                  </div>
-                </div>
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                  <AvatarFallback>SA</AvatarFallback>
-                </Avatar>
-              </div>
-              {/* Sender Message */}
-              <div className="flex items-start space-x-2 max-w-[80%]">
-                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs">
-                  OP
-                </div>
-                <div>
-                  <div className="bg-white p-3 rounded-lg shadow-sm">
-                    <p className="text-sm">
-                      Lorem Ipsum has been the industry's standard dummy text
-                      ever since the 1500s.
-                    </p>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">8:00 PM</div>
-                </div>
-              </div>
-              {/* Receiver Message */}
-              <div className="flex items-start justify-end space-x-2 max-w-[80%] ml-auto">
-                <div>
-                  <div className="bg-indigo-500 p-3 rounded-lg shadow-sm">
-                    <p className="text-sm text-white">
-                      Lorem Ipsum has been the industry's standard dummy text
-                      ever since the 1500s.
-                    </p>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1 text-right">
-                    8:00 PM
-                  </div>
-                </div>
-                <Avatar className="w-8 h-8">
-                  <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                  <AvatarFallback>SA</AvatarFallback>
-                </Avatar>
-              </div>{" "}
-              {/* Sender Message */}
-              <div className="flex items-start space-x-2 max-w-[80%]">
-                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs">
-                  OP
-                </div>
-                <div>
-                  <div className="bg-white p-3 rounded-lg shadow-sm">
-                    <p className="text-sm">
-                      Lorem Ipsum has been the industry's standard dummy text
-                      ever since the 1500s.
-                    </p>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">8:00 PM</div>
-                </div>
-              </div>
-              {/* Sender Message */}
-              <div className="flex items-start space-x-2 max-w-[80%]">
-                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs">
-                  OP
-                </div>
-                <div>
-                  <div className="bg-white p-3 rounded-lg shadow-sm">
-                    <p className="text-sm">
-                      Lorem Ipsum has been the industry's standard dummy text
-                      ever since the 1500s.
-                    </p>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">8:00 PM</div>
-                </div>
-              </div>
-              {/* Sender Message */}
-              <div className="flex items-start space-x-2 max-w-[80%]">
-                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs">
-                  OP
-                </div>
-                <div>
-                  <div className="bg-white p-3 rounded-lg shadow-sm">
-                    <p className="text-sm">
-                      Lorem Ipsum has been the industry's standard dummy text
-                      ever since the 1500s.
-                    </p>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">8:00 PM</div>
-                </div>
-              </div>
-              {/* Sender Message */}
-              <div className="flex items-start space-x-2 max-w-[80%]">
-                <div className="w-8 h-8 rounded-full bg-gray-300 flex items-center justify-center text-xs">
-                  OP
-                </div>
-                <div>
-                  <div className="bg-white p-3 rounded-lg shadow-sm">
-                    <p className="text-sm">
-                      Lorem Ipsum has been the industry's standard dummy text
-                      ever since the 1500s.
-                    </p>
-                  </div>
-                  <div className="text-xs text-gray-500 mt-1">8:00 PM</div>
-                </div>
-              </div>
-            </div>
-
-            {/* Fixed System Message at Bottom */}
-            {/* Fixed System Message at Bottom - Will stick to bottom even when chat scrolls */}
-            <div className="p-2 border-t bg-white sticky bottom-0 z-10">
-              <div className="text-xs text-gray-500 text-center bg-gray-50 py-2 rounded border border-gray-200">
-                Xin lỗi, việc nhận tin trực tiếp không được hỗ trợ. Vui lòng
-                dùng Messenger.
-              </div>
-            </div>
-          </div>
-        </div>
+        
 
         {/* Right Sidebar - Support Panel */}
         <div className="w-72 border-l flex flex-col bg-white">

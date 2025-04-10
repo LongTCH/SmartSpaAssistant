@@ -72,3 +72,13 @@ class ProcessedSheetData(ProcessedFileData):
             # escaped_str = json_str.replace("'", "''")  # Escape dấu nháy đơn
             result.append(json_str)
         return result
+
+
+class PagingDto:
+    def __init__(self, skip: int, limit: int, data: list, total: int):
+        self.skip = skip
+        self.limit = limit
+        self.data = data
+        self.total = total
+        self.has_next = skip + limit < total
+        self.has_prev = skip > 0
