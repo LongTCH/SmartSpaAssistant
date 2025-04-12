@@ -1,5 +1,5 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.models import Guest, Chat
+from app.models import Chat
 from sqlalchemy.future import select
 
 

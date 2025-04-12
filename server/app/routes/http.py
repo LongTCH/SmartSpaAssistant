@@ -7,15 +7,15 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.services import chat_service, conversation_service, file_metadata_service
 import asyncio
 
-router = APIRouter()
+http_router = APIRouter()
 
 
-@router.get("/")
+@http_router.get("/")
 def index():
     return {"message": "Facebook Messenger Webhook"}
 
 
-@router.get("/webhooks/messenger")
+@http_router.get("/webhooks/messenger")
 async def get_webhook(request: Request):
     """
     Handle GET request for Facebook Messenger webhook verification.
@@ -42,7 +42,7 @@ async def get_webhook(request: Request):
     raise HTTPException(status_code=400)
 
 
-@router.post("/webhooks/messenger")
+@http_router.post("/webhooks/messenger")
 async def post_webhook(request: Request):
     """
     Handle POST request for Facebook Messenger webhook.
@@ -71,7 +71,7 @@ async def post_webhook(request: Request):
         raise HTTPException(status_code=404)
 
 
-@router.post("/document_stores")
+@http_router.post("/document_stores")
 async def process_document_store(db: AsyncSession = Depends(get_db)):
     # Start the update process in a background task without waiting
     asyncio.create_task(file_metadata_service.update_knowledge(db))
@@ -79,7 +79,7 @@ async def process_document_store(db: AsyncSession = Depends(get_db)):
     return HttpResponse(status_code=200)
 
 
-@router.get("/conversations")
+@http_router.get("/conversations")
 async def get_conversations(request: Request, db: AsyncSession = Depends(get_db)):
     """
     Get all conversations from the database.
@@ -90,7 +90,7 @@ async def get_conversations(request: Request, db: AsyncSession = Depends(get_db)
     return conversations
 
 
-@router.get("/conversations/{guest_id}")
+@http_router.get("/conversations/{guest_id}")
 async def get_conversation_by_guest_id(request: Request, guest_id: str, db: AsyncSession = Depends(get_db)):
     """
     Get conversation by guest_id from the database.

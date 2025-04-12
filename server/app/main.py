@@ -1,6 +1,7 @@
 from fastapi import FastAPI
 import uvicorn
-from app.route import router
+from app.routes.http import http_router
+from app.routes.websocket import ws_router
 from app.configs import database
 from contextlib import asynccontextmanager
 from fastapi.middleware.cors import CORSMiddleware
@@ -30,7 +31,8 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
-app.include_router(router)
+app.include_router(http_router)
+app.include_router(ws_router)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080)
