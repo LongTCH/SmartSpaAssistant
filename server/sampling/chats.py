@@ -1,11 +1,9 @@
 from faker import Faker
 import asyncio
-import asyncpg
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import MetaData, Table, Column, String, Text, DateTime
+from sqlalchemy import MetaData, Table, Column, String, DateTime
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.dialects.postgresql import UUID
 import datetime
 import json
 

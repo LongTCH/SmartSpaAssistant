@@ -1,10 +1,23 @@
-from fastapi import APIRouter, Request, HTTPException, Depends, Form
-from typing import Annotated
-from starlette.responses import Response as HttpResponse
-from app.configs import env_config
-from app.configs.database import get_db
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.services import chat_service, conversation_service, file_metadata_service
-import asyncio
+from fastapi import APIRouter
+from app.services.connection_manager import manager
+from fastapi import WebSocket, WebSocketDisconnect
+from app.configs import constants
 
-ws_router = APIRouter(prefix="/ws")
+ws_router = APIRouter()
+
+
+@ws_router.websocket("/ws")
+async def websocket_endpoint(websocket: WebSocket):
+    await manager.connect(websocket)
+    try:
+        while True:
+            message = await websocket.receive_json()
+            # Handle incoming message
+            print("Received message:", message)
+            response = {
+                "message": constants.CONNECTED,
+                "data": {"status": 200, "message": "Connected to WebSocket"}
+            }
+            await manager.broadcast(response)
+    except WebSocketDisconnect:
+        manager.disconnect(websocket)

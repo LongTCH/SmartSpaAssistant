@@ -1,5 +1,6 @@
 export type ProviderType = "messenger" | "web";
 export type ConversationalistType = "client" | "staff";
+export type ChatAttachmentType = "image" | "video" | "audio" | "file";
 
 export interface Conversation {
   id: string;
@@ -9,8 +10,19 @@ export interface Conversation {
   last_message: ChatContent;
   provider: ProviderType;
 }
+
+export interface ChatAttachmentPayload {
+  url: string;
+}
+
+export interface ChatAttachment {
+  type: ChatAttachmentType;
+  payload?: ChatAttachmentPayload;
+}
+
 export interface ChatMessage {
   text: string;
+  attachments: ChatAttachment[];
 }
 
 export interface ChatContent {

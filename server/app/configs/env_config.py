@@ -5,6 +5,7 @@ import os
 load_dotenv(override=True)
 
 # Facebook Messenger config
+BASE_URL = os.getenv("BASE_URL")
 PAGE_ACCESS_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 PAGE_ID = os.getenv("PAGE_ID")

@@ -5,3 +5,5 @@ token.json
 credentials.json
 output.json
 sampling/*.json
+__pycache__
+static

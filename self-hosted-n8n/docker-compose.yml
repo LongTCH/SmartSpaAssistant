@@ -1,8 +1,12 @@
 volumes:
   n8n_storage:
+    name: self-hosted-ai-starter-kit_n8n_storage
   postgres_storage:
+    name: self-hosted-ai-starter-kit_postgres_storage
   ollama_storage:
+    name: self-hosted-ai-starter-kit_ollama_storage
   qdrant_storage:
+    name: self-hosted-ai-starter-kit_qdrant_storage
 
 networks:
   demo:
@@ -44,7 +48,7 @@ x-init-ollama: &init-ollama
     - OLLAMA_HOST=ollama:11434
   command:
     - "-c"
-    - "sleep 3; ollama pull llama3.2; ollama pull jeffh/intfloat-multilingual-e5-large-instruct:f16"
+    - "sleep 3; ollama pull jeffh/intfloat-multilingual-e5-large-instruct:f16"
 
 services:
   postgres:

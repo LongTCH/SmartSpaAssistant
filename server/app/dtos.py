@@ -1,4 +1,5 @@
 import json
+from typing import Any
 from app.models import FileMetaData
 
 
@@ -82,3 +83,15 @@ class PagingDto:
         self.total = total
         self.has_next = skip + limit < total
         self.has_prev = skip > 0
+
+
+class WsMessageDto():
+    def __init__(self, message: str, data: Any = None):
+        self.message = message
+        self.data = data
+
+    def __str__(self):
+        return json.dumps(self.__dict__(), ensure_ascii=False)
+
+    def to_json(self):
+        return self.__dict__

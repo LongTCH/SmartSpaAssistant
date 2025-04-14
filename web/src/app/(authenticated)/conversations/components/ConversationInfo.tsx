@@ -30,10 +30,12 @@ export const getBadge = (provider: ProviderType | undefined) => {
 export default function ConversationInfo({
   item,
   isSelected,
+  isUnread = false,
   onClick,
 }: {
   item: Conversation;
   isSelected: boolean;
+  isUnread?: boolean;
   onClick: () => void;
 }) {
   const getTimeDifference = (date: string) => {
@@ -85,8 +87,8 @@ export default function ConversationInfo({
           ? "border-l-4 border-l-red-500"
           : getSentiment() === "positive"
           ? "border-l-4 border-l-green-500"
-          : ""
-      }`}
+          : "border-l-4"
+      } ${isUnread ? "bg-blue-50/60" : ""}`}
     >
       <div className="flex items-start space-x-3">
         <Avatar>
@@ -96,14 +98,29 @@ export default function ConversationInfo({
         <div className="flex-1 min-w-0">
           <div className="flex justify-between">
             <div className="flex items-center space-x-2">
-              <p className="font-medium truncate">{item.account_name}</p>
+              <div className="flex items-center">
+                <p
+                  className={`font-medium truncate ${
+                    isUnread ? "font-bold" : ""
+                  }`}
+                >
+                  {item.account_name}
+                </p>
+                {isUnread && (
+                  <div className="ml-2 w-2 h-2 bg-blue-500 rounded-full"></div>
+                )}
+              </div>
               {getBadge(item.provider)}
             </div>
-            <span className="text-xs text-gray-500">
+            <span className="text-[10px] text-gray-500">
               {getTimeDifference(item.last_message_at)}
             </span>
           </div>
-          <p className="text-sm text-gray-500 truncate">
+          <p
+            className={`text-sm ${
+              isUnread ? "text-black font-medium" : "text-gray-500"
+            } truncate`}
+          >
             {getLastMessage(item.last_message)}
           </p>
         </div>
