@@ -59,6 +59,7 @@ export default function ConversationInfo({
   };
 
   const getLastMessage = (content: ChatContent) => {
+    if (!content || !content.message) return "No messages yet";
     let message = "";
     if (content.side === "staff") {
       message += "You: ";

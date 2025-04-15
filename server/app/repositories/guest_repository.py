@@ -73,3 +73,16 @@ async def reset_message_count(db: AsyncSession, guest_id: str) -> Guest:
         guest.message_count = 0
         return guest
     return None
+
+
+async def count_guests_by_sentiment(db: AsyncSession, sentiment: str) -> int:
+    stmt = select(Guest).where(Guest.sentiment == sentiment)
+    result = await db.execute(stmt)
+    return len(result.scalars().all())
+
+
+async def get_guests_by_sentiment(db: AsyncSession, sentiment: str, skip: int, limit: int) -> list[Guest]:
+    stmt = select(Guest).where(Guest.sentiment == sentiment).order_by(
+        Guest.last_message_at.desc()).offset(skip).limit(limit)
+    result = await db.execute(stmt)
+    return result.scalars().all()

@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models import Guest
 from app.dtos import PagingDto
 from app.repositories import guest_repository, chat_repository
+from app.configs.constants import SENTIMENTS
 
 
 async def get_conversations(db: AsyncSession,  skip: int, limit: int) -> PagingDto:
@@ -33,3 +34,13 @@ async def insert_guest(db: AsyncSession, guest: Guest) -> Guest:
     await db.commit()
     await db.refresh(guest)
     return guest
+
+
+async def get_paging_guests_by_sentiment(db: AsyncSession, sentiment: str, skip: int, limit: int) -> PagingDto:
+    count = await guest_repository.count_guests_by_sentiment(db, sentiment)
+    if count == 0:
+        return PagingDto(skip=skip, limit=limit, total=0, data=[])
+    if skip >= count:
+        return PagingDto(skip=skip, limit=limit, total=count, data=[])
+    data = await guest_repository.get_guests_by_sentiment(db, sentiment, skip, limit)
+    return PagingDto(skip=skip, limit=limit, total=count, data=data)

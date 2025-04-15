@@ -13,6 +13,7 @@ import { useState, useEffect, useRef } from "react";
 import { Chat, Conversation } from "@/types";
 import ConversationInfoList from "./components/ConversationInfoList";
 import ChatArea from "./components/ChatArea";
+import SentimentConversations from "./components/SentimentConversations";
 
 export default function ChatInterface() {
   const { contentHeight } = useApp();
@@ -98,51 +99,10 @@ export default function ChatInterface() {
         />
 
         {/* Right Sidebar - Support Panel */}
-        <div className="w-72 border-l flex flex-col bg-white">
-          <div className="flex flex-col h-full">
-            {/* Negative Section */}
-            <div className="h-1/2 flex flex-col">
-              <div className="p-1 bg-red-500 text-white text-center font-medium">
-                Tiêu cực
-              </div>
-              <div className="p-2 space-y-2 overflow-auto h-[calc(100%-40px)]">
-                {[1, 2, 3, 4, 5, 6, 7].map((item) => (
-                  <div
-                    key={`neg-${item}`}
-                    className="border rounded-md p-2 hover:bg-indigo-50 flex items-center space-x-2 cursor-pointer"
-                  >
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                      <AvatarFallback>SA</AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium">Suporte ADMIN</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Positive Section */}
-            <div className="h-1/2 flex flex-col">
-              <div className="p-1 bg-green-500 text-white text-center font-medium">
-                Tích cực
-              </div>
-              <div className="p-2 space-y-2 overflow-auto h-[calc(100%-40px)]">
-                {[1, 2, 3, 4, 5, 6, 7].map((item) => (
-                  <div
-                    key={`pos-${item}`}
-                    className="border rounded-md p-2 flex hover:bg-indigo-50 items-center space-x-2 cursor-pointer"
-                  >
-                    <Avatar className="h-8 w-8">
-                      <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                      <AvatarFallback>SA</AvatarFallback>
-                    </Avatar>
-                    <span className="text-sm font-medium">Suporte ADMIN</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
+        <SentimentConversations
+          selectedConversation={selectedConversation}
+          setSelectedConversation={setSelectedConversation}
+        />
       </div>
     </div>
   );

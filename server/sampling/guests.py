@@ -71,8 +71,8 @@ async def create_and_insert_guests():
 
                 await conn.execute('''
                 INSERT INTO guests (id, provider, account_id, account_name, avatar, fullname, 
-                                gender, birthday, phone, email, address, last_message_at, last_message)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+                                gender, birthday, phone, email, address, last_message_at, last_message, sentiment, message_count)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
                 ON CONFLICT (id) DO UPDATE SET
                     provider = EXCLUDED.provider,
                     account_id = EXCLUDED.account_id,
@@ -85,13 +85,16 @@ async def create_and_insert_guests():
                     email = EXCLUDED.email,
                     address = EXCLUDED.address,
                     last_message_at = EXCLUDED.last_message_at,
-                    last_message = EXCLUDED.last_message
+                    last_message = EXCLUDED.last_message,
+                    sentiment = EXCLUDED.sentiment,
+                    message_count = EXCLUDED.message_count
                 ''',
                                    customer['id'], customer['provider'], customer['account_id'],
                                    customer['account_name'], customer['avatar'], customer['fullname'],
                                    customer['gender'], birthday, customer['phone'],
                                    customer['email'], customer['address'], last_message_at,
-                                   json.dumps({}))
+                                   json.dumps({}), customer['sentiment'],
+                                   customer['message_count'])
 
         print(
             f"Successfully inserted {len(sample_customers)} customers into the guests table")

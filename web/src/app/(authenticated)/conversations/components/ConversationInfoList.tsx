@@ -17,7 +17,6 @@ interface ConversationInfoListProps {
 
 export default function ConversationInfoList(props: ConversationInfoListProps) {
   const conversationLimit = 20;
-  const [skip, setSkip] = useState<number>(0);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [hasNext, setHasNext] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -25,16 +24,23 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
   // Use the WebSocket context instead of creating a new connection
   const { registerMessageHandler } = useApp();
 
-  const fetchConversations = async () => {
+  const fetchConversations = async (isInitialLoad = false) => {
     try {
+      // Nếu đang tải, không fetch thêm
+      if (isLoading) return;
+
       setIsLoading(true);
+
+      // Sử dụng độ dài của mảng hiện tại làm giá trị skip
+      const skip = isInitialLoad ? 0 : conversations.length;
+
       const response = await conversationService.getPagingConversation(
         skip,
         conversationLimit
       );
 
       if (response.data.length !== 0) {
-        if (skip === 0) {
+        if (isInitialLoad) {
           // First page, replace data
           setConversations(response.data);
 
@@ -120,8 +126,8 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
   }, [props.selectedConversation, registerMessageHandler]);
 
   useEffect(() => {
-    fetchConversations();
-  }, [skip]);
+    fetchConversations(true);
+  }, []);
 
   return (
     <div
@@ -132,7 +138,7 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         if (target.scrollHeight - target.scrollTop - target.clientHeight < 50) {
           // Only load more if there's more data and not currently loading
           if (hasNext && !isLoading) {
-            setSkip((prev) => prev + conversationLimit);
+            fetchConversations();
           }
         }
       }}

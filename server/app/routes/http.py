@@ -4,8 +4,9 @@ from starlette.responses import Response as HttpResponse
 from app.configs import env_config
 from app.configs.database import get_session, async_session
 from sqlalchemy.ext.asyncio import AsyncSession
-from app.services import conversation_service, file_metadata_service, messenger_service
+from app.services import file_metadata_service, guest_service, messenger_service
 import asyncio
+from app.configs.constants import SENTIMENTS
 
 http_router = APIRouter()
 
@@ -64,16 +65,19 @@ async def post_webhook(request: Request, db: AsyncSession = Depends(get_session)
             # Chuyển xử lý message sang task riêng - create a copy of the db session
             session = async_session()
             task = asyncio.create_task(
-                process_message_wrapper(sender_psid, receipient_psid, timestamp, webhook_event, session)
+                process_message_wrapper(
+                    sender_psid, receipient_psid, timestamp, webhook_event, session)
             )
             # Add a done callback to ensure session is closed
-            task.add_done_callback(lambda t: asyncio.create_task(close_session(session, t)))
+            task.add_done_callback(
+                lambda t: asyncio.create_task(close_session(session, t)))
 
         # Returns a '200 OK' response to all requests
         return HttpResponse()
     else:
         # Returns a '404 Not Found' if event is not from a page subscription
         raise HTTPException(status_code=404)
+
 
 async def process_message_wrapper(sender_psid, receipient_psid, timestamp, webhook_event, db):
     try:
@@ -82,7 +86,8 @@ async def process_message_wrapper(sender_psid, receipient_psid, timestamp, webho
     except Exception as e:
         await db.rollback()
         print(f"Error in process_message_wrapper: {e}")
-    
+
+
 async def close_session(session, task):
     try:
         # Handle any exceptions from the task if needed
@@ -90,6 +95,7 @@ async def close_session(session, task):
             print(f"Task raised an exception: {task.exception()}")
     finally:
         await session.close()
+
 
 @http_router.post("/document_stores")
 async def process_document_store(db: AsyncSession = Depends(get_session)):
@@ -106,7 +112,23 @@ async def get_conversations(request: Request, db: AsyncSession = Depends(get_ses
     """
     skip = int(request.query_params.get("skip", 0))
     limit = int(request.query_params.get("limit", 10))
-    conversations = await conversation_service.get_conversations(db, skip, limit)
+    conversations = await guest_service.get_conversations(db, skip, limit)
+    return conversations
+
+
+@http_router.get("/conversations/sentiments")
+async def get_conversations_by_sentiment(request: Request, db: AsyncSession = Depends(get_session)):
+    """
+    Get conversations by sentiment from the database.
+    """
+    sentiment = request.query_params.get("sentiment", "neutral")
+    skip = int(request.query_params.get("skip", 0))
+    limit = int(request.query_params.get("limit", 10))
+
+    if sentiment not in [s.value for s in SENTIMENTS]:
+        raise HTTPException(status_code=400, detail="Invalid sentiment value")
+
+    conversations = await guest_service.get_paging_guests_by_sentiment(db, sentiment, skip, limit)
     return conversations
 
 
@@ -117,5 +139,5 @@ async def get_conversation_by_guest_id(request: Request, guest_id: str, db: Asyn
     """
     skip = int(request.query_params.get("skip", 0))
     limit = int(request.query_params.get("limit", 10))
-    conversations = await conversation_service.get_chat_by_guest_id(db, guest_id, skip, limit)
+    conversations = await guest_service.get_chat_by_guest_id(db, guest_id, skip, limit)
     return conversations

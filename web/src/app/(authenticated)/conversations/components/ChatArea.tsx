@@ -32,7 +32,6 @@ interface ChatAreaProps {
 
 export default function ChatArea(props: ChatAreaProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
-  const [chatSkip, setChatSkip] = useState<number>(0);
   const [chatList, setChatList] = useState<Chat[]>([]);
   const [sentiment, setSentiment] = useState<string>("neutral");
   const messageLimit = 20; // Limit the number of messages loaded each time
@@ -93,9 +92,14 @@ export default function ChatArea(props: ChatAreaProps) {
   ) => {
     try {
       setIsLoadingMessages(true);
+
+      // Sử dụng độ dài của mảng hiện tại làm giá trị skip khi loadMore
+      // Khi không phải loadMore (tức load lần đầu), skip = 0
+      const skip = loadMore ? chatList.length : 0;
+
       const response = await conversationService.getChatById(
         conversationId,
-        chatSkip,
+        skip,
         messageLimit
       );
 
@@ -232,39 +236,37 @@ export default function ChatArea(props: ChatAreaProps) {
   useEffect(() => {
     if (props.selectedConversation?.id) {
       // Reset state before fetching new data
-      setChatSkip(0);
       setIsConversationSwitching(true);
       setChatList([]); // Clear old messages immediately to avoid displaying incorrect data
       setHasMoreMessages(false);
       setHasNewMessage(false);
       setIsAtBottom(true);
       setSentiment(props.selectedConversation.sentiment as string);
-
-      // Add a small timeout to ensure state has been updated
-      setTimeout(() => {
-        if (props.selectedConversation?.id) {
-          fetchConversationMessages(props.selectedConversation.id)
-            .then((response) => {
-              if (response.data && response.data.length > 0) {
-                // Make sure to scroll to bottom after messages are loaded
-                requestAnimationFrame(() => {
-                  scrollToBottom();
-                  setTimeout(() => {
-                    setIsConversationSwitching(false);
-                  }, 200);
-                });
-              } else {
-                setIsConversationSwitching(false);
-              }
-            })
-            .catch((error) => {
-              console.error("Error fetching messages:", error);
-              setIsConversationSwitching(false);
-            });
-        }
-      }, 50);
     }
   }, [props.selectedConversation?.id]);
+
+  useEffect(() => {
+    if (isConversationSwitching && props.selectedConversation?.id) {
+      fetchConversationMessages(props.selectedConversation.id)
+        .then((response) => {
+          if (response.data && response.data.length > 0) {
+            // Make sure to scroll to bottom after messages are loaded
+            requestAnimationFrame(() => {
+              scrollToBottom();
+              setTimeout(() => {
+                setIsConversationSwitching(false);
+              }, 200);
+            });
+          } else {
+            setIsConversationSwitching(false);
+          }
+        })
+        .catch((error) => {
+          console.error("Error fetching messages:", error);
+          setIsConversationSwitching(false);
+        });
+    }
+  }, [isConversationSwitching]);
 
   // Separate useEffect to handle scroll when conversation changes
   useEffect(() => {
@@ -273,7 +275,6 @@ export default function ChatArea(props: ChatAreaProps) {
       props.selectedConversation?.id &&
       !isLoadingMessages &&
       chatList.length > 0 &&
-      chatSkip === 0 &&
       isConversationSwitching
     ) {
       scrollToBottom();
@@ -281,14 +282,13 @@ export default function ChatArea(props: ChatAreaProps) {
   }, [
     isLoadingMessages,
     props.selectedConversation?.id,
-    chatSkip === 0,
     isConversationSwitching,
   ]);
 
   // Update useEffect to not call API when loading
   useEffect(() => {
     // Only call when skip > 0 (not the first time) and a conversation is selected
-    if (chatSkip > 0 && props.selectedConversation?.id && !isLoadingMessages) {
+    if (props.selectedConversation?.id && !isLoadingMessages) {
       setIsLoadingMessages(true);
       fetchConversationMessages(props.selectedConversation.id, true).finally(
         () => {
@@ -296,7 +296,7 @@ export default function ChatArea(props: ChatAreaProps) {
         }
       );
     }
-  }, [chatSkip, props.selectedConversation?.id]);
+  }, [props.selectedConversation?.id]);
 
   // Add useEffect to handle maintaining scroll position
   useEffect(() => {
@@ -409,15 +409,15 @@ export default function ChatArea(props: ChatAreaProps) {
               !isConversationSwitching &&
               target.scrollTop < 50 &&
               hasMoreMessages &&
-              !isLoadingMessages
+              !isLoadingMessages &&
+              props.selectedConversation?.id
             ) {
               // Save current scroll height and position before loading more messages
               prevScrollHeight.current = target.scrollHeight;
               prevScrollTop.current = target.scrollTop;
 
-              // Increase skip to load older messages
-              const newSkip = chatSkip + messageLimit;
-              setChatSkip(newSkip);
+              // Load more messages by calling the function directly
+              fetchConversationMessages(props.selectedConversation.id, true);
             }
           }}
         >
