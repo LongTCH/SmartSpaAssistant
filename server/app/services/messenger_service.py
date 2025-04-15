@@ -1,21 +1,22 @@
-from app.configs.database import async_session, get_session
-from starlette.responses import Response as HttpResponse
+from app.configs.database import async_session
 import asyncio
 import aiohttp
-import time
-from typing import Dict, List, Optional, Any
+from datetime import datetime
+from typing import Dict, Any
 from app.configs import env_config
 import re
 from app.services.connection_manager import manager
 from app.dtos import WsMessageDto
-from app.models import Guest
-from app.services import conversation_service
+from app.models import Guest, Chat
+from app.services import conversation_service, sentiment_service
 from sqlalchemy.ext.asyncio import AsyncSession
 from app.configs.constants import WS_MESSAGES, CHAT_SIDES, PROVIDERS
 import requests
 import datetime
 import os
 from app.configs.database import async_session
+from app.stores.store import LOCAL_DATA
+from app.repositories import chat_repository, guest_repository
 
 SENDER_ACTION = {
     "mark_seen": "mark_seen",
@@ -27,11 +28,27 @@ SENDER_ACTION = {
 map_message: Dict[str, Dict[str, Any]] = {}
 
 
-async def save_message(db: AsyncSession, guest_id, side, text, attachments, created_at):
+async def save_message(db: AsyncSession, guest_id: str, side: str, text: str, attachments: list, created_at: datetime):
     """
     Lưu tin nhắn vào cơ sở dữ liệu hoặc bộ nhớ tạm thời
     """
-    return await conversation_service.insert_chat(db, guest_id=guest_id, side=side, text=text, attachments=attachments, created_at=created_at)
+    message = {
+        "text": text,
+        "attachments": attachments
+    }
+    content = {
+        "side": side,
+        "message": message
+    }
+    chat = Chat(guest_id=guest_id, content=content, created_at=created_at)
+    await chat_repository.insert_chat(db, chat)
+    # increase message count
+    await guest_repository.increase_message_count(db, guest_id)
+    # update last message
+    guest = await guest_repository.update_last_message(db, guest_id, chat.content, chat.created_at)
+    await db.commit()
+    await db.refresh(guest)
+    return guest
 
 
 async def get_conversation(db: AsyncSession, sender_psid):
@@ -68,15 +85,16 @@ async def insert_guest(db: AsyncSession, sender_id):
                 if image_response.status_code != 200:
                     return {"error": "Không thể tải ảnh từ URL."}
 
+                fullname = data.get("last_name") + " " + data.get("first_name")
+                guest = Guest(account_id=account_id, account_name=account_name,
+                              gender=gender, provider=PROVIDERS.MESSENGER, fullname=fullname)
                 image_path = os.path.join(
-                    "static", "images", f"{sender_id}.jpg")
-                avatar_url = f"{env_config.BASE_URL}/static/images/{sender_id}.jpg"
+                    "static", "images", f"{guest.id}.jpg")
+                avatar_url = f"{env_config.BASE_URL}/static/images/{guest.id}.jpg"
                 # Lưu ảnh vào thư mục 'images'
                 with open(image_path, "wb") as f:
                     f.write(image_response.content)
-                fullname = data.get("last_name") + " " + data.get("first_name")
-                guest = Guest(account_id=account_id, account_name=account_name,
-                              avatar=avatar_url, gender=gender, provider=PROVIDERS.MESSENGER, fullname=fullname)
+                guest.avatar = avatar_url
                 return await conversation_service.insert_guest(db, guest)
             else:
                 print(f"Error fetching user info: {response.status}")
@@ -93,10 +111,8 @@ async def send_message_to_ws(guest: Guest):
     )
     await manager.broadcast(message)
 
-
-# In your file imports, add:
-
 # Replace process_message with this fixed version:
+
 
 async def process_message(sender_psid, receipient_psid, timestamp, webhook_event, db: AsyncSession):
     """
@@ -113,8 +129,7 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                 guest = await get_conversation(db, receipient_psid)
                 if guest:
                     # Convert millisecond timestamp to seconds for proper datetime handling
-                    chat = await save_message(db, guest.id, CHAT_SIDES.STAFF, text, attachments, created_at)
-                    guest = await conversation_service.update_last_message(db, guest.id, chat)
+                    guest = await save_message(db, guest.id, CHAT_SIDES.STAFF, text, attachments, created_at)
                     await send_message_to_ws(guest)
                 return
 
@@ -127,8 +142,7 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                         f"Failed to create guest for sender_psid: {sender_psid}")
                     return
 
-            chat = await save_message(db, guest.id, CHAT_SIDES.CLIENT, text, attachments, created_at)
-            guest = await conversation_service.update_last_message(db, guest.id, chat)
+            guest = await save_message(db, guest.id, CHAT_SIDES.CLIENT, text, attachments, created_at)
             await send_message_to_ws(guest)
 
             # Khởi tạo hoặc cập nhật thông tin tin nhắn cho người dùng
@@ -152,13 +166,13 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
 
             # Tạo timer mới với db session được truyền vào
             map_message[sender_psid]["timer"] = asyncio.create_task(
-                process_after_wait(sender_psid, env_config.CHAT_WAIT_SECONDS))
+                process_after_wait(sender_psid, LOCAL_DATA.chat_wait_seconds, guest, db))
     except Exception as e:
         print(f"Error in process_message: {e}")
         # Don't close the session here, it's managed by the caller
 
 
-async def process_after_wait(sender_psid, wait_seconds):
+async def process_after_wait(sender_psid, wait_seconds: float, guest: Guest, db: AsyncSession = None):
     """
     Đợi một khoảng thời gian rồi xử lý tin nhắn tích lũy
     """
@@ -175,6 +189,8 @@ async def process_after_wait(sender_psid, wait_seconds):
 
             # Xóa dữ liệu người dùng
             del map_message[sender_psid]
+
+            await sentiment_service.analyze_sentiment(db, guest)
 
             # Gộp tin nhắn
             combined_message = combine_messages(texts, attachments)

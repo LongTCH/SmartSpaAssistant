@@ -2,7 +2,7 @@ import asyncio
 import asyncpg
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession
 from sqlalchemy.orm import sessionmaker
-from sqlalchemy import MetaData, Table, Column, String, Text, DateTime
+from sqlalchemy import MetaData, Table, Column, String, Text, DateTime, Integer
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 import datetime
 
@@ -50,7 +50,9 @@ async def create_and_insert_guests():
             Column('address', Text),
             Column('last_message_at', DateTime, default=datetime.datetime.now),
             Column('last_message', JSONB),
-            Column('created_at', DateTime, default=datetime.datetime.now)
+            Column('created_at', DateTime, default=datetime.datetime.now),
+            Column('message_count', Integer, default=0),
+            Column('sentiment', String(50), default='neutral')
         )
 
         async with engine.begin() as conn:

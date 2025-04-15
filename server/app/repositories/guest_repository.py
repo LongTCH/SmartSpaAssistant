@@ -1,5 +1,4 @@
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import delete
 from app.models import Guest
 from sqlalchemy.future import select
 
@@ -32,8 +31,6 @@ async def get_conversation_by_provider(db: AsyncSession, provider: str, account_
 
 async def insert_guest(db: AsyncSession, guest: Guest) -> Guest:
     db.add(guest)
-    await db.commit()
-    await db.refresh(guest)
     return guest
 
 
@@ -44,7 +41,35 @@ async def update_last_message(db: AsyncSession, guest_id: str, last_message, las
     if guest:
         guest.last_message_at = last_message_at
         guest.last_message = last_message
-        await db.commit()
-        await db.refresh(guest)
+        return guest
+    return None
+
+
+async def update_sentiment(db: AsyncSession, guest_id: str, sentiment: str) -> Guest:
+    stmt = select(Guest).where(Guest.id == guest_id)
+    result = await db.execute(stmt)
+    guest = result.scalars().first()
+    if guest:
+        guest.sentiment = sentiment
+        return guest
+    return None
+
+
+async def increase_message_count(db: AsyncSession, guest_id: str) -> Guest:
+    stmt = select(Guest).where(Guest.id == guest_id)
+    result = await db.execute(stmt)
+    guest = result.scalars().first()
+    if guest:
+        guest.message_count += 1
+        return guest
+    return None
+
+
+async def reset_message_count(db: AsyncSession, guest_id: str) -> Guest:
+    stmt = select(Guest).where(Guest.id == guest_id)
+    result = await db.execute(stmt)
+    guest = result.scalars().first()
+    if guest:
+        guest.message_count = 0
         return guest
     return None

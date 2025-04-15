@@ -39,3 +39,9 @@ export const APP_ROUTES = {
     UPLOAD_PROGRESS: (id: string) => `/documents/upload-progress/${id}`,
   },
 };
+
+export const WS_MESSAGES = {
+  CONNECTED: "CONNECTED",
+  INBOX: "INBOX",
+  UPDATE_SENTIMENT: "UPDATE_SENTIMENT",
+};

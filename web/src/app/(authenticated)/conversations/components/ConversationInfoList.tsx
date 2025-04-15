@@ -3,6 +3,7 @@ import ConversationInfo from "./ConversationInfo";
 import { useState, useEffect, useRef } from "react";
 import { conversationService } from "@/services/api/conversation.service";
 import { useApp } from "@/context/app-context";
+import { WS_MESSAGES } from "@/lib/constants";
 
 interface ConversationInfoListProps {
   selectedConversation: Conversation | null;
@@ -15,7 +16,7 @@ interface ConversationInfoListProps {
 }
 
 export default function ConversationInfoList(props: ConversationInfoListProps) {
-  const conversationLimit = 10;
+  const conversationLimit = 20;
   const [skip, setSkip] = useState<number>(0);
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [hasNext, setHasNext] = useState<boolean>(false);
@@ -91,13 +92,30 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
   // Register WebSocket handler
   useEffect(() => {
     // Register handler for "INBOX" messages
-    const unregister = registerMessageHandler("INBOX", (data) => {
-      handleNewConversation(data as Conversation);
-    });
+    const unregisterInbox = registerMessageHandler(
+      WS_MESSAGES.INBOX,
+      (data) => {
+        handleNewConversation(data as Conversation);
+      }
+    );
+    const unregisterSentiment = registerMessageHandler(
+      WS_MESSAGES.UPDATE_SENTIMENT,
+      (data) => {
+        const conversation = data as Conversation;
+        setConversations((prevConversations) =>
+          prevConversations.map((conv) =>
+            conv.id === conversation.id
+              ? { ...conv, sentiment: conversation.sentiment }
+              : conv
+          )
+        );
+      }
+    );
 
     // Cleanup when component unmounts
     return () => {
-      unregister();
+      unregisterInbox();
+      unregisterSentiment();
     };
   }, [props.selectedConversation, registerMessageHandler]);
 

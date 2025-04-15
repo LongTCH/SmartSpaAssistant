@@ -59,12 +59,6 @@ export default function ChatInterface() {
     });
   };
 
-  // Handle when ChatArea adds a new message
-  const handleNewMessageAdded = (chat: Chat) => {
-    // Additional handling if needed
-    console.log("New message added to chat:", chat);
-  };
-
   return (
     <div className="flex flex-col" style={{ height: contentHeight }}>
       {/* Main Content */}
@@ -100,7 +94,6 @@ export default function ChatInterface() {
         {/* Middle - Chat Area */}
         <ChatArea
           selectedConversation={selectedConversation}
-          onNewMessageAdded={handleNewMessageAdded}
           onConversationRead={handleConversationRead}
         />
 

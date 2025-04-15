@@ -70,7 +70,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {
-        console.log("WebSocket connected");
         setIsWebSocketConnected(true);
       };
 

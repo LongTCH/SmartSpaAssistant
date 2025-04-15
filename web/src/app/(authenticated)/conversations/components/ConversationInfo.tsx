@@ -58,14 +58,6 @@ export default function ConversationInfo({
     return "just now";
   };
 
-  const getSentiment = () => {
-    return Date.now() % 3 === 2
-      ? "positive"
-      : Date.now() % 3 === 1
-      ? "negative"
-      : "neutral";
-  };
-
   const getLastMessage = (content: ChatContent) => {
     let message = "";
     if (content.side === "staff") {
@@ -83,9 +75,9 @@ export default function ConversationInfo({
       className={`p-3 border-b hover:bg-indigo-50 cursor-pointer ${
         isSelected ? "bg-indigo-50" : ""
       } ${
-        getSentiment() === "negative"
+        item.sentiment === "negative"
           ? "border-l-4 border-l-red-500"
-          : getSentiment() === "positive"
+          : item.sentiment === "positive"
           ? "border-l-4 border-l-green-500"
           : "border-l-4"
       } ${isUnread ? "bg-blue-50/60" : ""}`}

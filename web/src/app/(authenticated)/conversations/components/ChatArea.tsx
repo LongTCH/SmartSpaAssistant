@@ -9,7 +9,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Frown, Info, ChevronDown } from "lucide-react";
+import { Frown, Info, ChevronDown, Smile } from "lucide-react";
 import {
   Popover,
   PopoverContent,
@@ -17,11 +17,12 @@ import {
 } from "@/components/ui/popover";
 import { useState, useEffect, useRef } from "react";
 import { conversationService } from "@/services/api/conversation.service";
-import { Conversation, Chat, ChatContent } from "@/types";
+import { Conversation, Chat, SentimentType } from "@/types";
 import { getBadge } from "./ConversationInfo";
 import { useApp } from "@/context/app-context";
 import { MarkdownContent } from "@/components/markdown-content";
 import { AttachmentViewer } from "@/components/attachment-viewer";
+import { WS_MESSAGES } from "@/lib/constants";
 
 interface ChatAreaProps {
   selectedConversation: Conversation | null;
@@ -33,7 +34,8 @@ export default function ChatArea(props: ChatAreaProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [chatSkip, setChatSkip] = useState<number>(0);
   const [chatList, setChatList] = useState<Chat[]>([]);
-  const messageLimit = 10; // Limit the number of messages loaded each time
+  const [sentiment, setSentiment] = useState<string>("neutral");
+  const messageLimit = 20; // Limit the number of messages loaded each time
 
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeight = useRef<number>(0);
@@ -47,6 +49,43 @@ export default function ChatArea(props: ChatAreaProps) {
 
   // Use the WebSocket context from app-context
   const { registerMessageHandler } = useApp();
+
+  const getSentimentPopover = (sentiment: string) => {
+    if (sentiment === "neutral") {
+      return <></>;
+    }
+
+    return (
+      <Popover>
+        {sentiment === "negative" ? (
+          <PopoverTrigger asChild>
+            <Button variant="link" size="icon" className="w-5 h-5 rounded-full">
+              <Frown className="h-6 w-6 text-red-500" />
+            </Button>
+          </PopoverTrigger>
+        ) : (
+          <PopoverTrigger asChild>
+            <Button variant="link" size="icon" className="w-5 h-5 rounded-full">
+              <Smile className="h-6 w-6 text-green-500" />
+            </Button>
+          </PopoverTrigger>
+        )}
+        {/* Popover content */}
+        <PopoverContent className="w-80 p-4">
+          <div className="space-y-2">
+            <h4 className="font-medium">Dự đoán cảm xúc</h4>
+            <p className="text-sm text-gray-500">
+              AI dự đoán cảm xúc của người dùng trong đoạn hội thoại là{" "}
+              <strong>
+                {sentiment === "negative" ? "tiêu cực" : "tích cực"}
+              </strong>
+              .
+            </p>
+          </div>
+        </PopoverContent>
+      </Popover>
+    );
+  };
 
   const fetchConversationMessages = async (
     conversationId: string,
@@ -137,6 +176,9 @@ export default function ChatArea(props: ChatAreaProps) {
           props.onNewMessageAdded(newChat);
         }
       }
+      if (sentiment !== conversation.sentiment) {
+        setSentiment(conversation.sentiment as string);
+      }
     }
   };
 
@@ -160,7 +202,7 @@ export default function ChatArea(props: ChatAreaProps) {
 
   // Register WebSocket message handler for INBOX messages
   useEffect(() => {
-    const unregister = registerMessageHandler("INBOX", (data) => {
+    const unregister = registerMessageHandler(WS_MESSAGES.INBOX, (data) => {
       const conversation = data as Conversation;
       handleIncomingMessage(conversation);
     });
@@ -169,6 +211,22 @@ export default function ChatArea(props: ChatAreaProps) {
       unregister();
     };
   }, [props.selectedConversation?.id, isAtBottom]);
+
+  useEffect(() => {
+    const unregister = registerMessageHandler(
+      WS_MESSAGES.UPDATE_SENTIMENT,
+      (data) => {
+        const conversation = data as Conversation;
+        if (props.selectedConversation?.id === conversation.id) {
+          setSentiment(conversation.sentiment as string);
+        }
+      }
+    );
+
+    return () => {
+      unregister();
+    };
+  }, [props.selectedConversation?.id]);
 
   // Handle conversation change
   useEffect(() => {
@@ -180,6 +238,7 @@ export default function ChatArea(props: ChatAreaProps) {
       setHasMoreMessages(false);
       setHasNewMessage(false);
       setIsAtBottom(true);
+      setSentiment(props.selectedConversation.sentiment as string);
 
       // Add a small timeout to ensure state has been updated
       setTimeout(() => {
@@ -294,26 +353,7 @@ export default function ChatArea(props: ChatAreaProps) {
               {props.selectedConversation?.account_name}
             </span>
             {getBadge(props.selectedConversation?.provider)}
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button
-                  variant="link"
-                  size="icon"
-                  className="w-5 h-5 rounded-full bg-red-500 flex items-center justify-center mr-4"
-                >
-                  <Frown className="h-6 w-6 text-white" />
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-80 p-4">
-                <div className="space-y-2">
-                  <h4 className="font-medium">Sentiment Prediction</h4>
-                  <p className="text-sm text-gray-500">
-                    AI predicts the user's sentiment in this conversation as{" "}
-                    <strong>negative</strong>.
-                  </p>
-                </div>
-              </PopoverContent>
-            </Popover>
+            {sentiment && getSentimentPopover(sentiment as string)}
           </div>
 
           <div className="flex items-center space-x-2">

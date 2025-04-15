@@ -18,6 +18,4 @@ async def get_chat_by_guest_id(db: AsyncSession, guest_id: str, skip: int, limit
 
 async def insert_chat(db: AsyncSession, chat: Chat) -> Chat:
     db.add(chat)
-    await db.commit()
-    await db.refresh(chat)
     return chat
