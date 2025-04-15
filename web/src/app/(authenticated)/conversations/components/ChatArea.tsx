@@ -23,6 +23,7 @@ import { useApp } from "@/context/app-context";
 import { MarkdownContent } from "@/components/markdown-content";
 import { AttachmentViewer } from "@/components/attachment-viewer";
 import { WS_MESSAGES } from "@/lib/constants";
+import { toast } from "sonner";
 
 interface ChatAreaProps {
   selectedConversation: Conversation | null;
@@ -45,6 +46,7 @@ export default function ChatArea(props: ChatAreaProps) {
   const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
   const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(false);
   const [isConversationSwitching, setIsConversationSwitching] = useState(false);
+  const [currentAssignment, setCurrentAssignment] = useState<string>("ai");
 
   // Use the WebSocket context from app-context
   const { registerMessageHandler } = useApp();
@@ -339,6 +341,13 @@ export default function ChatArea(props: ChatAreaProps) {
     }
   }, [chatList, isLoadingMessages]);
 
+  // Cập nhật currentAssignment khi props.selectedConversation thay đổi
+  useEffect(() => {
+    if (props.selectedConversation) {
+      setCurrentAssignment(props.selectedConversation.assigned_to || "ai");
+    }
+  }, [props.selectedConversation]);
+
   return (
     <div className="flex-1 flex flex-col bg-gray-50">
       {/* Chat Header */}
@@ -357,14 +366,39 @@ export default function ChatArea(props: ChatAreaProps) {
           </div>
 
           <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600">Assign to</span>
-            <Select defaultValue="ai">
+            <span className="text-sm text-gray-600">Giao cho</span>
+            <Select
+              value={currentAssignment}
+              onValueChange={async (value: string) => {
+                if (props.selectedConversation?.id) {
+                  try {
+                    // Cập nhật state trước để UI phản hồi ngay lập tức
+
+                    // Cập nhật trạng thái phụ trách trên server
+                    await conversationService.updateAssignment(
+                      props.selectedConversation.id,
+                      value
+                    );
+                    setCurrentAssignment(value);
+
+                    // Hiển thị thông báo thành công
+                    toast.success(
+                      `Đã giao cho ${value === "ai" ? "AI" : "Tôi"}`
+                    );
+                  } catch (error) {
+                    console.error("Lỗi khi cập nhật người phụ trách:", error);
+                    toast.error("Lỗi khi cập nhật người phụ trách");
+                  }
+                }
+              }}
+              disabled={!props.selectedConversation}
+            >
               <SelectTrigger className="w-[120px] h-8">
                 <SelectValue placeholder="AI" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="ai">AI</SelectItem>
-                <SelectItem value="me">Me</SelectItem>
+                <SelectItem value="me">Tôi</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -549,7 +583,7 @@ export default function ChatArea(props: ChatAreaProps) {
               className="flex items-center gap-1.5 shadow-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200 font-medium px-4 py-2 rounded-full animate-pulse"
             >
               <ChevronDown className="w-4 h-4" />
-              New message
+              Tin nhắn mới
             </Button>
           </div>
         )}
@@ -557,7 +591,7 @@ export default function ChatArea(props: ChatAreaProps) {
         {/* Fixed System Message at Bottom */}
         <div className="p-2 border-t bg-white sticky bottom-0 z-10">
           <div className="text-xs text-gray-500 text-center bg-gray-50 py-2 rounded border border-gray-200">
-            Sorry, direct messaging is not supported.
+            Xin lỗi, nhắn tin trực tiếp không được hỗ trợ.
           </div>
         </div>
       </div>

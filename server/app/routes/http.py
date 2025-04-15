@@ -112,7 +112,11 @@ async def get_conversations(request: Request, db: AsyncSession = Depends(get_ses
     """
     skip = int(request.query_params.get("skip", 0))
     limit = int(request.query_params.get("limit", 10))
-    conversations = await guest_service.get_conversations(db, skip, limit)
+    assigned_to = request.query_params.get("assigned_to", "all")
+    if assigned_to == "all":
+        conversations = await guest_service.get_conversations(db, skip, limit)
+        return conversations
+    conversations = await guest_service.get_conversations_by_assignment(db, assigned_to, skip, limit)
     return conversations
 
 
@@ -130,6 +134,23 @@ async def get_conversations_by_sentiment(request: Request, db: AsyncSession = De
 
     conversations = await guest_service.get_paging_guests_by_sentiment(db, sentiment, skip, limit)
     return conversations
+
+
+@http_router.patch("/conversations/{guest_id}/assignment")
+async def update_assignment(guest_id: str, request: Request, db: AsyncSession = Depends(get_session)):
+    """
+    Update the assignment of a conversation.
+    """
+    body = await request.json()
+    assigned_to = body.get("assigned_to")
+
+    if not assigned_to:
+        raise HTTPException(status_code=400, detail="assigned_to is required")
+
+    guest = await guest_service.update_assignment(db, guest_id, assigned_to)
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    return guest
 
 
 @http_router.get("/conversations/{guest_id}")

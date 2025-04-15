@@ -52,7 +52,8 @@ async def create_and_insert_guests():
             Column('last_message', JSONB),
             Column('created_at', DateTime, default=datetime.datetime.now),
             Column('message_count', Integer, default=0),
-            Column('sentiment', String(50), default='neutral')
+            Column('sentiment', String(50), default='neutral'),
+            Column('assigned_to', String(50)),
         )
 
         async with engine.begin() as conn:
@@ -72,7 +73,7 @@ async def create_and_insert_guests():
                 await conn.execute('''
                 INSERT INTO guests (id, provider, account_id, account_name, avatar, fullname, 
                                 gender, birthday, phone, email, address, last_message_at, last_message, sentiment, message_count)
-                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16)
                 ON CONFLICT (id) DO UPDATE SET
                     provider = EXCLUDED.provider,
                     account_id = EXCLUDED.account_id,
@@ -87,14 +88,15 @@ async def create_and_insert_guests():
                     last_message_at = EXCLUDED.last_message_at,
                     last_message = EXCLUDED.last_message,
                     sentiment = EXCLUDED.sentiment,
-                    message_count = EXCLUDED.message_count
+                    message_count = EXCLUDED.message_count,
+                    assigned_to = EXCLUDED.assigned_to
                 ''',
                                    customer['id'], customer['provider'], customer['account_id'],
                                    customer['account_name'], customer['avatar'], customer['fullname'],
                                    customer['gender'], birthday, customer['phone'],
                                    customer['email'], customer['address'], last_message_at,
                                    json.dumps({}), customer['sentiment'],
-                                   customer['message_count'])
+                                   customer['message_count'], customer['assigned_to'])
 
         print(
             f"Successfully inserted {len(sample_customers)} customers into the guests table")

@@ -23,10 +23,11 @@ export interface ChatPagingResponse {
 export const conversationService = {
   async getPagingConversation(
     skip: number,
-    limit: number
+    limit: number,
+    assigned_to: string
   ): Promise<ConversationsPagingResponse> {
     const response = await apiClient.instance.get(API_ROUTES.CONVERSATION.GET, {
-      params: { skip, limit },
+      params: { skip, limit, assigned_to },
     });
     return response.data as ConversationsPagingResponse;
   },
@@ -36,9 +37,12 @@ export const conversationService = {
     limit: number,
     sentiment: string
   ): Promise<ConversationsPagingResponse> {
-    const response = await apiClient.instance.get(API_ROUTES.CONVERSATION.GET_SENTIMENT, {
-      params: { skip, limit, sentiment },
-    });
+    const response = await apiClient.instance.get(
+      API_ROUTES.CONVERSATION.GET_SENTIMENT,
+      {
+        params: { skip, limit, sentiment },
+      }
+    );
     return response.data as ConversationsPagingResponse;
   },
 
@@ -54,5 +58,13 @@ export const conversationService = {
       }
     );
     return response.data as ChatPagingResponse;
+  },
+
+  async updateAssignment(guestId: string, assigned_to: string) {
+    const response = await apiClient.instance.patch(
+      API_ROUTES.CONVERSATION.UPDATE_ASSIGNMENT(guestId),
+      { assigned_to }
+    );
+    return response.data;
   },
 };

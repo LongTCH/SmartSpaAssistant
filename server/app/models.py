@@ -3,7 +3,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from app.configs.database import Base
 import uuid
 import datetime
-from app.configs.constants import SENTIMENTS
+from app.configs.constants import SENTIMENTS, CHAT_ASSIGNMENT
 
 
 class FileMetaData(Base):
@@ -45,6 +45,7 @@ class Guest(Base):
     created_at = Column(DateTime, default=datetime.datetime.now)
     message_count = Column(Integer, default=0)
     sentiment = Column(String(50), default=SENTIMENTS.NEUTRAL.value)
+    assigned_to = Column(String(50), default=CHAT_ASSIGNMENT.AI.value)
 
     def to_dict(self):
         return {
@@ -63,7 +64,8 @@ class Guest(Base):
             'last_message': self.last_message,
             'created_at': self.created_at.isoformat() if self.created_at else None,
             'message_count': self.message_count,
-            'sentiment': self.sentiment
+            'sentiment': self.sentiment,
+            'assigned_to': self.assigned_to
         }
 
 

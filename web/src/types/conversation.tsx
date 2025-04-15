@@ -2,6 +2,7 @@ export type ProviderType = "messenger" | "web";
 export type ConversationalistType = "client" | "staff";
 export type ChatAttachmentType = "image" | "video" | "audio" | "file";
 export type SentimentType = "positive" | "negative" | "neutral";
+export type ChatAssignmentType = "ai" | "me" | "all";
 
 export interface Conversation {
   id: string;
@@ -11,6 +12,7 @@ export interface Conversation {
   last_message: ChatContent;
   provider: ProviderType;
   sentiment: SentimentType;
+  assigned_to: ChatAssignmentType;
 }
 
 export interface ChatAttachmentPayload {

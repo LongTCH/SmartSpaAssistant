@@ -22,6 +22,7 @@ export const API_ROUTES = {
     GET: "/conversations",
     DETAIL: (id: string) => `/conversations/${id}`,
     GET_SENTIMENT: "/conversations/sentiments",
+    UPDATE_ASSIGNMENT: (id: string) => `/conversations/${id}/assignment/`,
   },
 };
 

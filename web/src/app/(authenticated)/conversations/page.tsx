@@ -1,15 +1,7 @@
 "use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useApp } from "@/context/app-context";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { Chat, Conversation } from "@/types";
 import ConversationInfoList from "./components/ConversationInfoList";
 import ChatArea from "./components/ChatArea";
@@ -65,32 +57,14 @@ export default function ChatInterface() {
       {/* Main Content */}
       <div className="flex flex-1 overflow-hidden">
         {/* Left Sidebar - Conversation List */}
-        <div className="w-80 border-r flex flex-col bg-white">
-          <div className="p-4 border-b">
-            <div className="flex items-center justify-between">
-              <h3 className="text-sm text-gray-500 mr-2">Phụ trách bởi</h3>
-              <Select defaultValue="all">
-                <SelectTrigger className="h-9">
-                  <SelectValue placeholder="Tất cả" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tất cả</SelectItem>
-                  <SelectItem value="ai">AI</SelectItem>
-                  <SelectItem value="me">Tôi</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* Conversation Items */}
-          <ConversationInfoList
-            selectedConversation={selectedConversation}
-            setSelectedConversation={setSelectedConversation}
-            handleSelectConversation={handleSelectConversation}
-            onNewMessage={handleNewMessage}
-            unreadConversations={unreadConversations}
-          />
-        </div>
+        {/* Conversation Items */}
+        <ConversationInfoList
+          selectedConversation={selectedConversation}
+          setSelectedConversation={setSelectedConversation}
+          handleSelectConversation={handleSelectConversation}
+          onNewMessage={handleNewMessage}
+          unreadConversations={unreadConversations}
+        />
 
         {/* Middle - Chat Area */}
         <ChatArea

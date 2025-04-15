@@ -4,6 +4,14 @@ import { useState, useEffect, useRef } from "react";
 import { conversationService } from "@/services/api/conversation.service";
 import { useApp } from "@/context/app-context";
 import { WS_MESSAGES } from "@/lib/constants";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { ChatAssignmentType } from "@/types";
 
 interface ConversationInfoListProps {
   selectedConversation: Conversation | null;
@@ -20,6 +28,7 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [hasNext, setHasNext] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
+  const [assignedTo, setAssignedTo] = useState<ChatAssignmentType>("all");
 
   // Use the WebSocket context instead of creating a new connection
   const { registerMessageHandler } = useApp();
@@ -36,7 +45,8 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
 
       const response = await conversationService.getPagingConversation(
         skip,
-        conversationLimit
+        conversationLimit,
+        assignedTo
       );
 
       if (response.data.length !== 0) {
@@ -56,6 +66,10 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
           ]);
         }
         setHasNext(response.has_next || false);
+      } else {
+        if (isInitialLoad) {
+          setConversations([]);
+        }
       }
     } catch (error) {
       console.error("Error fetching conversations:", error);
@@ -63,6 +77,18 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
       setIsLoading(false);
     }
   };
+
+  // Mỗi khi assignedTo thay đổi, reset danh sách và tải lại từ đầu
+  useEffect(() => {
+    setConversations([]);
+    setHasNext(false);
+    fetchConversations(true);
+  }, [assignedTo]);
+
+  // Tải dữ liệu ban đầu khi component được mount
+  useEffect(() => {
+    fetchConversations(true);
+  }, []);
 
   // Handle new conversation from WebSocket
   const handleNewConversation = (conversation: Conversation) => {
@@ -125,47 +151,66 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
     };
   }, [props.selectedConversation, registerMessageHandler]);
 
-  useEffect(() => {
-    fetchConversations(true);
-  }, []);
-
   return (
-    <div
-      className="flex-1 overflow-auto"
-      onScroll={(e) => {
-        const target = e.target as HTMLDivElement;
-        // Check when user scrolls near the bottom
-        if (target.scrollHeight - target.scrollTop - target.clientHeight < 50) {
-          // Only load more if there's more data and not currently loading
-          if (hasNext && !isLoading) {
-            fetchConversations();
-          }
-        }
-      }}
-    >
-      {Array.isArray(conversations) && conversations.length > 0 ? (
-        <>
-          {conversations.map((item, index) => (
-            <ConversationInfo
-              key={item.id || index}
-              item={item}
-              onClick={() => props.handleSelectConversation(item)}
-              isSelected={props.selectedConversation?.id === item.id}
-              isUnread={props.unreadConversations?.has(item.id) || false}
-            />
-          ))}
-          {isLoading && (
-            <div className="p-4 text-center text-gray-500">
-              <span className="inline-block animate-spin mr-2">⟳</span>
-              Loading...
-            </div>
-          )}
-        </>
-      ) : (
-        <div className="flex-1 overflow-auto flex items-center justify-center text-gray-500">
-          No conversations yet
+    <div className="w-80 border-r flex flex-col bg-white">
+      <div className="p-4 border-b">
+        <div className="flex items-center justify-between">
+          <h3 className="text-sm text-gray-500 mr-2">Phụ trách bởi</h3>
+          <Select
+            value={assignedTo}
+            onValueChange={(value: ChatAssignmentType) => setAssignedTo(value)}
+          >
+            <SelectTrigger className="h-9 w-[120px]">
+              <SelectValue placeholder="Tất cả" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tất cả</SelectItem>
+              <SelectItem value="ai">AI</SelectItem>
+              <SelectItem value="me">Tôi</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
-      )}
+      </div>
+      <div
+        className="flex-1 overflow-auto"
+        onScroll={(e) => {
+          const target = e.target as HTMLDivElement;
+          // Check when user scrolls near the bottom
+          if (
+            target.scrollHeight - target.scrollTop - target.clientHeight <
+            50
+          ) {
+            // Only load more if there's more data and not currently loading
+            if (hasNext && !isLoading) {
+              fetchConversations();
+            }
+          }
+        }}
+      >
+        {Array.isArray(conversations) && conversations.length > 0 ? (
+          <>
+            {conversations.map((item, index) => (
+              <ConversationInfo
+                key={item.id || index}
+                item={item}
+                onClick={() => props.handleSelectConversation(item)}
+                isSelected={props.selectedConversation?.id === item.id}
+                isUnread={props.unreadConversations?.has(item.id) || false}
+              />
+            ))}
+            {isLoading && (
+              <div className="p-4 text-center text-gray-500">
+                <span className="inline-block animate-spin mr-2">⟳</span>
+                Loading...
+              </div>
+            )}
+          </>
+        ) : (
+          <div className="flex-1 overflow-auto flex items-center justify-center text-gray-500">
+            No conversations yet
+          </div>
+        )}
+      </div>
     </div>
   );
 }
