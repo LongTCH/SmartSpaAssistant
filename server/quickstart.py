@@ -5,98 +5,103 @@ def parse_and_format_message(message):
     # Define regex patterns for different types of links (image, video, file)
     media_patterns = {
         # Match image files
-        "image": r'!\[.*?\]\((https?://\S+\.(?:jpg|jpeg|png|gif|bmp|svg|webp))\)',
+        "image": r"!\[.*?\]\((https?://\S+\.(?:jpg|jpeg|png|gif|bmp|svg|webp))\)",
         # Match video files
-        "video": r'!\[.*?\]\((https?://\S+\.(?:mp4|mov|avi|mkv|flv))\)',
+        "video": r"!\[.*?\]\((https?://\S+\.(?:mp4|mov|avi|mkv|flv))\)",
         # Match file links
-        "file": r'!\[.*?\]\((https?://\S+\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))\)',
+        "file": r"!\[.*?\]\((https?://\S+\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))\)",
     }
 
     # If no media found, just return the text
     if not any(re.search(pattern, message) for pattern in media_patterns.values()):
         return [{"text": message.strip()}]
-    
+
     # Replace bold text (**) with italic text (*)
-    message = re.sub(r'\*\*(.*?)\*\*', r'*\1*', message)
-    
+    message = re.sub(r"\*\*(.*?)\*\*", r"*\1*", message)
+
     # Create a list to store media items with positions
     media_items = []
-    
-    # Create working copy of the message that we'll modify 
+
+    # Create working copy of the message that we'll modify
     working_message = message
-    
+
     # Find all media occurrences with their positions
     for media_type, pattern in media_patterns.items():
         for match in re.finditer(pattern, message):
             full_match = match.group(0)  # The entire markdown syntax
-            media_url = match.group(1)   # Just the URL part
+            media_url = match.group(1)  # Just the URL part
             start_pos = match.start()
             end_pos = match.end()
-            
+
             # Add to our media items list
-            media_items.append({
-                "type": media_type,
-                "url": media_url,
-                "start": start_pos,
-                "end": end_pos,
-                "full_match": full_match
-            })
-            
+            media_items.append(
+                {
+                    "type": media_type,
+                    "url": media_url,
+                    "start": start_pos,
+                    "end": end_pos,
+                    "full_match": full_match,
+                }
+            )
+
     # Sort media items by their position (from end to beginning to avoid position shifts)
     media_items.sort(key=lambda x: x["start"], reverse=True)
-    
+
     # Replace all media markdown with placeholders in our working copy
     for i, item in enumerate(media_items):
         placeholder = f"__MEDIA_PLACEHOLDER_{i}__"
-        working_message = working_message[:item["start"]] + placeholder + working_message[item["end"]:]
-    
+        working_message = (
+            working_message[: item["start"]]
+            + placeholder
+            + working_message[item["end"] :]
+        )
+
     # Split the modified message by placeholders
-    parts = re.split(r'__MEDIA_PLACEHOLDER_\d+__', working_message)
-    
+    parts = re.split(r"__MEDIA_PLACEHOLDER_\d+__", working_message)
+
     # Create the result with interleaved text and media
     result = []
     media_items.sort(key=lambda x: x["start"])  # Sort back to original order
-    
+
     # Add text parts (filtered to remove empty ones) and media parts in correct order
-    text_index = 0
     media_index = 0
-    
+
     # Combine parts keeping track of original positions
     combined_parts = []
-    
+
     # Add text parts first (removing empty ones)
     for i, text in enumerate(parts):
         if text and text.strip():
             # Find appropriate position
             start_pos = 0
             if i > 0 and media_index < len(media_items):
-                start_pos = media_items[i-1]["end"]
-            
-            combined_parts.append({
-                "type": "text",
-                "content": text.strip(),
-                "pos": start_pos
-            })
-    
+                start_pos = media_items[i - 1]["end"]
+
+            combined_parts.append(
+                {"type": "text", "content": text.strip(), "pos": start_pos}
+            )
+
     # Add media parts
     for item in media_items:
-        combined_parts.append({
-            "type": "media",
-            "media_type": item["type"],
-            "url": item["url"],
-            "pos": item["start"]
-        })
-    
+        combined_parts.append(
+            {
+                "type": "media",
+                "media_type": item["type"],
+                "url": item["url"],
+                "pos": item["start"],
+            }
+        )
+
     # Sort all parts by their position
     combined_parts.sort(key=lambda x: x["pos"])
-    
+
     # Convert to final output format
     for part in combined_parts:
         if part["type"] == "text":
             result.append({"text": part["content"]})
         else:
             result.append({"type": part["media_type"], "url": part["url"]})
-            
+
     return result
 
 

@@ -1,12 +1,13 @@
+import uuid
+
+import requests
 from app.configs import env_config
 from app.configs.qdrant import qdrant_client
-from qdrant_client.models import Filter, FieldCondition, MatchAny, FilterSelector
-import uuid
-from qdrant_client.http.models import PointStruct
-import requests
-from app.dtos import FileMetaData, ChunkWrapper, ProcessedFileData
-from app.services import google_service
+from app.dtos import ChunkWrapper, FileMetaData, ProcessedFileData
 from app.models import FileMetaData
+from app.services import google_service
+from qdrant_client.http.models import PointStruct
+from qdrant_client.models import FieldCondition, Filter, FilterSelector, MatchAny
 from tqdm import tqdm
 
 
@@ -18,17 +19,14 @@ def delete_vectors_by_file_metadatas(file_metadatas: list[FileMetaData]) -> bool
         points_selector=FilterSelector(
             filter=Filter(
                 must=[
-                    FieldCondition(
-                        key="metadata.file_id",
-                        match=MatchAny(any=file_ids)
-                    )
+                    FieldCondition(key="metadata.file_id", match=MatchAny(any=file_ids))
                 ]
             )
         ),
     )
 
     # Kiểm tra trạng thái của kết quả
-    if result.status == 'completed':
+    if result.status == "completed":
         return True
     else:
         return False
@@ -36,7 +34,7 @@ def delete_vectors_by_file_metadatas(file_metadatas: list[FileMetaData]) -> bool
 
 def send_file_to_webhook(file_handle, mime_type, webhook_url, file_name):
     """Gửi tệp nhị phân đến webhook."""
-    files = {'file': (file_name, file_handle, mime_type)}
+    files = {"file": (file_name, file_handle, mime_type)}
     response = requests.post(webhook_url, files=files)
     return response
 
@@ -49,29 +47,33 @@ def get_file_downloaded_mime_type(file_metadata: FileMetaData) -> str:
     return file_metadata.mime_type
 
 
-def insert_vectors_by_file_headers(file_headers, file_metadatas: list[FileMetaData]) -> None:
+def insert_vectors_by_file_headers(
+    file_headers, file_metadatas: list[FileMetaData]
+) -> None:
     for i, file_metadata in tqdm(enumerate(file_metadatas), desc="Processing files"):
         # files.append(('files', (file_metadata.name, fh, mime_type)))
         response = send_file_to_webhook(
             file_handle=file_headers[i],
             mime_type=get_file_downloaded_mime_type(file_metadata),
             webhook_url=env_config.N8N_RAG_FILE_WEBHOOK_URL,
-            file_name=file_metadata.id)
+            file_name=file_metadata.id,
+        )
 
 
 def insert_vectors_by_files(file_metadatas: list[FileMetaData], drive_service) -> None:
-    files = []
     for file_metadata in file_metadatas:
         # Tải file từ Google Drive
         fh, mime_type = google_service.download_file(
-            file_metadata.id, file_metadata.mime_type, drive_service)
+            file_metadata.id, file_metadata.mime_type, drive_service
+        )
 
         # files.append(('files', (file_metadata.name, fh, mime_type)))
         response = send_file_to_webhook(
             file_handle=fh,
             mime_type=mime_type,
             webhook_url=env_config.N8N_RAG_FILE_WEBHOOK_URL,
-            file_name=file_metadata.id)
+            file_name=file_metadata.id,
+        )
 
     # Gửi tệp đến webhook
     # response = requests.post(
@@ -92,8 +94,11 @@ def insert_vectors_by_processed_file_data(file_datas: list[ProcessedFileData]) -
         # print(
         #     f"Đã gửi tệp {file_version.id} đến webhook với mã phản hồi: {response.status_code}")
         # Chia văn bản thành các đoạn nhỏ
-        chunk_wrappers.extend(chunk_text_with_lines(
-            file_data.metadata.id, file_data.metadata.mime_type, text))
+        chunk_wrappers.extend(
+            chunk_text_with_lines(
+                file_data.metadata.id, file_data.metadata.mime_type, text
+            )
+        )
 
     for wrapper in tqdm(chunk_wrappers, desc="Tạo embeddings"):
         # Tạo embeddings cho từng đoạn
@@ -103,20 +108,21 @@ def insert_vectors_by_processed_file_data(file_datas: list[ProcessedFileData]) -
         point = PointStruct(
             id=str(uuid.uuid4()),
             vector=embedding,
-            payload={"content": wrapper.get_content(),
-                     "metadata": wrapper.get_metadata()},
+            payload={
+                "content": wrapper.get_content(),
+                "metadata": wrapper.get_metadata(),
+            },
         )
         points.append(point)
         if len(points) >= 10:
             qdrant_client.upsert(
                 collection_name=env_config.QDRANT_KNOWLEDGE_COLLECTION_NAME,
-                points=points
+                points=points,
             )
             points = []  # Đặt lại danh sách điểm sau khi chèn
     if points:
         qdrant_client.upsert(
-            collection_name=env_config.QDRANT_KNOWLEDGE_COLLECTION_NAME,
-            points=points
+            collection_name=env_config.QDRANT_KNOWLEDGE_COLLECTION_NAME, points=points
         )
 
 
@@ -172,8 +178,8 @@ def chunk_text_with_lines(file_id, mime_type, text, chunk_size=500, overlap=50):
             file_id=file_id,
             content=chunk_text,
             start_line=start_line + 1,  # Convert to 1-based index
-            end_line=end_line + 1,      # Convert to 1-based index
-            blob_type=mime_type
+            end_line=end_line + 1,  # Convert to 1-based index
+            blob_type=mime_type,
         )
         chunks.append(chunk)
 
@@ -239,8 +245,8 @@ def chunk_text_with_lines(file_id, mime_type, text, chunk_size=500, overlap=50):
             file_id=file_id,
             content=chunk_text,
             start_line=start_line + 1,  # Convert to 1-based index
-            end_line=end_line + 1,      # Convert to 1-based index
-            blob_type=mime_type
+            end_line=end_line + 1,  # Convert to 1-based index
+            blob_type=mime_type,
         )
         chunks.append(chunk)
 
@@ -250,6 +256,7 @@ def chunk_text_with_lines(file_id, mime_type, text, chunk_size=500, overlap=50):
             break
 
     return chunks
+
 
 # def chunk_text_with_lines(file_id, mime_type, text, chunk_size=500, overlap=50) -> list[ChunkWrapper]:
 #     """
@@ -399,7 +406,7 @@ def generate_embeddings_ollama(text):
     payload = {
         # Tên mô hình của Ollama (thay đổi theo mô hình bạn muốn sử dụng)
         "model": env_config.OLLAMA_EMBEDDINGS_MODEL,
-        "input": text
+        "input": text,
     }
 
     # Gửi request tới Ollama API để nhận embeddings
@@ -407,7 +414,7 @@ def generate_embeddings_ollama(text):
 
     # Kiểm tra phản hồi từ Ollama API
     if response.status_code == 200:
-        return response.json()['data'][0]['embedding']
+        return response.json()["data"][0]["embedding"]
     else:
         print("Error:", response.text)
         return None

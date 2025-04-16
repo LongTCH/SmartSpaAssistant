@@ -1,51 +1,54 @@
-from app.configs.database import async_session
 import asyncio
-import aiohttp
-from datetime import datetime
-from typing import Dict, Any
-from app.configs import env_config
-import re
-from app.services.connection_manager import manager
-from app.dtos import WsMessageDto
-from app.models import Guest, Chat
-from app.services import guest_service, sentiment_service
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.configs.constants import WS_MESSAGES, CHAT_SIDES, PROVIDERS
-import requests
 import datetime
 import os
+import re
+from datetime import datetime
+from typing import Any, Dict
+
+import aiohttp
+import requests
+from app.configs import env_config
+from app.configs.constants import CHAT_SIDES, PROVIDERS, WS_MESSAGES
 from app.configs.database import async_session
-from app.stores.store import LOCAL_DATA
+from app.dtos import WsMessageDto
+from app.models import Chat, Guest
 from app.repositories import chat_repository, guest_repository
+from app.services import guest_service, sentiment_service
+from app.services.connection_manager import manager
+from app.stores.store import LOCAL_DATA
+from sqlalchemy.ext.asyncio import AsyncSession
 
 SENDER_ACTION = {
     "mark_seen": "mark_seen",
     "typing_on": "typing_on",
-    "typing_off": "typing_off"
+    "typing_off": "typing_off",
 }
 
 # Cấu trúc để lưu trữ tin nhắn đợi xử lý
 map_message: Dict[str, Dict[str, Any]] = {}
 
 
-async def save_message(db: AsyncSession, guest_id: str, side: str, text: str, attachments: list, created_at: datetime):
+async def save_message(
+    db: AsyncSession,
+    guest_id: str,
+    side: str,
+    text: str,
+    attachments: list,
+    created_at: datetime,
+):
     """
     Lưu tin nhắn vào cơ sở dữ liệu hoặc bộ nhớ tạm thời
     """
-    message = {
-        "text": text,
-        "attachments": attachments
-    }
-    content = {
-        "side": side,
-        "message": message
-    }
+    message = {"text": text, "attachments": attachments}
+    content = {"side": side, "message": message}
     chat = Chat(guest_id=guest_id, content=content, created_at=created_at)
     await chat_repository.insert_chat(db, chat)
     # increase message count
     await guest_repository.increase_message_count(db, guest_id)
     # update last message
-    guest = await guest_repository.update_last_message(db, guest_id, chat.content, chat.created_at)
+    guest = await guest_repository.update_last_message(
+        db, guest_id, chat.content, chat.created_at
+    )
     await db.commit()
     await db.refresh(guest)
     return guest
@@ -55,7 +58,9 @@ async def get_conversation(db: AsyncSession, sender_psid):
     """
     Lấy thông tin cuộc trò chuyện từ cơ sở dữ liệu hoặc bộ nhớ tạm thời
     """
-    return await guest_service.get_conversation_by_provider(db, PROVIDERS.MESSENGER, sender_psid)
+    return await guest_service.get_conversation_by_provider(
+        db, PROVIDERS.MESSENGER, sender_psid
+    )
 
 
 async def insert_guest(db: AsyncSession, sender_id):
@@ -66,13 +71,10 @@ async def insert_guest(db: AsyncSession, sender_id):
     url = f"https://graph.facebook.com/v22.0/{sender_id}"
     params = {
         "access_token": env_config.PAGE_ACCESS_TOKEN,
-        "fields": "first_name,last_name,name,gender,picture"
+        "fields": "first_name,last_name,name,gender,picture",
     }
     image_url = f"https://graph.facebook.com/v22.0/{sender_id}/picture"
-    image_params = {
-        "access_token": env_config.PAGE_ACCESS_TOKEN,
-        "type": "large"
-    }
+    image_params = {"access_token": env_config.PAGE_ACCESS_TOKEN, "type": "large"}
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params) as response:
             if response.status == 200:
@@ -86,10 +88,14 @@ async def insert_guest(db: AsyncSession, sender_id):
                     return {"error": "Không thể tải ảnh từ URL."}
 
                 fullname = data.get("last_name") + " " + data.get("first_name")
-                guest = Guest(account_id=account_id, account_name=account_name,
-                              gender=gender, provider=PROVIDERS.MESSENGER, fullname=fullname)
-                image_path = os.path.join(
-                    "static", "images", f"{guest.id}.jpg")
+                guest = Guest(
+                    account_id=account_id,
+                    account_name=account_name,
+                    gender=gender,
+                    provider=PROVIDERS.MESSENGER,
+                    fullname=fullname,
+                )
+                image_path = os.path.join("static", "images", f"{guest.id}.jpg")
                 avatar_url = f"{env_config.BASE_URL}/static/images/{guest.id}.jpg"
                 # Lưu ảnh vào thư mục 'images'
                 with open(image_path, "wb") as f:
@@ -105,16 +111,16 @@ async def send_message_to_ws(guest: Guest):
     """
     Gửi tin nhắn đến WebSocket
     """
-    message = WsMessageDto(
-        message=WS_MESSAGES.INBOX,
-        data=guest.to_dict()
-    )
+    message = WsMessageDto(message=WS_MESSAGES.INBOX, data=guest.to_dict())
     await manager.broadcast(message)
+
 
 # Replace process_message with this fixed version:
 
 
-async def process_message(sender_psid, receipient_psid, timestamp, webhook_event, db: AsyncSession):
+async def process_message(
+    sender_psid, receipient_psid, timestamp, webhook_event, db: AsyncSession
+):
     """
     Process incoming messages and implements waiting logic
     """
@@ -129,7 +135,9 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                 guest = await get_conversation(db, receipient_psid)
                 if guest:
                     # Convert millisecond timestamp to seconds for proper datetime handling
-                    guest = await save_message(db, guest.id, CHAT_SIDES.STAFF, text, attachments, created_at)
+                    guest = await save_message(
+                        db, guest.id, CHAT_SIDES.STAFF, text, attachments, created_at
+                    )
                     await send_message_to_ws(guest)
                 return
 
@@ -138,11 +146,12 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
             if not guest:
                 guest = await insert_guest(db, sender_psid)
                 if not guest:
-                    print(
-                        f"Failed to create guest for sender_psid: {sender_psid}")
+                    print(f"Failed to create guest for sender_psid: {sender_psid}")
                     return
 
-            guest = await save_message(db, guest.id, CHAT_SIDES.CLIENT, text, attachments, created_at)
+            guest = await save_message(
+                db, guest.id, CHAT_SIDES.CLIENT, text, attachments, created_at
+            )
             await send_message_to_ws(guest)
 
             # Khởi tạo hoặc cập nhật thông tin tin nhắn cho người dùng
@@ -166,13 +175,16 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
 
             # Tạo timer mới với db session được truyền vào
             map_message[sender_psid]["timer"] = asyncio.create_task(
-                process_after_wait(sender_psid, LOCAL_DATA.chat_wait_seconds, guest, db))
+                process_after_wait(sender_psid, LOCAL_DATA.chat_wait_seconds, guest, db)
+            )
     except Exception as e:
         print(f"Error in process_message: {e}")
         # Don't close the session here, it's managed by the caller
 
 
-async def process_after_wait(sender_psid, wait_seconds: float, guest: Guest, db: AsyncSession = None):
+async def process_after_wait(
+    sender_psid, wait_seconds: float, guest: Guest, db: AsyncSession = None
+):
     """
     Đợi một khoảng thời gian rồi xử lý tin nhắn tích lũy
     """
@@ -235,8 +247,7 @@ async def handle_chat(sender_psid, message, db: AsyncSession = None):
             stop_typing = asyncio.Event()
 
             # Start typing indicator in a background task
-            typing_task = asyncio.create_task(
-                keep_typing(sender_psid, stop_typing))
+            typing_task = asyncio.create_task(keep_typing(sender_psid, stop_typing))
 
             # Handle the message
             response_text = await send_to_n8n(sender_psid, message)
@@ -246,17 +257,17 @@ async def handle_chat(sender_psid, message, db: AsyncSession = None):
             for part in message_parts:
                 try:
                     if part.get("text"):
-                        response = {
-                            "text": part["text"]
-                        }
+                        response = {"text": part["text"]}
                     elif part.get("type"):
                         response = {
-                            "attachments": [{
-                                "type": part["type"],
-                                "payload": {
-                                    "url": part["url"],
+                            "attachments": [
+                                {
+                                    "type": part["type"],
+                                    "payload": {
+                                        "url": part["url"],
+                                    },
                                 }
-                            }]
+                            ]
                         }
                     await call_send_api(sender_psid, response)
                     await asyncio.sleep(3)  # Delay between messages
@@ -314,8 +325,7 @@ def combine_messages(texts, attachments):
         # else:
         #     combine_attachments.append(f"{attachment_type}: {attachment}")
 
-    combine_attachments = "\n".join(
-        combine_attachments) if combine_attachments else ""
+    combine_attachments = "\n".join(combine_attachments) if combine_attachments else ""
 
     # Gộp nhiều tin nhắn
     combined_message = combine_texts
@@ -328,10 +338,7 @@ def combine_messages(texts, attachments):
 async def send_action(sender_psid, action):
     url = f"https://graph.facebook.com/v22.0/{env_config.PAGE_ID}/messages"
 
-    payload = {
-        "recipient": {"id": sender_psid},
-        "sender_action": action
-    }
+    payload = {"recipient": {"id": sender_psid}, "sender_action": action}
 
     params = {"access_token": env_config.PAGE_ACCESS_TOKEN}
 
@@ -362,13 +369,11 @@ async def handle_message(sender_psid, received_message):
     if received_message.get("text"):
         # Create the payload for a basic text message
         response_text = await send_to_n8n(sender_psid, received_message.get("text"))
-        response = {
-            "text": response_text
-        }
+        response = {"text": response_text}
         await call_send_api(sender_psid, response)
     elif received_message.get("attachments"):
         # Xử lý nhiều ảnh nếu có
-        attachments = received_message.get("attachments", [])
+        received_message.get("attachments", [])
 
         # Nếu chỉ có một ảnh, xử lý như cũ
         # if len(attachments) == 1:
@@ -422,13 +427,15 @@ async def call_send_api(sender_psid, response):
     payload = {
         "recipient": {"id": sender_psid},
         "messaging_type": "RESPONSE",
-        "message": response
+        "message": response,
     }
     params = {"access_token": env_config.PAGE_ACCESS_TOKEN}
     headers = {"Content-Type": "application/json"}
 
     async with aiohttp.ClientSession() as session:  # ✅ Tự động đóng session
-        async with session.post(url, json=payload, params=params, headers=headers) as response:
+        async with session.post(
+            url, json=payload, params=params, headers=headers
+        ) as response:
             pass
 
 
@@ -436,14 +443,13 @@ async def send_to_n8n(sender_psid, message):
     """
     Sends message to n8n webhook
     """
-    payload = {
-        "sender_psid": sender_psid,
-        "message": message
-    }
+    payload = {"sender_psid": sender_psid, "message": message}
 
     async with aiohttp.ClientSession() as session:
         try:
-            async with session.post(env_config.N8N_MESSAGE_WEBHOOK_URL, json=payload) as response:
+            async with session.post(
+                env_config.N8N_MESSAGE_WEBHOOK_URL, json=payload
+            ) as response:
                 if response.status == 200:
                     response_data = await response.text()
                     return response_data
@@ -457,11 +463,11 @@ def parse_and_format_message(message):
     # Define regex patterns for different types of links (image, video, file)
     media_patterns = {
         # Match image files
-        "image": r'!\[.*?\]\((https?://\S+\.(?:jpg|jpeg|png|gif|bmp|svg|webp))\)',
+        "image": r"!\[.*?\]\((https?://\S+\.(?:jpg|jpeg|png|gif|bmp|svg|webp))\)",
         # Match video files
-        "video": r'!\[.*?\]\((https?://\S+\.(?:mp4|mov|avi|mkv|flv))\)',
+        "video": r"!\[.*?\]\((https?://\S+\.(?:mp4|mov|avi|mkv|flv))\)",
         # Match file links
-        "file": r'!\[.*?\]\((https?://\S+\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))\)',
+        "file": r"!\[.*?\]\((https?://\S+\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))\)",
     }
 
     # If no media found, just return the text
@@ -481,18 +487,20 @@ def parse_and_format_message(message):
     for media_type, pattern in media_patterns.items():
         for match in re.finditer(pattern, message):
             full_match = match.group(0)  # The entire markdown syntax
-            media_url = match.group(1)   # Just the URL part
+            media_url = match.group(1)  # Just the URL part
             start_pos = match.start()
             end_pos = match.end()
 
             # Add to our media items list
-            media_items.append({
-                "type": media_type,
-                "url": media_url,
-                "start": start_pos,
-                "end": end_pos,
-                "full_match": full_match
-            })
+            media_items.append(
+                {
+                    "type": media_type,
+                    "url": media_url,
+                    "start": start_pos,
+                    "end": end_pos,
+                    "full_match": full_match,
+                }
+            )
 
     # Sort media items by their position (from end to beginning to avoid position shifts)
     media_items.sort(key=lambda x: x["start"], reverse=True)
@@ -500,18 +508,20 @@ def parse_and_format_message(message):
     # Replace all media markdown with placeholders in our working copy
     for i, item in enumerate(media_items):
         placeholder = f"__MEDIA_PLACEHOLDER_{i}__"
-        working_message = working_message[:item["start"]
-                                          ] + placeholder + working_message[item["end"]:]
+        working_message = (
+            working_message[: item["start"]]
+            + placeholder
+            + working_message[item["end"] :]
+        )
 
     # Split the modified message by placeholders
-    parts = re.split(r'__MEDIA_PLACEHOLDER_\d+__', working_message)
+    parts = re.split(r"__MEDIA_PLACEHOLDER_\d+__", working_message)
 
     # Create the result with interleaved text and media
     result = []
     media_items.sort(key=lambda x: x["start"])  # Sort back to original order
 
     # Add text parts (filtered to remove empty ones) and media parts in correct order
-    text_index = 0
     media_index = 0
 
     # Combine parts keeping track of original positions
@@ -523,22 +533,22 @@ def parse_and_format_message(message):
             # Find appropriate position
             start_pos = 0
             if i > 0 and media_index < len(media_items):
-                start_pos = media_items[i-1]["end"]
+                start_pos = media_items[i - 1]["end"]
 
-            combined_parts.append({
-                "type": "text",
-                "content": text.strip(),
-                "pos": start_pos
-            })
+            combined_parts.append(
+                {"type": "text", "content": text.strip(), "pos": start_pos}
+            )
 
     # Add media parts
     for item in media_items:
-        combined_parts.append({
-            "type": "media",
-            "media_type": item["type"],
-            "url": item["url"],
-            "pos": item["start"]
-        })
+        combined_parts.append(
+            {
+                "type": "media",
+                "media_type": item["type"],
+                "url": item["url"],
+                "pos": item["start"],
+            }
+        )
 
     # Sort all parts by their position
     combined_parts.sort(key=lambda x: x["pos"])

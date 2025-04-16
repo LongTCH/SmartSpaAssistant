@@ -1,20 +1,22 @@
-import os
-from app.dtos import FileMetaData, ProcessedFileData
+import csv
 import io
+import os
+
+from app.dtos import FileMetaData, ProcessedFileData
 from google.auth.transport.requests import Request
 from google.oauth2.credentials import Credentials
 from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 from googleapiclient.http import MediaIoBaseDownload
-import PyPDF2
-import csv
 
 # Scopes cho quyền truy cập Google Drive
 SCOPES = ["https://www.googleapis.com/auth/drive"]
 # Định nghĩa các mimeType được phép (google docs, spreadsheet)
-allowed_mime_types = ["application/vnd.google-apps.document",
-                      "application/vnd.google-apps.spreadsheet",]
+allowed_mime_types = [
+    "application/vnd.google-apps.document",
+    "application/vnd.google-apps.spreadsheet",
+]
 
 
 def init_drive_service():
@@ -35,8 +37,7 @@ def init_drive_service():
                 creds = None
         if not creds:
             # Nếu không thể làm mới, yêu cầu người dùng xác thực lại
-            flow = InstalledAppFlow.from_client_secrets_file(
-                "credentials.json", SCOPES)
+            flow = InstalledAppFlow.from_client_secrets_file("credentials.json", SCOPES)
             creds = flow.run_local_server(port=2345)
 
         # Lưu trữ token mới vào tệp token.json
@@ -55,15 +56,19 @@ def init_drive_service():
 def download_file(file_id, mime_type, service):
     """Download a file from Google Drive based on its MIME type."""
     processed_mime_type = mime_type
-    if mime_type == 'application/vnd.google-apps.document':
+    if mime_type == "application/vnd.google-apps.document":
         # Export Google Docs to plain text
-        request = service.files().export_media(fileId=file_id, mimeType='text/plain')
-        processed_mime_type = 'text/plain'
-    elif mime_type == 'application/vnd.google-apps.spreadsheet':
+        request = service.files().export_media(fileId=file_id, mimeType="text/plain")
+        processed_mime_type = "text/plain"
+    elif mime_type == "application/vnd.google-apps.spreadsheet":
         # Export Google Sheets to CSV
-        request = service.files().export_media(fileId=file_id, mimeType='text/csv')
-        processed_mime_type = 'text/csv'
-    elif mime_type == 'application/pdf' or mime_type == 'text/csv' or mime_type.startswith('image/'):
+        request = service.files().export_media(fileId=file_id, mimeType="text/csv")
+        processed_mime_type = "text/csv"
+    elif (
+        mime_type == "application/pdf"
+        or mime_type == "text/csv"
+        or mime_type.startswith("image/")
+    ):
         # Download PDFs, CSVs, and images directly
         request = service.files().get_media(fileId=file_id)
     else:
@@ -79,51 +84,47 @@ def download_file(file_id, mime_type, service):
 
 
 def extract_text_from_pdf(pdf_file_handle):
-    """Extract text from a PDF file."""
-    reader = PyPDF2.PdfReader(pdf_file_handle)
-    text = ''
-    for page in reader.pages:
-        text += page.extract_text() or ''
-    return text
+    return ""
 
 
 def csv_to_json(fh):
     """Convert a CSV file-like object (BytesIO) to JSON array of objects."""
     # Giải mã bytes thành string rồi dùng csv.DictReader
-    text_stream = io.TextIOWrapper(fh, encoding='utf-8-sig')
+    text_stream = io.TextIOWrapper(fh, encoding="utf-8-sig")
     reader = csv.DictReader(text_stream)
     rows = list(reader)
     return rows  # Đây là mảng JSON (list of dict)
 
 
-def get_process_file_data_from_file_header(file_header, mime_type, file_metadata) -> ProcessedFileData:
+def get_process_file_data_from_file_header(
+    file_header, mime_type, file_metadata
+) -> ProcessedFileData:
     # Xử lý tệp dựa trên loại MIME
-    if mime_type == 'application/pdf':
-        file_data = ProcessedFileData(
-            extract_text_from_pdf(file_header), file_metadata)
+    if mime_type == "application/pdf":
+        file_data = ProcessedFileData(extract_text_from_pdf(file_header), file_metadata)
         # Xử lý thêm cho PDF
-    elif mime_type == 'text/plain':
+    elif mime_type == "text/plain":
         file_data = ProcessedFileData(
-            file_header.read().decode('utf-8-sig'), file_metadata)
-    elif mime_type == 'text/csv':
+            file_header.read().decode("utf-8-sig"), file_metadata
+        )
+    elif mime_type == "text/csv":
         file_data = ProcessedFileData(csv_to_json(file_header), file_metadata)
-    elif mime_type and mime_type.startswith('image/'):
+    elif mime_type and mime_type.startswith("image/"):
         file_data = ProcessedFileData(file_header.read(), file_metadata)
         # Xử lý thêm cho hình ảnh
     else:
         raise ValueError(
-            f"Loại MIME không được hỗ trợ hoặc không xác định: {mime_type}")
+            f"Loại MIME không được hỗ trợ hoặc không xác định: {mime_type}"
+        )
 
     return file_data
 
 
 def get_process_file_data(file_metadata: FileMetaData, service) -> ProcessedFileData:
     # Download the file
-    fh, mime_type = download_file(
-        file_metadata.id, file_metadata.mime_type, service)
+    fh, mime_type = download_file(file_metadata.id, file_metadata.mime_type, service)
 
-    return get_process_file_data_from_file_header(
-        fh, mime_type, file_metadata)
+    return get_process_file_data_from_file_header(fh, mime_type, file_metadata)
 
 
 def get_all_valid_files_recursive(folder_id, service) -> list[FileMetaData]:
@@ -140,26 +141,36 @@ def get_all_valid_files_recursive(folder_id, service) -> list[FileMetaData]:
 
         # Lấy danh sách các file trong folder hiện tại
         query_files = f"'{current_folder}' in parents and not mimeType='application/vnd.google-apps.folder' and trashed=false"
-        results_files = service.files().list(q=query_files, spaces='drive',
-                                             fields='files(id, name, version, mimeType)').execute()
+        results_files = (
+            service.files()
+            .list(
+                q=query_files,
+                spaces="drive",
+                fields="files(id, name, version, mimeType)",
+            )
+            .execute()
+        )
 
-        for file in results_files.get('files', []):
+        for file in results_files.get("files", []):
             if file["mimeType"] in allowed_mime_types:
                 files_list.append(
                     FileMetaData(
                         id=file["id"],
                         name=file["name"],
                         mime_type=file["mimeType"],
-                        version=int(file.get("version", 1))
+                        version=int(file.get("version", 1)),
                     )
                 )
 
         # Lấy danh sách các folder con
         query_folders = f"'{current_folder}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false"
-        results_folders = service.files().list(
-            q=query_folders, spaces='drive', fields='files(id)').execute()
+        results_folders = (
+            service.files()
+            .list(q=query_folders, spaces="drive", fields="files(id)")
+            .execute()
+        )
 
-        for folder in results_folders.get('files', []):
+        for folder in results_folders.get("files", []):
             queue.append(folder["id"])
 
     return files_list

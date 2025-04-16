@@ -1,9 +1,10 @@
-from sqlalchemy import Column, Integer, String, ForeignKey, Text, DateTime
-from sqlalchemy.dialects.postgresql import JSONB
-from app.configs.database import Base
-import uuid
 import datetime
-from app.configs.constants import SENTIMENTS, CHAT_ASSIGNMENT
+import uuid
+
+from app.configs.constants import CHAT_ASSIGNMENT, SENTIMENTS
+from app.configs.database import Base
+from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Text
+from sqlalchemy.dialects.postgresql import JSONB
 
 
 class FileMetaData(Base):
@@ -19,10 +20,10 @@ class FileMetaData(Base):
 class SheetRow(Base):
     __tablename__ = "sheet_rows"
 
-    id = Column(String, primary_key=True, index=True,
-                default=lambda: str(uuid.uuid4()))
-    file_id = Column(String, ForeignKey(
-        "file_metadata.id", ondelete="CASCADE"), nullable=False)
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    file_id = Column(
+        String, ForeignKey("file_metadata.id", ondelete="CASCADE"), nullable=False
+    )
     data = Column(JSONB, nullable=False)
 
 
@@ -49,23 +50,25 @@ class Guest(Base):
 
     def to_dict(self):
         return {
-            'id': self.id,
-            'provider': self.provider,
-            'account_id': self.account_id,
-            'account_name': self.account_name,
-            'avatar': self.avatar,
-            'fullname': self.fullname,
-            'gender': self.gender,
-            'birthday': self.birthday.isoformat() if self.birthday else None,
-            'phone': self.phone,
-            'email': self.email,
-            'address': self.address,
-            'last_message_at': self.last_message_at.isoformat() if self.last_message_at else None,
-            'last_message': self.last_message,
-            'created_at': self.created_at.isoformat() if self.created_at else None,
-            'message_count': self.message_count,
-            'sentiment': self.sentiment,
-            'assigned_to': self.assigned_to
+            "id": self.id,
+            "provider": self.provider,
+            "account_id": self.account_id,
+            "account_name": self.account_name,
+            "avatar": self.avatar,
+            "fullname": self.fullname,
+            "gender": self.gender,
+            "birthday": self.birthday.isoformat() if self.birthday else None,
+            "phone": self.phone,
+            "email": self.email,
+            "address": self.address,
+            "last_message_at": (
+                self.last_message_at.isoformat() if self.last_message_at else None
+            ),
+            "last_message": self.last_message,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "message_count": self.message_count,
+            "sentiment": self.sentiment,
+            "assigned_to": self.assigned_to,
         }
 
 
@@ -73,15 +76,16 @@ class Chat(Base):
     __tablename__ = "chats"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    guest_id = Column(String, ForeignKey(
-        "guests.id", ondelete="CASCADE"), nullable=False)
+    guest_id = Column(
+        String, ForeignKey("guests.id", ondelete="CASCADE"), nullable=False
+    )
     content = Column(JSONB, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.now)
 
     def to_dict(self):
         return {
-            'id': self.id,
-            'guest_id': self.guest_id,
-            'content': self.content,
-            'created_at': self.created_at.isoformat() if self.created_at else None
+            "id": self.id,
+            "guest_id": self.guest_id,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
         }

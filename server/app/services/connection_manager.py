@@ -1,5 +1,5 @@
-from fastapi import WebSocket
 from app.dtos import WsMessageDto
+from fastapi import WebSocket
 
 
 class ConnectionManager:

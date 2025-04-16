@@ -1,18 +1,20 @@
-from app.configs import env_config
 from typing import AsyncGenerator
-from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
-from sqlalchemy.ext.declarative import declarative_base
+
+from app.configs import env_config
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+from sqlalchemy.orm import declarative_base
 
 # SQLAlchemy setup
-engine = create_async_engine(env_config.DATABASE_URL,
-                             echo=False,
-                             future=True,
-                             pool_size=10,           # Reduce pool size to avoid too many connections
-                             max_overflow=20,
-                             pool_timeout=60,        # Increase timeout
-                             pool_recycle=300,       # Recycle connections after 5 minutes
-                             pool_pre_ping=True,     # Verify connections before using them
-                             )
+engine = create_async_engine(
+    env_config.DATABASE_URL,
+    echo=False,
+    future=True,
+    pool_size=10,  # Reduce pool size to avoid too many connections
+    max_overflow=20,
+    pool_timeout=60,  # Increase timeout
+    pool_recycle=300,  # Recycle connections after 5 minutes
+    pool_pre_ping=True,  # Verify connections before using them
+)
 # Create session factory
 async_session = async_sessionmaker(
     engine,

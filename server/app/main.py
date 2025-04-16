@@ -1,12 +1,13 @@
-from fastapi import FastAPI
+import os
+from contextlib import asynccontextmanager
+
 import uvicorn
+from app.configs import database
 from app.routes.http import http_router
 from app.routes.websocket import ws_router
-from app.configs import database
-from contextlib import asynccontextmanager
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import os
 
 # cors config
 origins = [
@@ -21,6 +22,7 @@ async def lifespan(app: FastAPI):
     yield
     # Shutdown: Dispose of the engine
     await database.shutdown_models()
+
 
 app = FastAPI(lifespan=lifespan)
 

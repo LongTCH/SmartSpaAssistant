@@ -1,7 +1,6 @@
-from fastapi import APIRouter
-from app.services.connection_manager import manager
-from fastapi import WebSocket, WebSocketDisconnect
 from app.configs import constants
+from app.services.connection_manager import manager
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 
 ws_router = APIRouter()
 
@@ -16,7 +15,7 @@ async def websocket_endpoint(websocket: WebSocket):
             print("Received message:", message)
             response = {
                 "message": constants.CONNECTED,
-                "data": {"status": 200, "message": "Connected to WebSocket"}
+                "data": {"status": 200, "message": "Connected to WebSocket"},
             }
             await manager.broadcast(response)
     except WebSocketDisconnect:

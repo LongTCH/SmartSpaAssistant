@@ -21,6 +21,7 @@ class SENTIMENTS(str, Enum):
     NEGATIVE = "negative"
     NEUTRAL = "neutral"
 
+
 class CHAT_ASSIGNMENT(str, Enum):
     AI = "ai"
     ME = "me"

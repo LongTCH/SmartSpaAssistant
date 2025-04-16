@@ -1,12 +1,12 @@
-from fastapi import APIRouter, Request, HTTPException, Depends, Form
-from typing import Annotated
-from starlette.responses import Response as HttpResponse
-from app.configs import env_config
-from app.configs.database import get_session, async_session
-from sqlalchemy.ext.asyncio import AsyncSession
-from app.services import file_metadata_service, guest_service, messenger_service
 import asyncio
+
+from app.configs import env_config
 from app.configs.constants import SENTIMENTS
+from app.configs.database import async_session, get_session
+from app.services import file_metadata_service, guest_service, messenger_service
+from fastapi import APIRouter, Depends, HTTPException, Request
+from sqlalchemy.ext.asyncio import AsyncSession
+from starlette.responses import Response as HttpResponse
 
 http_router = APIRouter()
 
@@ -66,11 +66,13 @@ async def post_webhook(request: Request, db: AsyncSession = Depends(get_session)
             session = async_session()
             task = asyncio.create_task(
                 process_message_wrapper(
-                    sender_psid, receipient_psid, timestamp, webhook_event, session)
+                    sender_psid, receipient_psid, timestamp, webhook_event, session
+                )
             )
             # Add a done callback to ensure session is closed
             task.add_done_callback(
-                lambda t: asyncio.create_task(close_session(session, t)))
+                lambda t: asyncio.create_task(close_session(session, t))
+            )
 
         # Returns a '200 OK' response to all requests
         return HttpResponse()
@@ -79,9 +81,13 @@ async def post_webhook(request: Request, db: AsyncSession = Depends(get_session)
         raise HTTPException(status_code=404)
 
 
-async def process_message_wrapper(sender_psid, receipient_psid, timestamp, webhook_event, db):
+async def process_message_wrapper(
+    sender_psid, receipient_psid, timestamp, webhook_event, db
+):
     try:
-        await messenger_service.process_message(sender_psid, receipient_psid, timestamp, webhook_event, db)
+        await messenger_service.process_message(
+            sender_psid, receipient_psid, timestamp, webhook_event, db
+        )
         await db.commit()
     except Exception as e:
         await db.rollback()
@@ -116,12 +122,16 @@ async def get_conversations(request: Request, db: AsyncSession = Depends(get_ses
     if assigned_to == "all":
         conversations = await guest_service.get_conversations(db, skip, limit)
         return conversations
-    conversations = await guest_service.get_conversations_by_assignment(db, assigned_to, skip, limit)
+    conversations = await guest_service.get_conversations_by_assignment(
+        db, assigned_to, skip, limit
+    )
     return conversations
 
 
 @http_router.get("/conversations/sentiments")
-async def get_conversations_by_sentiment(request: Request, db: AsyncSession = Depends(get_session)):
+async def get_conversations_by_sentiment(
+    request: Request, db: AsyncSession = Depends(get_session)
+):
     """
     Get conversations by sentiment from the database.
     """
@@ -132,12 +142,16 @@ async def get_conversations_by_sentiment(request: Request, db: AsyncSession = De
     if sentiment not in [s.value for s in SENTIMENTS]:
         raise HTTPException(status_code=400, detail="Invalid sentiment value")
 
-    conversations = await guest_service.get_paging_guests_by_sentiment(db, sentiment, skip, limit)
+    conversations = await guest_service.get_paging_guests_by_sentiment(
+        db, sentiment, skip, limit
+    )
     return conversations
 
 
 @http_router.patch("/conversations/{guest_id}/assignment")
-async def update_assignment(guest_id: str, request: Request, db: AsyncSession = Depends(get_session)):
+async def update_assignment(
+    guest_id: str, request: Request, db: AsyncSession = Depends(get_session)
+):
     """
     Update the assignment of a conversation.
     """
@@ -154,7 +168,9 @@ async def update_assignment(guest_id: str, request: Request, db: AsyncSession = 
 
 
 @http_router.get("/conversations/{guest_id}")
-async def get_conversation_by_guest_id(request: Request, guest_id: str, db: AsyncSession = Depends(get_session)):
+async def get_conversation_by_guest_id(
+    request: Request, guest_id: str, db: AsyncSession = Depends(get_session)
+):
     """
     Get conversation by guest_id from the database.
     """

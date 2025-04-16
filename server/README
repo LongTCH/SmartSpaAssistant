@@ -2,3 +2,8 @@
 ```bash
 ssh -R 80:localhost:80 serveo.net
 ```
+
+# Run unit test
+```bash
+pytest tests/routes/ -v
+```

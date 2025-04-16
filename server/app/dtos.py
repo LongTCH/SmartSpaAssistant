@@ -1,19 +1,25 @@
 import json
 from typing import Any
+
 from app.models import FileMetaData
 
 
 class LocalData:
-    def __init__(self, drive_folder_id: str,
-                 chat_wait_seconds: float,
-                 sentiment_interval_chat_count: int):
+    def __init__(
+        self,
+        drive_folder_id: str,
+        chat_wait_seconds: float,
+        sentiment_interval_chat_count: int,
+    ):
         self.drive_folder_id = drive_folder_id
         self.chat_wait_seconds = chat_wait_seconds
         self.sentiment_interval_chat_count = sentiment_interval_chat_count
 
 
 class ChunkWrapper:
-    def __init__(self, file_id: str, content: str, start_line: int, end_line: int, blob_type: str):
+    def __init__(
+        self, file_id: str, content: str, start_line: int, end_line: int, blob_type: str
+    ):
         """Khởi tạo thông tin đoạn văn bản và số dòng bắt đầu, kết thúc."""
         self.file_id = file_id
         self.content = content
@@ -30,13 +36,8 @@ class ChunkWrapper:
         return {
             "source": "blob",
             "blobType": self.blob_type,
-            "loc": {
-                'lines': {
-                    'from': self.start_line,
-                    'to': self.end_line
-                }
-            },
-            "file_id": self.file_id
+            "loc": {"lines": {"from": self.start_line, "to": self.end_line}},
+            "file_id": self.file_id,
         }
 
 
@@ -47,11 +48,14 @@ class ProcessedFileData:
         self.metadata = metadata
 
     def get_text_for_embedding(self) -> str:
-        if self.metadata.mime_type == 'application/pdf':
+        if self.metadata.mime_type == "application/pdf":
             return self.data
-        elif self.metadata.mime_type == 'application/vnd.google-apps.document':
+        elif self.metadata.mime_type == "application/vnd.google-apps.document":
             return self.data
-        elif self.metadata.mime_type == 'text/csv' or self.metadata.mime_type == 'application/vnd.google-apps.spreadsheet':
+        elif (
+            self.metadata.mime_type == "text/csv"
+            or self.metadata.mime_type == "application/vnd.google-apps.spreadsheet"
+        ):
             # Chuyển object thành chuỗi JSON
             return json.dumps(self.data, ensure_ascii=False)
 
@@ -89,7 +93,7 @@ class PagingDto:
         self.has_prev = skip > 0
 
 
-class WsMessageDto():
+class WsMessageDto:
     def __init__(self, message: str, data: Any = None):
         self.message = message
         self.data = data

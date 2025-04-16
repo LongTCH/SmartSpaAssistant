@@ -1,0 +1,40 @@
+repos:
+  - repo: local
+    hooks:
+      - id: autoflake
+        name: autoflake (remove unused imports)
+        entry: autoflake
+        language: system
+        types: [python]
+        # Bao gồm tất cả file Python trong thư mục gốc và các thư mục con
+        files: \.py$
+        # Loại trừ các thư mục không cần xử lý
+        exclude: (/__pycache__/|^\.git/)
+        args:
+          [
+            "--in-place",
+            "--remove-all-unused-imports",
+            "--remove-unused-variables",
+          ]
+        verbose: true
+
+  - repo: https://github.com/pycqa/isort
+    rev: 5.12.0
+    hooks:
+      - id: isort
+        types: [python]
+        # Chỉ xử lý file .py trong thư mục app
+        files: \.py$
+        exclude: __pycache__/
+        verbose: true
+        args: ["--profile", "black"]
+
+  - repo: https://github.com/psf/black
+    rev: 24.3.0
+    hooks:
+      - id: black
+        types: [python]
+        # Chỉ xử lý file .py trong thư mục app
+        files: \.py$
+        exclude: __pycache__/
+        verbose: true
