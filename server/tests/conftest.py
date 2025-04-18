@@ -1,5 +1,4 @@
 # Import mock configurations first
-
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -13,6 +12,26 @@ from sqlalchemy.ext.asyncio import AsyncSession
 # Add the project root directory to Python path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
+
+# Create mock for qdrant_client before any imports can occur
+mock_qdrant = MagicMock()
+mock_qdrant.collection_exists.return_value = True
+mock_qdrant.search.return_value = []
+mock_qdrant.http = MagicMock()
+mock_qdrant.models = MagicMock()
+
+# Create a fake module to inject
+
+
+class MockQdrant:
+    def __init__(self):
+        self.qdrant_client = mock_qdrant
+
+
+# Insert our mock into sys.modules to intercept all imports
+sys.modules["app.configs.qdrant"] = MockQdrant()
+
+# Now we can safely import the rest
 
 # Create a mock DB session
 
@@ -63,7 +82,7 @@ def test_app(override_get_session):
 
 @pytest.fixture(autouse=True, scope="session")
 def mock_external_dependencies():
-    # Create patches for all external dependencies
+    # Create patches for all other external dependencies
     patches = [
         # Mock database connections
         patch(
@@ -76,8 +95,6 @@ def mock_external_dependencies():
             new_callable=AsyncMock,
             return_value=None,
         ),
-        # Mock the specific qdrant_client instance used in the app
-        patch("app.configs.qdrant.qdrant_client", new=MagicMock()),
         # Mock sentiment service analyze_sentiment method if it exists
         patch(
             "app.services.sentiment_service.analyze_sentiment",
@@ -95,11 +112,6 @@ def mock_external_dependencies():
 
     # Start all patches
     mocks = [p.start() for p in patches]
-
-    # Configure specific mock behaviors
-    qdrant_mock = mocks[2]  # Qdrant client mock from the patches list
-    qdrant_mock.collection_exists.return_value = True
-    qdrant_mock.search.return_value = []
 
     yield mocks
 
