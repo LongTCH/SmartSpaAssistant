@@ -80,7 +80,7 @@ export function MediaViewer({
           title: "Chia sẻ tệp",
           url: attachment.payload.url,
         })
-        .catch((error) => console.log("Error sharing", error));
+        .catch();
     } else {
       navigator.clipboard.writeText(attachment.payload?.url || "");
       alert("Đã sao chép liên kết vào clipboard");

@@ -65,7 +65,6 @@ function SuccessPage() {
           }
         }, 100);
       } catch (err) {
-        console.error("Authentication error:", err);
         setError("Authentication failed. Please try again.");
         setIsLoading(false);
       }

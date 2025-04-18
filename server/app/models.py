@@ -89,3 +89,24 @@ class Chat(Base):
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+
+class Script(Base):
+    __tablename__ = "scripts"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String(255), nullable=False)
+    description = Column(Text, nullable=False)
+    solution = Column(Text, nullable=False)
+    status = Column(String(50), default="published")
+    created_at = Column(DateTime, default=datetime.datetime.now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "solution": self.solution,
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

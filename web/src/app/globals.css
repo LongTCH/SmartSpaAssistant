@@ -87,6 +87,38 @@
     @apply bg-background text-foreground;
     font-feature-settings: "rlig" 1, "calt" 1;
   }
+
+  /* Ẩn scrollbar mặc định của Edge/Chrome */
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+
+  /* Track (phần nền của scrollbar) */
+  ::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  /* Handle (thanh cuộn) */
+  ::-webkit-scrollbar-thumb {
+    background: rgba(99, 102, 241, 0.2);
+    border-radius: 10px;
+  }
+
+  /* Handle khi hover */
+  ::-webkit-scrollbar-thumb:hover {
+    background: rgba(99, 102, 241, 0.4);
+  }
+
+  /* Ẩn hoàn toàn scrollbar nhưng vẫn cho phép cuộn */
+  .hide-scrollbar {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .hide-scrollbar::-webkit-scrollbar {
+    display: none; /* Chrome, Safari and Opera */
+  }
 }
 
 .container {

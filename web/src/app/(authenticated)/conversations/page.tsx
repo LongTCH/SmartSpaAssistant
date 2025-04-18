@@ -1,14 +1,19 @@
 "use client";
 
 import { useApp } from "@/context/app-context";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Chat, Conversation } from "@/types";
 import ConversationInfoList from "./components/ConversationInfoList";
 import ChatArea from "./components/ChatArea";
 import SentimentConversations from "./components/SentimentConversations";
 
 export default function ChatInterface() {
-  const { contentHeight } = useApp();
+  const { contentHeight, setActiveNavTab } = useApp();
+
+  // Set active tab to messages when this page is loaded
+  useEffect(() => {
+    setActiveNavTab("messages");
+  }, [setActiveNavTab]);
 
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);
@@ -53,31 +58,28 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-col" style={{ height: contentHeight }}>
-      {/* Main Content */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Sidebar - Conversation List */}
-        {/* Conversation Items */}
-        <ConversationInfoList
-          selectedConversation={selectedConversation}
-          setSelectedConversation={setSelectedConversation}
-          handleSelectConversation={handleSelectConversation}
-          onNewMessage={handleNewMessage}
-          unreadConversations={unreadConversations}
-        />
+    <div className="flex flex-1 overflow-hidden">
+      {/* Left Sidebar - Conversation List */}
+      {/* Conversation Items */}
+      <ConversationInfoList
+        selectedConversation={selectedConversation}
+        setSelectedConversation={setSelectedConversation}
+        handleSelectConversation={handleSelectConversation}
+        onNewMessage={handleNewMessage}
+        unreadConversations={unreadConversations}
+      />
 
-        {/* Middle - Chat Area */}
-        <ChatArea
-          selectedConversation={selectedConversation}
-          onConversationRead={handleConversationRead}
-        />
+      {/* Middle - Chat Area */}
+      <ChatArea
+        selectedConversation={selectedConversation}
+        onConversationRead={handleConversationRead}
+      />
 
-        {/* Right Sidebar - Support Panel */}
-        <SentimentConversations
-          selectedConversation={selectedConversation}
-          setSelectedConversation={setSelectedConversation}
-        />
-      </div>
+      {/* Right Sidebar - Support Panel */}
+      <SentimentConversations
+        selectedConversation={selectedConversation}
+        setSelectedConversation={setSelectedConversation}
+      />
     </div>
   );
 }

@@ -128,7 +128,6 @@ export default function ChatArea(props: ChatAreaProps) {
 
       return response;
     } catch (error) {
-      console.error("Error fetching conversation messages:", error);
       if (!loadMore) setChatList([]);
       setHasMoreMessages(false);
       throw error;
@@ -264,7 +263,6 @@ export default function ChatArea(props: ChatAreaProps) {
           }
         })
         .catch((error) => {
-          console.error("Error fetching messages:", error);
           setIsConversationSwitching(false);
         });
     }
@@ -286,19 +284,6 @@ export default function ChatArea(props: ChatAreaProps) {
     props.selectedConversation?.id,
     isConversationSwitching,
   ]);
-
-  // Update useEffect to not call API when loading
-  useEffect(() => {
-    // Only call when skip > 0 (not the first time) and a conversation is selected
-    if (props.selectedConversation?.id && !isLoadingMessages) {
-      setIsLoadingMessages(true);
-      fetchConversationMessages(props.selectedConversation.id, true).finally(
-        () => {
-          setIsLoadingMessages(false);
-        }
-      );
-    }
-  }, [props.selectedConversation?.id]);
 
   // Add useEffect to handle maintaining scroll position
   useEffect(() => {
@@ -386,7 +371,6 @@ export default function ChatArea(props: ChatAreaProps) {
                       `Đã giao cho ${value === "ai" ? "AI" : "Tôi"}`
                     );
                   } catch (error) {
-                    console.error("Lỗi khi cập nhật người phụ trách:", error);
                     toast.error("Lỗi khi cập nhật người phụ trách");
                   }
                 }

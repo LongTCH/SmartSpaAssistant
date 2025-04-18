@@ -7,12 +7,13 @@ export const API_ROUTES = {
     CALLBACK: "/auth/callback",
     EXCHANGE_STATE: "/auth/exchange-state",
   },
-  SPACE: {
-    ALL: "/spaces",
-    CREATE: "/spaces/create",
-    DETAIL: "/space",
-    PUBLIC: "/spaces/public",
-    MINE: "/spaces/me",
+  SCRIPT: {
+    GET: "/scripts",
+    DETAIL: (id: string) => `/scripts/${id}`,
+    UPDATE: (id: string) => `/scripts/${id}`,
+    DELETE: (id: string) => `/scripts/${id}`,
+    DELETE_MULTIPLE: "/scripts/delete-multiple",
+    CREATE: "/scripts",
   },
   DOCUMENT: {
     UPLOAD: "/documents/upload",

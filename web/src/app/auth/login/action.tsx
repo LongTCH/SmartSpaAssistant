@@ -57,7 +57,6 @@ export async function loginUser(
       },
     };
   } catch (error: any) {
-    console.error('Login error:', error);
     if (error.response?.status === 401) {
       return { error: "Incorrect email or password. Please try again!" };
     }

@@ -52,7 +52,6 @@ api.interceptors.response.use(
             return axios(originalRequest);
           }
         } catch (refreshError) {
-          console.error('Token refresh failed:', refreshError);
         }
       }
       

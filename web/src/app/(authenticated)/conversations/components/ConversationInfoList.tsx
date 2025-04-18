@@ -30,6 +30,9 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [assignedTo, setAssignedTo] = useState<ChatAssignmentType>("all");
 
+  // Sử dụng useRef để theo dõi lần render đầu tiên
+  const isFirstRender = useRef(true);
+
   // Use the WebSocket context instead of creating a new connection
   const { registerMessageHandler } = useApp();
 
@@ -72,7 +75,6 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         }
       }
     } catch (error) {
-      console.error("Error fetching conversations:", error);
     } finally {
       setIsLoading(false);
     }
@@ -80,6 +82,14 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
 
   // Mỗi khi assignedTo thay đổi, reset danh sách và tải lại từ đầu
   useEffect(() => {
+    // Bỏ qua lần render đầu tiên để tránh gọi API 2 lần khi component mount
+    if (isFirstRender.current) {
+      isFirstRender.current = false;
+      return;
+    }
+
+    // Sau lần render đầu tiên, bất kỳ khi nào assignedTo thay đổi
+    // sẽ reset danh sách và tải lại từ đầu
     setConversations([]);
     setHasNext(false);
     fetchConversations(true);
@@ -87,8 +97,9 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
 
   // Tải dữ liệu ban đầu khi component được mount
   useEffect(() => {
+    // Chỉ gọi fetch một lần khi component được mount
     fetchConversations(true);
-  }, []);
+  }, []); // chỉ chạy một lần khi mount
 
   // Handle new conversation from WebSocket
   const handleNewConversation = (conversation: Conversation) => {

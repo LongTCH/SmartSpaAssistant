@@ -103,3 +103,16 @@ class WsMessageDto:
 
     def to_json(self):
         return self.__dict__
+
+
+class PaginationDto:
+    def __init__(self, page: int, limit: int, total: int, data: list):
+        self.page = page
+        self.limit = limit
+        self.total = total
+        self.data = data
+        self.has_next = page * limit < total
+        self.has_prev = page > 1
+        self.next_page = page + 1 if self.has_next else None
+        self.prev_page = page - 1 if self.has_prev else None
+        self.total_pages = (total + limit - 1) // limit

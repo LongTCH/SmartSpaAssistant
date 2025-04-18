@@ -15,10 +15,6 @@ export async function logoutUser(): Promise<ActionResponse<null>> {
         try {
             await authService.logout();
         } catch (error) {
-            console.log(
-                "Error calling logout endpoint, continuing logout process:",
-                error
-            );
         }
 
         return { data: null };

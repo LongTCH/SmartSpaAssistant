@@ -3,7 +3,12 @@ import asyncio
 from app.configs import env_config
 from app.configs.constants import SENTIMENTS
 from app.configs.database import async_session, get_session
-from app.services import file_metadata_service, guest_service, messenger_service
+from app.services import (
+    file_metadata_service,
+    guest_service,
+    messenger_service,
+    script_service,
+)
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response as HttpResponse
@@ -178,3 +183,87 @@ async def get_conversation_by_guest_id(
     limit = int(request.query_params.get("limit", 10))
     conversations = await guest_service.get_chat_by_guest_id(db, guest_id, skip, limit)
     return conversations
+
+
+@http_router.get("/scripts")
+async def get_scripts(request: Request, db: AsyncSession = Depends(get_session)):
+    """
+    Get all scripts from the database.
+    """
+    page = int(request.query_params.get("page", 1))
+    limit = int(request.query_params.get("limit", 10))
+    status = request.query_params.get("status", "all")
+    if status == "all":
+        scripts = await script_service.get_scripts(db, page, limit)
+        return scripts
+    scripts = await script_service.get_scripts_by_status(db, page, limit, status)
+    return scripts
+
+
+@http_router.get("/scripts/{script_id}")
+async def get_script_by_id(
+    request: Request, script_id: str, db: AsyncSession = Depends(get_session)
+):
+    """
+    Get script by script_id from the database.
+    """
+    script = await script_service.get_script_by_id(db, script_id)
+    if not script:
+        raise HTTPException(status_code=404, detail="Script not found")
+    return script
+
+
+@http_router.post("/scripts")
+async def insert_script(request: Request, db: AsyncSession = Depends(get_session)):
+    """
+    Insert a new script into the database.
+    """
+    body = await request.json()
+    script = await script_service.insert_script(db, body)
+    return script
+
+
+@http_router.put("/scripts/{script_id}")
+async def update_script(
+    request: Request, script_id: str, db: AsyncSession = Depends(get_session)
+):
+    """
+    Update an existing script in the database.
+    """
+    body = await request.json()
+    script = await script_service.get_script_by_id(db, script_id)
+    if not script:
+        raise HTTPException(status_code=404, detail="Script not found")
+    script.name = body.get("name", script.name)
+    script.description = body.get("description", script.description)
+    script.solution = body.get("solution", script.solution)
+    script.status = body.get("status", script.status)
+
+    script = await script_service.update_script(db, script)
+    return script
+
+
+@http_router.delete("/scripts/{script_id}")
+async def delete_script(
+    request: Request, script_id: str, db: AsyncSession = Depends(get_session)
+):
+    """
+    Delete a script from the database by its ID.
+    """
+    await script_service.delete_script(db, script_id)
+    return HttpResponse(status_code=204)
+
+
+@http_router.post("/scripts/delete-multiple")
+async def delete_multiple_scripts(
+    request: Request, db: AsyncSession = Depends(get_session)
+):
+    """
+    Delete multiple scripts from the database by their IDs.
+    """
+    body = await request.json()
+    script_ids = body.get("script_ids", [])
+    if not script_ids:
+        raise HTTPException(status_code=400, detail="script_ids is required")
+    await script_service.delete_multiple_scripts(db, script_ids)
+    return HttpResponse(status_code=204)

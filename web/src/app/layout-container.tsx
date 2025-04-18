@@ -9,7 +9,7 @@ export default function LayoutContainer({
   children: React.ReactNode;
 }) {
   const navbarRef = useRef<HTMLDivElement>(null);
-  const { setContentHeight } = useApp();
+  const { contentHeight, setContentHeight } = useApp();
 
   useLayoutEffect(() => {
     const updateHeight = () => {
@@ -30,7 +30,11 @@ export default function LayoutContainer({
       <div className="sticky top-0 z-50" ref={navbarRef}>
         <Navbar />
       </div>
-      <div className="flex-1 overflow-auto">{children}</div>
+      <div className="flex-1 overflow-auto">
+        <div className="flex flex-col" style={{ height: contentHeight }}>
+          {children}
+        </div>
+      </div>
     </div>
   );
 }

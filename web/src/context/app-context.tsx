@@ -33,6 +33,8 @@ interface AppContextType {
   isLoggedIn: boolean;
   isLoading: boolean;
   contentHeight: string;
+  activeNavTab: string;
+  setActiveNavTab: (tab: string) => void;
   setContentHeight: (height: string) => void;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
@@ -52,6 +54,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [contentHeight, setContentHeight] = useState<string>("100vh");
+  const [activeNavTab, setActiveNavTab] = useState<string>("");
   const [isWebSocketConnected, setIsWebSocketConnected] =
     useState<boolean>(false);
   const router = useRouter();
@@ -76,7 +79,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       ws.onmessage = (event) => {
         try {
           const data = JSON.parse(event.data) as WebSocketMessage;
-          console.log("WebSocket message received:", data);
 
           // Notify all handlers registered for this message type
           const handlers = messageHandlersRef.current.get(data.message);
@@ -84,25 +86,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
             handlers.forEach((handler) => {
               try {
                 handler(data.data);
-              } catch (err) {
-                console.error(
-                  `Error in WebSocket message handler for ${data.message}:`,
-                  err
-                );
-              }
+              } catch (err) {}
             });
           }
-        } catch (err) {
-          console.error("Error parsing WebSocket message:", err);
-        }
+        } catch (err) {}
       };
 
-      ws.onerror = (error) => {
-        console.error("WebSocket error:", error);
-      };
+      ws.onerror = (error) => {};
 
       ws.onclose = () => {
-        console.log("WebSocket connection closed");
         setIsWebSocketConnected(false);
 
         // Try to reconnect after a delay
@@ -151,9 +143,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       if (webSocketRef.current && isWebSocketConnected) {
         webSocketRef.current.send(JSON.stringify(message));
       } else {
-        console.warn(
-          "Attempted to send message but WebSocket is not connected"
-        );
       }
     },
     [isWebSocketConnected]
@@ -200,7 +189,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     try {
       await logoutUser();
     } catch (error) {
-      console.error("Error during logout:", error);
     } finally {
       clearAuthTokens();
       clearAuthUser();
@@ -218,6 +206,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     getAuthUser,
     contentHeight,
     setContentHeight,
+    activeNavTab,
+    setActiveNavTab,
     registerMessageHandler,
     sendWebSocketMessage,
     isWebSocketConnected,

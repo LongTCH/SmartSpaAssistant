@@ -81,7 +81,6 @@ export default function SentimentConversations(
         return [...prev, ...newConversations];
       });
     } catch (error) {
-      console.error("Error fetching negative conversations:", error);
       setHasMoreNegative(false);
     } finally {
       setNegativeLoading(false);
@@ -131,7 +130,6 @@ export default function SentimentConversations(
         return [...prev, ...newConversations];
       });
     } catch (error) {
-      console.error("Error fetching positive conversations:", error);
       setHasMorePositive(false);
     } finally {
       setPositiveLoading(false);

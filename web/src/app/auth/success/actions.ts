@@ -14,7 +14,6 @@ export async function exchangeStateAction(
 ): Promise<ExchangeStateResponse> {
   const stateValidation = stateParamSchema.safeParse(state);
   if (!stateValidation.success) {
-    console.error("Invalid state parameter:", stateValidation.error);
     return {
       success: false,
       error: "Invalid state parameter",
@@ -29,7 +28,6 @@ export async function exchangeStateAction(
       data: authData,
     };
   } catch (error: any) {
-    console.error("State exchange error:", error);
     
     return {
       success: false,
