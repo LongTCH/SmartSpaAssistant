@@ -1,19 +1,12 @@
 "use client";
 
-import { useApp } from "@/context/app-context";
-import { useState, useEffect } from "react";
-import { Chat, Conversation } from "@/types";
+import { useState } from "react";
+import { Conversation } from "@/types";
 import ConversationInfoList from "./components/ConversationInfoList";
 import ChatArea from "./components/ChatArea";
 import SentimentConversations from "./components/SentimentConversations";
 
 export default function ChatInterface() {
-  const { contentHeight, setActiveNavTab } = useApp();
-
-  // Set active tab to messages when this page is loaded
-  useEffect(() => {
-    setActiveNavTab("messages");
-  }, [setActiveNavTab]);
 
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);

@@ -13,7 +13,7 @@ from app.configs.database import async_session
 from app.dtos import WsMessageDto
 from app.models import Chat, Guest
 from app.repositories import chat_repository, guest_repository
-from app.services import guest_service, sentiment_service
+from app.services import sentiment_service
 from app.services.connection_manager import manager
 from app.stores.store import LOCAL_DATA
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,7 +58,7 @@ async def get_conversation(db: AsyncSession, sender_psid):
     """
     Lấy thông tin cuộc trò chuyện từ cơ sở dữ liệu hoặc bộ nhớ tạm thời
     """
-    return await guest_service.get_conversation_by_provider(
+    return await guest_repository.get_conversation_by_provider(
         db, PROVIDERS.MESSENGER, sender_psid
     )
 
@@ -101,7 +101,7 @@ async def insert_guest(db: AsyncSession, sender_id):
                 with open(image_path, "wb") as f:
                     f.write(image_response.content)
                 guest.avatar = avatar_url
-                return await guest_service.insert_guest(db, guest)
+                return await guest_repository.insert_guest(db, guest)
             else:
                 print(f"Error fetching user info: {response.status}")
                 return None

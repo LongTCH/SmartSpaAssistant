@@ -73,7 +73,7 @@ export function AddScriptModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[800px]">
+      <DialogContent className="sm:max-w-[800px] max-h-screen overflow-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-center">
             Thêm kịch bản

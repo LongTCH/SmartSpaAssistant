@@ -11,7 +11,9 @@ async def get_conversations(db: AsyncSession, skip: int, limit: int) -> PagingDt
     if skip >= count:
         return PagingDto(skip=skip, limit=limit, total=count, data=[])
     data = await guest_repository.get_paging_conversation(db, skip, limit)
-    return PagingDto(skip=skip, limit=limit, total=count, data=data)
+    # Convert all objects to dictionaries
+    data_dict = [guest.to_dict() for guest in data]
+    return PagingDto(skip=skip, limit=limit, total=count, data=data_dict)
 
 
 async def get_conversations_by_assignment(
@@ -25,7 +27,9 @@ async def get_conversations_by_assignment(
     data = await guest_repository.get_paging_conversation_by_assignment(
         db, assigned_to, skip, limit
     )
-    return PagingDto(skip=skip, limit=limit, total=count, data=data)
+    # Convert all objects to dictionaries
+    data_dict = [guest.to_dict() for guest in data]
+    return PagingDto(skip=skip, limit=limit, total=count, data=data_dict)
 
 
 async def get_chat_by_guest_id(
@@ -37,20 +41,25 @@ async def get_chat_by_guest_id(
     if skip >= count:
         return PagingDto(skip=skip, limit=limit, total=count, data=[])
     data = await chat_repository.get_chat_by_guest_id(db, guest_id, skip, limit)
-    return PagingDto(skip=skip, limit=limit, total=count, data=data)
+    # Convert all objects to dictionaries
+    data_dict = [chat.to_dict() for chat in data]
+    return PagingDto(skip=skip, limit=limit, total=count, data=data_dict)
 
 
 async def get_conversation_by_provider(
     db: AsyncSession, provider: str, account_id: str
-) -> Guest:
-    return await guest_repository.get_conversation_by_provider(db, provider, account_id)
+) -> dict:
+    guest = await guest_repository.get_conversation_by_provider(
+        db, provider, account_id
+    )
+    return guest.to_dict() if guest else None
 
 
-async def insert_guest(db: AsyncSession, guest: Guest) -> Guest:
+async def insert_guest(db: AsyncSession, guest: Guest) -> dict:
     guest = await guest_repository.insert_guest(db, guest)
     await db.commit()
     await db.refresh(guest)
-    return guest
+    return guest.to_dict()
 
 
 async def get_paging_guests_by_sentiment(
@@ -62,11 +71,13 @@ async def get_paging_guests_by_sentiment(
     if skip >= count:
         return PagingDto(skip=skip, limit=limit, total=count, data=[])
     data = await guest_repository.get_guests_by_sentiment(db, sentiment, skip, limit)
-    return PagingDto(skip=skip, limit=limit, total=count, data=data)
+    # Convert all objects to dictionaries
+    data_dict = [guest.to_dict() for guest in data]
+    return PagingDto(skip=skip, limit=limit, total=count, data=data_dict)
 
 
-async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -> Guest:
+async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -> dict:
     guest = await guest_repository.update_assignment(db, guest_id, assigned_to)
     await db.commit()
     await db.refresh(guest)
-    return guest
+    return guest.to_dict()

@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useApp } from "@/context/app-context";
+import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -14,13 +13,7 @@ import {
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 export default function AnalysisInterface() {
-  const { setActiveNavTab } = useApp();
   const [analysisTab, setAnalysisTab] = useState("sentiment");
-
-  // Set active tab to analysis when this page is loaded
-  useEffect(() => {
-    setActiveNavTab("analysis");
-  }, [setActiveNavTab]);
 
   return (
     <div className="flex flex-col h-screen bg-background">

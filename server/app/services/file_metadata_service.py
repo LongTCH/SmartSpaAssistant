@@ -80,9 +80,14 @@ async def update_knowledge(db: AsyncSession) -> bool:
                 sheet_file = ProcessedSheetData(file_data)
                 file_metadata.schema = sheet_file.get_sheet_schema()
 
-                for row in sheet_file.data:
-                    sheet_row = SheetRow(file_id=sheet_file.metadata.id, data=row)
-                    sheet_rows.append(sheet_row)
+                sheet_rows = [
+                    SheetRow(
+                        sheet_id=sheet_file.metadata.id,
+                        order=i,
+                        data=row,
+                    )
+                    for i, row in enumerate(sheet_file.data)
+                ]
             else:
                 file_data = google_service.get_process_file_data(
                     file_metadata, drive_service
@@ -96,7 +101,7 @@ async def update_knowledge(db: AsyncSession) -> bool:
         ):
             raise Exception("Failed to delete vectors from Qdrant")
 
-        sheet_row_repository.insert_or_update(db, sheet_rows)
+        await sheet_row_repository.insert_or_update(db, sheet_rows)
         # vector_store_service.insert_vectors_by_processed_file_data(
         #     processed_file_datas)
         file_headers = []

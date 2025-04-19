@@ -57,6 +57,7 @@ async def get_conversation_by_provider(
 
 async def insert_guest(db: AsyncSession, guest: Guest) -> Guest:
     db.add(guest)
+    await db.flush()
     return guest
 
 

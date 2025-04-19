@@ -2,7 +2,6 @@
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Bell, User, LogOut } from "lucide-react";
-import ThemeToggle from "@/components/theme-toggle";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -10,11 +9,11 @@ import {
   DropdownMenuLabel,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useRouter } from "next/navigation";
 import { useApp } from "@/context/app-context";
+import { useRouter } from "next/navigation";
 
 export function Navbar() {
-  const { activeNavTab, setActiveNavTab } = useApp();
+  const { activeNavTab } = useApp();
   const router = useRouter();
 
   // Không cần theo dõi pathname nữa vì mỗi trang sẽ tự set activeNavTab

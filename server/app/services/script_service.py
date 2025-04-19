@@ -13,7 +13,9 @@ async def get_scripts(db: AsyncSession, page: int, limit: int) -> PaginationDto:
         return PaginationDto(page=page, limit=limit, total=0, data=[])
     skip = (page - 1) * limit
     data = await script_repository.get_paging_scripts(db, skip, limit)
-    return PaginationDto(page=page, limit=limit, total=count, data=data)
+    # Convert all objects to dictionaries
+    data_dict = [script.to_dict() for script in data]
+    return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
 
 
 async def get_scripts_by_status(
@@ -27,39 +29,50 @@ async def get_scripts_by_status(
         return PaginationDto(page=page, limit=limit, total=0, data=[])
     skip = (page - 1) * limit
     data = await script_repository.get_paging_scripts_by_status(db, skip, limit, status)
-    return PaginationDto(page=page, limit=limit, total=count, data=data)
+    # Convert all objects to dictionaries
+    data_dict = [script.to_dict() for script in data]
+    return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
 
 
-async def get_script_by_id(db: AsyncSession, script_id: str) -> Script:
+async def get_script_by_id(db: AsyncSession, script_id: str) -> dict:
     """
     Get a script by its ID from the database.
     """
-    return await script_repository.get_script_by_id(db, script_id)
+    script = await script_repository.get_script_by_id(db, script_id)
+    return script.to_dict() if script else None
 
 
-async def insert_script(db: AsyncSession, script) -> Script:
+async def insert_script(db: AsyncSession, script: dict) -> dict:
     """
     Insert a new script into the database.
     """
-    script = Script(
+    script_obj = Script(
         name=script["name"],
         description=script["description"],
         solution=script["solution"],
         status=script["status"],
     )
-    script = await script_repository.insert_script(db, script)
+    script_obj = await script_repository.insert_script(db, script_obj)
     await db.commit()
-    await db.refresh(script)
-    return script
+    await db.refresh(script_obj)
+    return script_obj.to_dict()
 
 
-async def update_script(db: AsyncSession, script: Script) -> Script:
+async def update_script(db: AsyncSession, script_id: str, script: dict) -> dict:
     """
     Update an existing script in the database.
     """
+    existing_script = await script_repository.get_script_by_id(db, script_id)
+    if not existing_script:
+        return None
+    existing_script.name = script["name"]
+    existing_script.description = script["description"]
+    existing_script.solution = script["solution"]
+    existing_script.status = script["status"]
+    updated_script = await script_repository.update_script(db, existing_script)
     await db.commit()
-    await db.refresh(script)
-    return script
+    await db.refresh(updated_script)
+    return updated_script.to_dict()
 
 
 async def delete_script(db: AsyncSession, script_id: str) -> None:

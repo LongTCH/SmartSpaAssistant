@@ -15,6 +15,16 @@ export const API_ROUTES = {
     DELETE_MULTIPLE: "/scripts/delete-multiple",
     CREATE: "/scripts",
   },
+  SHEET: {
+    GET: "/sheets",
+    DETAIL: (id: string) => `/sheets/${id}`,
+    UPDATE: (id: string) => `/sheets/${id}`,
+    DELETE: (id: string) => `/sheets/${id}`,
+    DELETE_MULTIPLE: "/sheets/delete-multiple",
+    CREATE: "/sheets",
+    GET_ROWS: (sheetId: string) => `/sheets/${sheetId}/rows`,
+    DOWNLOAD: (sheetId: string) => `/sheets/${sheetId}/download`,
+  },
   DOCUMENT: {
     UPLOAD: "/documents/upload",
     DETAIL: (id: string) => `/documents/${id}`,

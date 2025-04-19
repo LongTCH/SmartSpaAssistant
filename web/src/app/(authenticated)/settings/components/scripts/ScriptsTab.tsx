@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -59,14 +59,19 @@ export function ScriptsTab() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [scripts, setScripts] = useState<Script[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [status, setStatus] = useState<string>("all");
   const [totalItems, setTotalItems] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null);
 
+  // Sử dụng useRef để theo dõi trạng thái đã tải
+  const hasInitialFetch = useRef(false);
+
   // Fetch scripts data from API
   const fetchScripts = async () => {
+    // Nếu đang tải, không fetch thêm
+    if (isLoading) return;
     setIsLoading(true);
     try {
       const response = await scriptService.getPaginationScript(
@@ -87,7 +92,11 @@ export function ScriptsTab() {
 
   // Fetch data when page or status changes
   useEffect(() => {
-    fetchScripts();
+    // Chỉ fetch khi thay đổi status hoặc page, hoặc chưa tải lần đầu
+    if (!hasInitialFetch.current || currentPage > 1 || status !== "all") {
+      fetchScripts();
+      hasInitialFetch.current = true;
+    }
   }, [currentPage, status]);
 
   // Check if all scripts on current page are selected
@@ -294,10 +303,10 @@ export function ScriptsTab() {
                   disabled={scripts.length === 0}
                 />
               </TableHead>
-              <TableHead className="text-[#6366F1] border-r">
+              <TableHead className="text-[#6366F1] border-r w-2xl">
                 Tên kịch bản
               </TableHead>
-              <TableHead className="text-[#6366F1] border-r">
+              <TableHead className="text-[#6366F1] border-r w-24">
                 Trạng thái
               </TableHead>
               <TableHead className="text-right text-[#6366F1]">

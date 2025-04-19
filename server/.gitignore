@@ -7,3 +7,4 @@ output.json
 sampling/*.json
 __pycache__
 static
+temp

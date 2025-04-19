@@ -1,4 +1,5 @@
 import datetime
+import json
 import uuid
 
 from app.configs.constants import CHAT_ASSIGNMENT, SENTIMENTS
@@ -17,14 +18,44 @@ class FileMetaData(Base):
     schema = Column(String, nullable=True)
 
 
+class Sheet(Base):
+    __tablename__ = "sheets"
+
+    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=False)
+    schema = Column(String, nullable=True)
+    status = Column(String(50), default="published")
+    created_at = Column(DateTime, default=datetime.datetime.now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "name": self.name,
+            "description": self.description,
+            "schema": json.loads(self.schema),
+            "status": self.status,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+
+
 class SheetRow(Base):
     __tablename__ = "sheet_rows"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
-    file_id = Column(
-        String, ForeignKey("file_metadata.id", ondelete="CASCADE"), nullable=False
+    sheet_id = Column(
+        String, ForeignKey("sheets.id", ondelete="CASCADE"), nullable=False
     )
+    order = Column(Integer, nullable=False)
     data = Column(JSONB, nullable=False)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "sheet_id": self.sheet_id,
+            "order": self.order,
+            "data": self.data,
+        }
 
 
 class Guest(Base):

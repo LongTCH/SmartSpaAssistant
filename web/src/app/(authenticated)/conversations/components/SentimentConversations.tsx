@@ -31,6 +31,9 @@ export default function SentimentConversations(
   const negativeLimit = 10;
   const positiveLimit = 10;
 
+  // Sử dụng useRef để theo dõi trạng thái đã tải
+  const hasInitialFetch = useRef(false);
+
   const { registerMessageHandler } = useApp();
 
   // Hàm kiểm tra xem một conversation đã tồn tại trong danh sách chưa
@@ -38,15 +41,15 @@ export default function SentimentConversations(
     return list.some((conversation) => conversation.id === id);
   };
 
-  const fetchNegativeConversations = async () => {
+  const fetchNegativeConversations = async (isInitialLoad = false) => {
     try {
-      // Nếu không còn dữ liệu hoặc đang tải, không fetch thêm
-      if (!hasMoreNegative || negativeLoading) return;
+      // Nếu đang tải, không fetch thêm
+      if (negativeLoading) return;
 
       setNegativeLoading(true);
 
       // Sử dụng độ dài của mảng hiện tại làm giá trị skip
-      const skip = negativeConversations.length;
+      const skip = isInitialLoad ? 0 : negativeConversations.length;
 
       const response =
         await conversationService.getPagingConversationBySentiment(
@@ -55,31 +58,24 @@ export default function SentimentConversations(
           "negative"
         );
 
-      // Kiểm tra xem còn dữ liệu để tải không
-      setHasMoreNegative(response.has_next || false);
-
-      if (response.data.length === 0) {
-        setHasMoreNegative(false);
-        setNegativeLoading(false);
-        return;
-      }
-
-      // Chỉ thêm vào những ID chưa tồn tại
-      setNegativeConversations((prev) => {
-        // Lọc ra những conversation có ID chưa tồn tại trong prev
-        const newConversations = response.data.filter(
-          (newConv) => !isConversationExists(prev, newConv.id)
-        );
-
-        // Nếu không có conversation mới nào, có thể đã hết dữ liệu
-        if (newConversations.length === 0) {
-          setHasMoreNegative(false);
-          return prev;
+      if (response.data.length !== 0) {
+        if (isInitialLoad) {
+          // First page, replace data
+          setNegativeConversations(response.data);
+        } else {
+          // Next page, append data
+          setNegativeConversations((prevConversations) => [
+            ...prevConversations,
+            ...response.data,
+          ]);
         }
-
-        // Chỉ thêm mới nếu có conversation mới
-        return [...prev, ...newConversations];
-      });
+        setHasMoreNegative(response.has_next || false);
+      } else {
+        if (isInitialLoad) {
+          setNegativeConversations([]);
+        }
+        setHasMoreNegative(false);
+      }
     } catch (error) {
       setHasMoreNegative(false);
     } finally {
@@ -87,15 +83,15 @@ export default function SentimentConversations(
     }
   };
 
-  const fetchPositiveConversations = async () => {
+  const fetchPositiveConversations = async (isInitialLoad = false) => {
     try {
-      // Nếu không còn dữ liệu hoặc đang tải, không fetch thêm
-      if (!hasMorePositive || positiveLoading) return;
+      // Nếu đang tải, không fetch thêm
+      if (positiveLoading) return;
 
       setPositiveLoading(true);
 
       // Sử dụng độ dài của mảng hiện tại làm giá trị skip
-      const skip = positiveConversations.length;
+      const skip = isInitialLoad ? 0 : positiveConversations.length;
 
       const response =
         await conversationService.getPagingConversationBySentiment(
@@ -104,31 +100,24 @@ export default function SentimentConversations(
           "positive"
         );
 
-      // Kiểm tra xem còn dữ liệu để tải không
-      setHasMorePositive(response.has_next || false);
-
-      if (response.data.length === 0) {
-        setHasMorePositive(false);
-        setPositiveLoading(false);
-        return;
-      }
-
-      // Chỉ thêm vào những ID chưa tồn tại
-      setPositiveConversations((prev) => {
-        // Lọc ra những conversation có ID chưa tồn tại trong prev
-        const newConversations = response.data.filter(
-          (newConv) => !isConversationExists(prev, newConv.id)
-        );
-
-        // Nếu không có conversation mới nào, có thể đã hết dữ liệu
-        if (newConversations.length === 0) {
-          setHasMorePositive(false);
-          return prev;
+      if (response.data.length !== 0) {
+        if (isInitialLoad) {
+          // First page, replace data
+          setPositiveConversations(response.data);
+        } else {
+          // Next page, append data
+          setPositiveConversations((prevConversations) => [
+            ...prevConversations,
+            ...response.data,
+          ]);
         }
-
-        // Chỉ thêm mới nếu có conversation mới
-        return [...prev, ...newConversations];
-      });
+        setHasMorePositive(response.has_next || false);
+      } else {
+        if (isInitialLoad) {
+          setPositiveConversations([]);
+        }
+        setHasMorePositive(false);
+      }
     } catch (error) {
       setHasMorePositive(false);
     } finally {
@@ -136,12 +125,14 @@ export default function SentimentConversations(
     }
   };
 
+  // Thay thế useEffect cũ bằng useEffect mới với cờ hasInitialFetch
   useEffect(() => {
-    fetchNegativeConversations();
-  }, []);
-
-  useEffect(() => {
-    fetchPositiveConversations();
+    // Chỉ gọi API khi chưa tải dữ liệu lần đầu
+    if (!hasInitialFetch.current) {
+      fetchNegativeConversations(true);
+      fetchPositiveConversations(true);
+      hasInitialFetch.current = true;
+    }
   }, []);
 
   // Handler for infinite scroll

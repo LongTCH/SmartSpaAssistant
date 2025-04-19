@@ -37,6 +37,7 @@ async def get_script_by_id(db: AsyncSession, script_id: str) -> Script:
 
 async def insert_script(db: AsyncSession, script: Script) -> Script:
     db.add(script)
+    await db.flush()
     return script
 
 

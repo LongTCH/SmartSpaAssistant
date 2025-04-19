@@ -12,3 +12,5 @@ google-auth-oauthlib
 tqdm
 aiohttp
 langchain
+openpyxl
+xlsxwriter

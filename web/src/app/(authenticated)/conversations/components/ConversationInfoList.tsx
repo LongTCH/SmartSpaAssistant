@@ -30,8 +30,8 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [assignedTo, setAssignedTo] = useState<ChatAssignmentType>("all");
 
-  // Sử dụng useRef để theo dõi lần render đầu tiên
-  const isFirstRender = useRef(true);
+  // Sử dụng useRef để theo dõi trạng thái đã tải
+  const hasInitialFetch = useRef(false);
 
   // Use the WebSocket context instead of creating a new connection
   const { registerMessageHandler } = useApp();
@@ -80,26 +80,22 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
     }
   };
 
-  // Mỗi khi assignedTo thay đổi, reset danh sách và tải lại từ đầu
+  // Kết hợp cả hai useEffect thành một
   useEffect(() => {
-    // Bỏ qua lần render đầu tiên để tránh gọi API 2 lần khi component mount
-    if (isFirstRender.current) {
-      isFirstRender.current = false;
-      return;
+    const shouldFetch = !hasInitialFetch.current || assignedTo !== "all";
+
+    // Nếu là thay đổi filter và không phải lần đầu, reset danh sách
+    if (hasInitialFetch.current && assignedTo !== "all") {
+      setConversations([]);
+      setHasNext(false);
     }
 
-    // Sau lần render đầu tiên, bất kỳ khi nào assignedTo thay đổi
-    // sẽ reset danh sách và tải lại từ đầu
-    setConversations([]);
-    setHasNext(false);
-    fetchConversations(true);
+    // Chỉ fetch khi cần thiết
+    if (shouldFetch) {
+      fetchConversations(true);
+      hasInitialFetch.current = true;
+    }
   }, [assignedTo]);
-
-  // Tải dữ liệu ban đầu khi component được mount
-  useEffect(() => {
-    // Chỉ gọi fetch một lần khi component được mount
-    fetchConversations(true);
-  }, []); // chỉ chạy một lần khi mount
 
   // Handle new conversation from WebSocket
   const handleNewConversation = (conversation: Conversation) => {

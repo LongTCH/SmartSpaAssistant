@@ -156,6 +156,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
     };
 
     checkInitialAuth();
+
+    // Đặt activeNavTab dựa trên pathname hiện tại
+    if (pathname === "/conversations") {
+      setActiveNavTab("messages");
+    } else if (pathname === "/settings") {
+      setActiveNavTab("settings");
+    } else if (pathname === "/analysis") {
+      setActiveNavTab("analysis");
+    }
   }, [pathname]);
 
   const checkAuth = async () => {
