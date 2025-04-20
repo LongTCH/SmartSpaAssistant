@@ -58,4 +58,22 @@ export const scriptService = {
       script_ids: scriptIds,
     });
   },
+
+  async downloadScripts(): Promise<Blob> {
+    const response = await apiClient.instance.get(API_ROUTES.SCRIPT.DOWNLOAD, {
+      responseType: "blob",
+    });
+    return response.data;
+  },
+
+  async uploadScriptFile(file: File): Promise<void> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    await apiClient.instance.post(API_ROUTES.SCRIPT.UPLOAD, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
 };

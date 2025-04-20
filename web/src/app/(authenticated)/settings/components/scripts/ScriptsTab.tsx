@@ -40,12 +40,15 @@ import {
 } from "lucide-react";
 import { AddScriptModal } from "./AddScriptModal";
 import { EditScriptModal } from "./EditScriptModal";
+import { UploadScriptModal } from "./UploadScriptModal";
 import { Script } from "@/types";
 import { toast } from "sonner";
 import { scriptService } from "@/services/api/script.service";
 
 // Constants
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 10;
+let oldPage = 1;
+let oldStatus = "all";
 
 export function ScriptsTab() {
   // State
@@ -64,6 +67,10 @@ export function ScriptsTab() {
   const [totalItems, setTotalItems] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null);
+  // New state for file upload
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sử dụng useRef để theo dõi trạng thái đã tải
   const hasInitialFetch = useRef(false);
@@ -93,10 +100,16 @@ export function ScriptsTab() {
   // Fetch data when page or status changes
   useEffect(() => {
     // Chỉ fetch khi thay đổi status hoặc page, hoặc chưa tải lần đầu
-    if (!hasInitialFetch.current || currentPage > 1 || status !== "all") {
+    console.log({ oldPage, currentPage, oldStatus, status });
+    if (
+      !hasInitialFetch.current ||
+      oldPage !== currentPage ||
+      oldStatus !== status
+    ) {
       fetchScripts();
       hasInitialFetch.current = true;
     }
+    console.log({ oldPage, currentPage, oldStatus, status });
   }, [currentPage, status]);
 
   // Check if all scripts on current page are selected
@@ -209,15 +222,24 @@ export function ScriptsTab() {
   // Pagination handlers
   const handlePageChange = (pageNumber: number) => {
     if (pageNumber < 1 || pageNumber > totalPages) return;
-    setCurrentPage(pageNumber);
+    setCurrentPage((prev) => {
+      oldPage = prev;
+      return pageNumber;
+    });
     // Selected IDs cleared when changing page
     setSelectedScriptIds(new Set());
   };
 
   // Handle status filter change
   const handleStatusChange = (newStatus: string) => {
-    setStatus(newStatus);
-    setCurrentPage(1); // Reset to first page when filter changes
+    setStatus((prev) => {
+      oldStatus = prev;
+      return newStatus;
+    });
+    setCurrentPage((prev) => {
+      oldPage = prev;
+      return 1;
+    }); // Reset to first page when filter changes
     setSelectedScriptIds(new Set()); // Clear selections when filter changes
   };
 
@@ -225,6 +247,77 @@ export function ScriptsTab() {
   const handleEditScript = (scriptId: string) => {
     setEditScriptId(scriptId);
     setShowEditModal(true);
+  };
+
+  // Handle download scripts
+  const handleDownloadScripts = async () => {
+    const loadingToast = toast.loading("Đang tải xuống kịch bản...");
+    try {
+      // Get the file blob using our service
+      const blob = await scriptService.downloadScripts();
+
+      // Create a URL for the blob
+      const url = URL.createObjectURL(blob);
+
+      // Create a temporary anchor element to trigger download
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = "Kịch bản.xlsx";
+      document.body.appendChild(link);
+      link.click();
+
+      // Clean up
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url);
+
+      // Dismiss loading toast and show success
+      toast.dismiss(loadingToast);
+      toast.success("Tải xuống kịch bản thành công");
+    } catch (error) {
+      toast.dismiss(loadingToast);
+      toast.error("Không thể tải xuống kịch bản");
+    }
+  };
+
+  // Handle file upload button click
+  const handleUploadButtonClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  // Handle file selection
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+
+    if (!file) {
+      return;
+    }
+
+    // Check if the file is Excel
+    const validExcelTypes = [
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
+      "application/vnd.ms-excel", // .xls
+    ];
+
+    if (!validExcelTypes.includes(file.type)) {
+      toast.error("Chỉ chấp nhận file Excel (.xlsx, .xls)");
+      event.target.value = "";
+      return;
+    }
+
+    setSelectedFile(file);
+    setShowUploadModal(true);
+  };
+
+  // Handle modal close
+  const handleUploadModalClose = (open: boolean) => {
+    setShowUploadModal(open);
+    if (!open) {
+      // Reset selected file on close
+      setSelectedFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   // Handle refetch after successful edit or add
@@ -238,6 +331,15 @@ export function ScriptsTab() {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">KỊCH BẢN</h1>
+
+      {/* Hidden file input */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept=".xlsx,.xls"
+        className="hidden"
+      />
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
@@ -260,11 +362,19 @@ export function ScriptsTab() {
               }`}
             />
           </Button>
-          <Button variant="outline" className="space-x-2">
+          <Button
+            variant="outline"
+            className="space-x-2"
+            onClick={handleDownloadScripts}
+          >
             <Download className="h-4 w-4" />
             <span>Export file</span>
           </Button>
-          <Button variant="outline" className="space-x-2">
+          <Button
+            variant="outline"
+            className="space-x-2"
+            onClick={handleUploadButtonClick}
+          >
             <Upload className="h-4 w-4" />
             <span>Upload file</span>
           </Button>
@@ -303,13 +413,13 @@ export function ScriptsTab() {
                   disabled={scripts.length === 0}
                 />
               </TableHead>
-              <TableHead className="text-[#6366F1] border-r w-2xl">
+              <TableHead className="text-[#6366F1] border-r">
                 Tên kịch bản
               </TableHead>
               <TableHead className="text-[#6366F1] border-r w-24">
                 Trạng thái
               </TableHead>
-              <TableHead className="text-right text-[#6366F1]">
+              <TableHead className="text-right text-[#6366F1] w-36">
                 Thao tác
               </TableHead>
             </TableRow>
@@ -546,6 +656,14 @@ export function ScriptsTab() {
         open={showEditModal}
         onOpenChange={setShowEditModal}
         scriptId={editScriptId}
+        onSuccess={handleScriptUpdated}
+      />
+
+      {/* File Upload Modal */}
+      <UploadScriptModal
+        open={showUploadModal}
+        onOpenChange={handleUploadModalClose}
+        selectedFile={selectedFile}
         onSuccess={handleScriptUpdated}
       />
     </div>

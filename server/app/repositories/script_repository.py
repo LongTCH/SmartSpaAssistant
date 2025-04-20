@@ -62,3 +62,21 @@ async def delete_multiple_scripts(db: AsyncSession, script_ids: list[str]) -> No
     for script in scripts:
         await db.delete(script)
     return None
+
+
+async def get_all_scripts(db: AsyncSession) -> list[Script]:
+    """
+    Get all scripts from the database.
+    """
+    stmt = select(Script).order_by(Script.created_at.desc())
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def insert_or_update_scripts(db: AsyncSession, scripts: list[Script]) -> None:
+    """
+    Insert or update multiple scripts in the database.
+    """
+    db.add_all(scripts)
+    await db.flush()
+    return None

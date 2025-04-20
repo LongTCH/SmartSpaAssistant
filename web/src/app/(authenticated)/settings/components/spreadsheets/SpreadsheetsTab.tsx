@@ -44,7 +44,9 @@ import { Sheet } from "@/types";
 import { sheetService } from "@/services/api/sheet.service";
 
 // Constants
-const ITEMS_PER_PAGE = 5;
+const ITEMS_PER_PAGE = 10;
+let oldPage = 1;
+let oldStatus = "all";
 
 export function SpreadsheetsTab() {
   const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false);
@@ -136,7 +138,11 @@ export function SpreadsheetsTab() {
   // Fetch data when page or status changes
   useEffect(() => {
     // Chỉ fetch khi thay đổi status hoặc page, hoặc chưa tải lần đầu
-    if (!hasInitialFetch.current || currentPage > 1 || status !== "all") {
+    if (
+      !hasInitialFetch.current ||
+      oldPage !== currentPage ||
+      oldStatus !== status
+    ) {
       fetchSheets();
       hasInitialFetch.current = true;
     }
@@ -248,15 +254,24 @@ export function SpreadsheetsTab() {
   // Pagination handlers
   const handlePageChange = (pageNumber: number) => {
     if (pageNumber < 1 || pageNumber > totalPages) return;
-    setCurrentPage(pageNumber);
+    setCurrentPage((prev) => {
+      oldPage = prev;
+      return pageNumber;
+    });
     // Selected IDs cleared when changing page
     setSelectedSheetIds(new Set());
   };
 
   // Handle status filter change
   const handleStatusChange = (newStatus: string) => {
-    setStatus(newStatus);
-    setCurrentPage(1); // Reset to first page when filter changes
+    setStatus((prev) => {
+      oldStatus = prev;
+      return newStatus;
+    });
+    setCurrentPage((prev) => {
+      oldPage = prev;
+      return 1;
+    }); // Reset to first page when filter changes
     setSelectedSheetIds(new Set()); // Clear selections when filter changes
   };
 
@@ -370,13 +385,13 @@ export function SpreadsheetsTab() {
                   disabled={sheets.length === 0}
                 />
               </TableHead>
-              <TableHead className="text-[#6366F1] border-r w-2xl">
+              <TableHead className="text-[#6366F1] border-r">
                 Tên bảng tính
               </TableHead>
               <TableHead className="text-[#6366F1] border-r w-24">
                 Trạng thái
               </TableHead>
-              <TableHead className="text-right text-[#6366F1]">
+              <TableHead className="text-right text-[#6366F1] w-36">
                 Thao tác
               </TableHead>
             </TableRow>

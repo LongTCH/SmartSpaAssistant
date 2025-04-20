@@ -7,6 +7,7 @@ import pandas as pd
 from app.dtos import PaginationDto, PagingDto
 from app.models import Sheet, SheetRow
 from app.repositories import sheet_repository, sheet_row_repository
+from openpyxl.styles import Alignment
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -197,6 +198,10 @@ async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
 
         # Điều chỉnh chiều rộng cột
         worksheet = writer.sheets[sheet.name]
+        # Set headers alignment to left
+        for cell in worksheet[1]:
+            cell.alignment = Alignment(horizontal="left")
+        # Adjust column widths
         for idx, col in enumerate(df.columns):
             max_len = max(df[col].astype(str).map(len).max(), len(str(col)))
             worksheet.column_dimensions[chr(65 + idx)].width = max_len

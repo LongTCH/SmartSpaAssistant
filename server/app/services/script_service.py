@@ -1,6 +1,12 @@
+import os
+from datetime import datetime
+from io import BytesIO
+
+import pandas as pd
 from app.dtos import PaginationDto
 from app.models import Script
 from app.repositories import script_repository
+from openpyxl.styles import Alignment
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -89,3 +95,75 @@ async def delete_multiple_scripts(db: AsyncSession, script_ids: list) -> None:
     """
     await script_repository.delete_multiple_scripts(db, script_ids)
     await db.commit()
+
+
+async def download_scripts_as_excel(db: AsyncSession) -> str:
+    """
+    Download all scripts as an Excel file.
+    """
+    scripts = await script_repository.get_all_scripts(db)
+    if not scripts:
+        return None
+
+    # Tạo thư mục temp nếu chưa tồn tại
+    temp_dir = os.path.join(os.getcwd(), "temp")
+    if not os.path.exists(temp_dir):
+        os.makedirs(temp_dir)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    filename = f"scripts_{timestamp}.xlsx"
+    file_path = os.path.join(temp_dir, filename)
+
+    headers_map = {
+        "name": "Tên kịch bản",
+        "status": "Trạng thái",
+        "description": "Mô tả",
+        "solution": "Hướng dẫn trả lời",
+    }
+
+    headers = list(headers_map.values())
+    data = [
+        {
+            headers_map["name"]: script.name,
+            headers_map["status"]: script.status,
+            headers_map["description"]: script.description,
+            headers_map["solution"]: script.solution,
+        }
+        for script in scripts
+    ]
+
+    df = pd.DataFrame(data, columns=headers)
+    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        df.to_excel(writer, index=False, sheet_name="Kịch bản")
+        worksheet = writer.sheets["Kịch bản"]
+        # Set headers alignment to left
+        for cell in worksheet[1]:
+            cell.alignment = Alignment(horizontal="left")
+        # Adjust column widths
+        for idx, col in enumerate(df.columns):
+            max_len = max(df[col].astype(str).map(len).max(), len(str(col)))
+            worksheet.column_dimensions[chr(65 + idx)].width = max_len
+
+    return file_path
+
+
+async def insert_scripts_from_excel(db: AsyncSession, sheet_file) -> None:
+    """
+    Insert scripts from an Excel file into the database.
+    """
+    # Read the Excel file
+    excel_data = pd.read_excel(BytesIO(sheet_file), engine="openpyxl")
+    headers = ["Tên kịch bản", "Trạng thái", "Mô tả", "Hướng dẫn trả lời"]
+
+    scripts: list[Script] = []
+    for _, row in excel_data.iterrows():
+        script = Script(
+            name=row[headers[0]],
+            status=row[headers[1]],
+            description=row[headers[2]],
+            solution=row[headers[3]],
+        )
+        scripts.append(script)
+    await script_repository.insert_or_update_scripts(db, scripts)
+    await db.commit()
+    return None

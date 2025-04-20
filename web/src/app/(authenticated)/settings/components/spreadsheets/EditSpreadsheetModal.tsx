@@ -229,7 +229,9 @@ export function EditSpreadsheetModal({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Mô tả:</label>
+              <label className="text-sm font-medium">
+                Mô tả: <span className="text-red-500">*</span>
+              </label>
               <Textarea
                 className="min-h-[200px]"
                 placeholder="Mô tả về nội dung và cách sử dụng bảng tính"

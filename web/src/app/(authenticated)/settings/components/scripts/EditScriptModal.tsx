@@ -151,7 +151,9 @@ export function EditScriptModal({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Mô tả:</label>
+              <label className="text-sm font-medium">
+                Mô tả: <span className="text-red-500">*</span>
+              </label>
               <Textarea
                 className="min-h-[100px]"
                 placeholder="Khách hàng hỏi về thời gian hoạt động của thẩm mỹ viện"

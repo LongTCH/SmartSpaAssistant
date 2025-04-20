@@ -14,6 +14,8 @@ export const API_ROUTES = {
     DELETE: (id: string) => `/scripts/${id}`,
     DELETE_MULTIPLE: "/scripts/delete-multiple",
     CREATE: "/scripts",
+    DOWNLOAD: "/scripts/download",
+    UPLOAD: "/scripts/upload",
   },
   SHEET: {
     GET: "/sheets",

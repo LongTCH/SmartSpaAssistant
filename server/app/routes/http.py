@@ -203,6 +203,33 @@ async def get_scripts(request: Request, db: AsyncSession = Depends(get_session))
     return scripts
 
 
+@http_router.get("/scripts/download")
+async def download_scripts(
+    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
+):
+    """
+    Download all scripts as an Excel file.
+
+    Returns:
+        Excel file as a FileResponse
+    """
+    try:
+        # Get the scripts data from the service
+        file_path = await script_service.download_scripts_as_excel(db)
+        if not file_path:
+            raise HTTPException(status_code=404, detail="No scripts found")
+
+        background_tasks.add_task(os.remove, file_path)
+        return FileResponse(
+            path=file_path,
+            filename="Kịch bản.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as e:
+        print(f"Error downloading scripts: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading scripts")
+
+
 @http_router.get("/scripts/{script_id}")
 async def get_script_by_id(
     request: Request, script_id: str, db: AsyncSession = Depends(get_session)
@@ -214,6 +241,49 @@ async def get_script_by_id(
     if not script:
         raise HTTPException(status_code=404, detail="Script not found")
     return script
+
+
+@http_router.post("/scripts/upload")
+async def upload_script(request: Request, db: AsyncSession = Depends(get_session)):
+    """
+    Upload a scripts sheet file and create new scripts in the database.
+
+    Expects multipart/form-data with:
+    - file: Excel file
+    """
+    try:
+        # Parse the multipart form data
+        form = await request.form()
+
+        # Get the uploaded file
+        file = form.get("file")
+
+        if not file:
+            raise HTTPException(status_code=400, detail="Missing required fields")
+
+        # Validate file is an Excel file
+        content_type = file.content_type
+        if content_type not in [
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file type. Only Excel files are supported.",
+            )
+
+        # Read file contents
+        file_contents = await file.read()
+
+        # Create new Sheet record using the service
+        await script_service.insert_scripts_from_excel(db, file_contents)
+
+        # Return the created sheet
+        return HttpResponse(status_code=201)
+
+    except Exception as e:
+        print(f"Error creating script: {e}")
+        raise HTTPException(status_code=500, detail=f"Error processing spreadsheet")
 
 
 @http_router.post("/scripts")

@@ -1,12 +1,12 @@
 volumes:
   n8n_storage:
-    name: self-hosted-ai-starter-kit_n8n_storage
+    name: n8n_storage
   postgres_storage:
-    name: self-hosted-ai-starter-kit_postgres_storage
+    name: postgres_storage
   ollama_storage:
-    name: self-hosted-ai-starter-kit_ollama_storage
+    name: ollama_storage
   qdrant_storage:
-    name: self-hosted-ai-starter-kit_qdrant_storage
+    name: qdrant_storage
 
 networks:
   demo:
@@ -29,6 +29,8 @@ x-n8n: &service-n8n
     - WEBHOOK_URL=${WEBHOOK_URL}
     - N8N_SECURE_COOKIE=false
     - N8N_EDITOR_BASE_URL=${N8N_EDITOR_BASE_URL}
+    - N8N_RUNNERS_ENABLED=true
+    - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
 
 x-ollama: &service-ollama
   image: ollama/ollama:latest
@@ -55,7 +57,7 @@ x-init-ollama: &init-ollama
 
 services:
   postgres:
-    image: postgres:16-alpine
+    image: groonga/pgroonga:4.0.1-alpine-17
     hostname: postgres
     networks: [ 'demo' ]
     restart: unless-stopped

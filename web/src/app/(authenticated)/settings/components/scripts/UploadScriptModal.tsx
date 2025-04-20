@@ -3,14 +3,6 @@
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Textarea } from "@/components/ui/textarea";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
 import {
   Dialog,
   DialogContent,
@@ -28,63 +20,60 @@ import {
 } from "@/components/ui/table";
 import * as XLSX from "xlsx";
 import { toast } from "sonner";
-import { ExcelData } from "@/types";
-import { sheetService } from "@/services/api/sheet.service";
+import { scriptService } from "@/services/api/script.service";
 
-interface AddSpreadsheetModalProps {
+interface UploadScriptModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   selectedFile: File | null;
-  onSuccess?: () => void; // Thêm callback khi lưu thành công
+  onSuccess?: () => void; // Callback when upload is successful
 }
 
-export function AddSpreadsheetModal({
+export function UploadScriptModal({
   open,
   onOpenChange,
   selectedFile,
   onSuccess,
-}: AddSpreadsheetModalProps) {
-  const [name, setName] = useState("");
-  const [description, setDescription] = useState("");
-  const [status, setStatus] = useState("published");
-  const [excelData, setExcelData] = useState<ExcelData | null>(null);
+}: UploadScriptModalProps) {
+  const [excelData, setExcelData] = useState<{
+    headers: string[];
+    rows: any[][];
+  } | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // New state variables for lazy loading
+  // For lazy loading
   const [allRows, setAllRows] = useState<any[][]>([]);
   const [visibleRows, setVisibleRows] = useState<any[][]>([]);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
-  const rowsPerPage = 20; // Số dòng hiển thị mỗi lần tải thêm
+  const rowsPerPage = 20; // Number of rows to display per batch
 
   // Read Excel file when it changes
   useEffect(() => {
     if (selectedFile) {
       setIsLoading(true);
-      const fileName = selectedFile.name.replace(/\.[^/.]+$/, "").toUpperCase();
-      setName(fileName); // Set name to filename without extension
 
       const reader = new FileReader();
       reader.onload = (e) => {
         try {
           const data = e.target?.result;
           if (data) {
-            // Đọc workbook từ ArrayBuffer
+            // Read workbook from ArrayBuffer
             const workbook = XLSX.read(data, { type: "array" });
             const sheetName = workbook.SheetNames[0];
             const worksheet = workbook.Sheets[sheetName];
 
-            // Chuyển đổi sang JSON
+            // Convert to JSON
             const jsonData = XLSX.utils.sheet_to_json(worksheet, { header: 1 });
 
             if (jsonData.length > 0) {
               const headers = jsonData[0] as string[];
               const rows = jsonData.slice(1) as any[][];
 
-              // Lưu trữ toàn bộ dữ liệu
+              // Store all data
               setAllRows(rows);
 
-              // Hiển thị số lượng dòng ban đầu
+              // Display initial batch of rows
               const initialRows = rows.slice(0, rowsPerPage);
               setVisibleRows(initialRows);
 
@@ -92,11 +81,6 @@ export function AddSpreadsheetModal({
                 headers,
                 rows: initialRows,
               });
-
-              const headerDesc = headers.join(": ...\n") + ": ...";
-              setDescription(
-                `"${fileName}" dùng để ...\nMô tả các trường:\n${headerDesc}`
-              );
             } else {
               toast.error("File Excel không có dữ liệu");
             }
@@ -121,18 +105,18 @@ export function AddSpreadsheetModal({
     }
   }, [selectedFile]);
 
-  // Hàm để tải thêm dữ liệu
+  // Function to load more data
   const loadMore = () => {
     if (allRows.length > visibleRows.length) {
       setIsLoadingMore(true);
 
-      // Tính toán số dòng tiếp theo cần tải
+      // Calculate next batch of rows to load
       const nextBatch = allRows.slice(
         visibleRows.length,
         visibleRows.length + rowsPerPage
       );
 
-      // Cập nhật dữ liệu hiển thị
+      // Update displayed data
       const newVisibleRows = [...visibleRows, ...nextBatch];
       setVisibleRows(newVisibleRows);
 
@@ -147,11 +131,11 @@ export function AddSpreadsheetModal({
     }
   };
 
-  // Hàm xử lý sự kiện khi scroll đến cuối bảng
+  // Handle scroll event to detect when to load more data
   const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
     const { scrollTop, scrollHeight, clientHeight } = e.currentTarget;
 
-    // Nếu đã scroll đến gần cuối (còn cách 20px) và không đang tải dữ liệu
+    // If scrolled near the bottom (within 20px) and not currently loading data
     if (
       scrollHeight - scrollTop - clientHeight < 20 &&
       !isLoadingMore &&
@@ -161,32 +145,26 @@ export function AddSpreadsheetModal({
     }
   };
 
-  // Xử lý việc lưu bảng tính
+  // Handle upload submission
   const handleSubmit = async () => {
     if (!selectedFile) {
       toast.error("Không tìm thấy file Excel");
       return;
     }
 
-    // Kiểm tra dữ liệu đầu vào
-    if (!name.trim()) {
-      toast.error("Vui lòng nhập tên bảng tính");
-      return;
-    }
-
     setIsSubmitting(true);
     try {
-      // Gọi API để upload file
-      await sheetService.uploadSheet(name, description, status, selectedFile);
+      // Call API to upload file
+      await scriptService.uploadScriptFile(selectedFile);
 
-      toast.success("Lưu bảng tính thành công");
+      toast.success("Tải lên kịch bản thành công");
 
-      // Đóng modal và gọi callback nếu có
+      // Close modal and call success callback if provided
       onOpenChange(false);
       if (onSuccess) onSuccess();
     } catch (error: any) {
       toast.error(
-        error?.response?.data?.message || "Có lỗi xảy ra khi lưu bảng tính"
+        error?.response?.data?.message || "Có lỗi xảy ra khi tải lên kịch bản"
       );
     } finally {
       setIsSubmitting(false);
@@ -198,7 +176,7 @@ export function AddSpreadsheetModal({
       <DialogContent className="sm:max-w-[90vw] max-h-screen overflow-auto">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-center">
-            Thêm bảng tính
+            Tải lên kịch bản
           </DialogTitle>
         </DialogHeader>
         <div
@@ -206,41 +184,16 @@ export function AddSpreadsheetModal({
           onScroll={handleScroll}
         >
           <div className="space-y-2">
-            <label className="text-sm font-medium">Trạng thái:</label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="Xuất bản" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="published">Xuất bản</SelectItem>
-                <SelectItem value="draft">Bản nháp</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Tên:</label>
+            <label className="text-sm font-medium">File đã chọn:</label>
             <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Tên bảng tính"
+              value={selectedFile?.name || ""}
+              disabled
+              className="bg-gray-50"
             />
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">
-              Mô tả: <span className="text-red-500">*</span>
-            </label>
-            <Textarea
-              className="min-h-[200px]"
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              placeholder="Mô tả về nội dung bảng tính"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Dữ liệu</label>
+            <label className="text-sm font-medium">Dữ liệu kịch bản</label>
             <div className="border rounded-md overflow-hidden">
               {isLoading ? (
                 <div className="p-4 text-center">
@@ -249,7 +202,7 @@ export function AddSpreadsheetModal({
               ) : excelData ? (
                 <div className="flex flex-col">
                   <div
-                    className="max-h-[300px] overflow-y-auto"
+                    className="max-h-[400px] overflow-y-auto"
                     onScroll={handleScroll}
                   >
                     <Table>
@@ -339,7 +292,33 @@ export function AddSpreadsheetModal({
             onClick={handleSubmit}
             disabled={isSubmitting}
           >
-            {isSubmitting ? "Đang lưu..." : "Lưu"}
+            {isSubmitting ? (
+              <span className="flex items-center">
+                <svg
+                  className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                  xmlns="http://www.w3.org/2000/svg"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                >
+                  <circle
+                    className="opacity-25"
+                    cx="12"
+                    cy="12"
+                    r="10"
+                    stroke="currentColor"
+                    strokeWidth="4"
+                  ></circle>
+                  <path
+                    className="opacity-75"
+                    fill="currentColor"
+                    d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                  ></path>
+                </svg>
+                Đang tải lên...
+              </span>
+            ) : (
+              "Xác nhận"
+            )}
           </Button>
         </DialogFooter>
       </DialogContent>
