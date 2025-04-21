@@ -13,3 +13,4 @@ tqdm
 aiohttp
 langchain
 openpyxl
+underthesea

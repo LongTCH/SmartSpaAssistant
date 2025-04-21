@@ -3,8 +3,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from app.configs import database
-from app.routes.http import http_router
-from app.routes.websocket import ws_router
+from app.routes import include_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
@@ -24,7 +23,7 @@ async def lifespan(app: FastAPI):
     await database.shutdown_models()
 
 
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(lifespan=lifespan, redirect_slashes=False)
 
 # Add CORS middleware
 app.add_middleware(
@@ -35,8 +34,7 @@ app.add_middleware(
     allow_headers=["*"],  # Allow all headers
 )
 
-app.include_router(http_router)
-app.include_router(ws_router)
+include_router(app)
 
 os.makedirs("static", exist_ok=True)
 os.makedirs("static/images", exist_ok=True)
