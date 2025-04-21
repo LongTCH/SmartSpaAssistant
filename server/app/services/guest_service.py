@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.dtos import PagingDto
 from app.models import Guest
 from app.repositories import chat_repository, guest_repository
@@ -78,6 +80,36 @@ async def get_paging_guests_by_sentiment(
 
 async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -> dict:
     guest = await guest_repository.update_assignment(db, guest_id, assigned_to)
+    await db.commit()
+    await db.refresh(guest)
+    return guest.to_dict()
+
+
+async def get_guest_by_id(db: AsyncSession, guest_id: str) -> Guest:
+    guest = await guest_repository.get_guest_by_id(db, guest_id)
+    return guest.to_dict() if guest else None
+
+
+async def update_guest_by_id(db: AsyncSession, guest_id: str, body: dict) -> Guest:
+    guest = await guest_repository.get_guest_by_id(db, guest_id)
+    if not guest:
+        return None
+    guest.fullname = body.get("fullname", guest.fullname)
+    guest.email = body.get("email", guest.email)
+    guest.phone = body.get("phone", guest.phone)
+    guest.birthday = body.get("birthday", guest.birthday)
+    if "birthday" in body and body["birthday"]:
+        try:
+            # Parse the datetime with timezone info
+            dt_with_tz = datetime.fromisoformat(body["birthday"].replace("Z", "+00:00"))
+            # Convert to naive datetime by extracting date components
+            guest.birthday = datetime(dt_with_tz.year, dt_with_tz.month, dt_with_tz.day)
+        except (ValueError, AttributeError):
+            pass
+    guest.gender = body.get("gender", guest.gender)
+    guest.address = body.get("address", guest.address)
+
+    guest = await guest_repository.update_guest(db, guest)
     await db.commit()
     await db.refresh(guest)
     return guest.to_dict()

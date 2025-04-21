@@ -27,15 +27,15 @@ export const API_ROUTES = {
     GET_ROWS: (sheetId: string) => `/sheets/${sheetId}/rows`,
     DOWNLOAD: (sheetId: string) => `/sheets/${sheetId}/download`,
   },
-  DOCUMENT: {
-    UPLOAD: "/documents/upload",
-    DETAIL: (id: string) => `/documents/${id}`,
+  GUEST: {
+    DETAIL: (id: string) => `/guests/${id}`,
+    UPDATE: (id: string) => `/guests/${id}`,
   },
   CONVERSATION: {
     GET: "/conversations",
     DETAIL: (id: string) => `/conversations/${id}`,
     GET_SENTIMENT: "/conversations/sentiments",
-    UPDATE_ASSIGNMENT: (id: string) => `/conversations/${id}/assignment/`,
+    UPDATE_ASSIGNMENT: (id: string) => `/conversations/${id}/assignment`,
   },
 };
 

@@ -23,7 +23,7 @@ async def lifespan(app: FastAPI):
     await database.shutdown_models()
 
 
-app = FastAPI(lifespan=lifespan, redirect_slashes=False)
+app = FastAPI(lifespan=lifespan)
 
 # Add CORS middleware
 app.add_middleware(

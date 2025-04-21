@@ -132,3 +132,15 @@ async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -
         guest.assigned_to = assigned_to
         return guest
     return None
+
+
+async def get_guest_by_id(db: AsyncSession, guest_id: str) -> Guest:
+    stmt = select(Guest).where(Guest.id == guest_id)
+    result = await db.execute(stmt)
+    return result.scalars().first()
+
+
+async def update_guest(db: AsyncSession, guest: Guest) -> Guest:
+    db.add(guest)
+    await db.flush()
+    return guest

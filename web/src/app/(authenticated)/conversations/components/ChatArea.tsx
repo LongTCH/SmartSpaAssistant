@@ -17,13 +17,14 @@ import {
 } from "@/components/ui/popover";
 import { useState, useEffect, useRef } from "react";
 import { conversationService } from "@/services/api/conversation.service";
-import { Conversation, Chat, SentimentType } from "@/types";
+import { Conversation, Chat } from "@/types";
 import { getBadge } from "./ConversationInfo";
 import { useApp } from "@/context/app-context";
 import { MarkdownContent } from "@/components/markdown-content";
 import { AttachmentViewer } from "@/components/attachment-viewer";
 import { WS_MESSAGES } from "@/lib/constants";
 import { toast } from "sonner";
+import { UserInfoModal } from "./UserInfoModal";
 
 interface ChatAreaProps {
   selectedConversation: Conversation | null;
@@ -36,7 +37,7 @@ export default function ChatArea(props: ChatAreaProps) {
   const [chatList, setChatList] = useState<Chat[]>([]);
   const [sentiment, setSentiment] = useState<string>("neutral");
   const messageLimit = 20; // Limit the number of messages loaded each time
-
+  const [showUserInfo, setShowUserInfo] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeight = useRef<number>(0);
   const prevScrollTop = useRef<number>(0);
@@ -388,27 +389,17 @@ export default function ChatArea(props: ChatAreaProps) {
           </div>
         </div>
 
-        <Popover>
-          <PopoverTrigger asChild>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-8 w-8 rounded-full bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-700"
-            >
-              <Info className="h-4 w-4" />
-              <span className="sr-only">Information</span>
-            </Button>
-          </PopoverTrigger>
-          <PopoverContent className="w-80 p-4">
-            <div className="space-y-2">
-              <h4 className="font-medium">Chat Information</h4>
-              <p className="text-sm text-gray-500">
-                This conversation is being handled by AI support. Response time
-                may vary based on query complexity.
-              </p>
-            </div>
-          </PopoverContent>
-        </Popover>
+        <div className="flex items-center space-x-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
+            onClick={() => setShowUserInfo(true)}
+          >
+            <Info className="h-4 w-4" />
+            <span className="sr-only">Information</span>
+          </Button>
+        </div>
       </div>
 
       {/* Chat Messages Area */}
@@ -579,6 +570,12 @@ export default function ChatArea(props: ChatAreaProps) {
           </div>
         </div>
       </div>
+      {/* User Info Modal */}
+      <UserInfoModal
+        open={showUserInfo}
+        onOpenChange={setShowUserInfo}
+        guestId={props.selectedConversation?.id || ""}
+      />
     </div>
   );
 }
