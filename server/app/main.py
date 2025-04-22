@@ -3,6 +3,7 @@ from contextlib import asynccontextmanager
 
 import uvicorn
 from app.configs import database
+from app.middleware import catch_exceptions_middleware
 from app.routes import include_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -33,6 +34,8 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all methods (GET, POST, PUT, DELETE, etc.)
     allow_headers=["*"],  # Allow all headers
 )
+# Add middleware from the separate middleware module
+app.middleware("http")(catch_exceptions_middleware)
 
 include_router(app)
 

@@ -3,7 +3,7 @@ from io import BytesIO
 from app.dtos import FileMetaData, ProcessedFileData, ProcessedSheetData
 from app.models import FileMetaData, SheetRow
 from app.repositories import file_metadata_repository, sheet_row_repository
-from app.services import google_service, vector_store_service
+from app.services import google_service, vectordb_service
 from app.stores import store
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -96,9 +96,7 @@ async def update_knowledge(db: AsyncSession) -> bool:
 
         file_metadata_repository.insert_or_update_documents(db, files_for_embedding)
         # Delete vectors from Qdrant
-        if not vector_store_service.delete_vectors_by_file_metadatas(
-            files_for_deletion
-        ):
+        if not vectordb_service.delete_vectors_by_file_metadatas(files_for_deletion):
             raise Exception("Failed to delete vectors from Qdrant")
 
         await sheet_row_repository.insert_or_update(db, sheet_rows)
@@ -108,7 +106,7 @@ async def update_knowledge(db: AsyncSession) -> bool:
         for file_backup in file_backups:
             file_headers.append(BytesIO(file_backup).read())
         # Insert vectors into Qdrant
-        vector_store_service.insert_vectors_by_file_headers(
+        vectordb_service.insert_vectors_by_file_headers(
             file_headers, files_for_embedding
         )
         await db.commit()

@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 import requests
@@ -7,7 +8,13 @@ from app.dtos import ChunkWrapper, FileMetaData, ProcessedFileData
 from app.models import FileMetaData
 from app.services import google_service
 from qdrant_client.http.models import PointStruct
-from qdrant_client.models import FieldCondition, Filter, FilterSelector, MatchAny
+from qdrant_client.models import (
+    FieldCondition,
+    Filter,
+    FilterSelector,
+    MatchAny,
+    MatchValue,
+)
 from tqdm import tqdm
 
 
@@ -418,3 +425,111 @@ def generate_embeddings_ollama(text):
     else:
         print("Error:", response.text)
         return None
+
+
+def get_content_from_script(script):
+    """Lấy nội dung từ kịch bản."""
+    content = f"""
+    Mô tả kịch bản:
+    {script['description']}
+
+    Thông tin phục vụ giải đáp:
+    {script['solution']}
+    """
+    return content
+
+
+async def insert_script(script) -> None:
+    await asyncio.sleep(0.1)
+    embedding = generate_embeddings_ollama(script["description"])
+    point = PointStruct(
+        id=str(uuid.uuid4()),
+        vector=embedding,
+        payload={
+            "content": get_content_from_script(script),
+            "metadata": {
+                "script_id": script["id"],
+                "script_name": script["name"],
+            },
+        },
+    )
+
+    qdrant_client.upsert(
+        collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
+        points=[point],
+    )
+
+
+async def insert_scripts(scripts: list) -> None:
+    await asyncio.sleep(0.1)
+    points = []  # Danh sách lưu trữ các điểm cần chèn hoặc cập nhật
+    for script in tqdm(scripts, desc="Processing scripts"):
+        embedding = generate_embeddings_ollama(script["description"])
+        point = PointStruct(
+            id=str(uuid.uuid4()),
+            vector=embedding,
+            payload={
+                "content": get_content_from_script(script),
+                "metadata": {
+                    "script_id": script["id"],
+                    "script_name": script["name"],
+                },
+            },
+        )
+        points.append(point)
+    qdrant_client.upsert(
+        collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
+        points=points,
+    )
+
+
+async def delete_scripts(script_ids: list[str]) -> None:
+    await asyncio.sleep(0.1)
+    # Thực hiện xóa các điểm khớp với filter và nhận kết quả
+    result = qdrant_client.delete(
+        collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
+        points_selector=FilterSelector(
+            filter=Filter(
+                must=[
+                    FieldCondition(
+                        key="metadata.script_id", match=MatchAny(any=script_ids)
+                    )
+                ]
+            )
+        ),
+    )
+
+    # Kiểm tra trạng thái của kết quả
+    if result.status == "completed":
+        return True
+    else:
+        return False
+
+
+async def delete_script(script_id: str) -> None:
+    await asyncio.sleep(0.1)
+    # Thực hiện xóa các điểm khớp với filter và nhận kết quả
+    result = qdrant_client.delete(
+        collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
+        points_selector=FilterSelector(
+            filter=Filter(
+                must=[
+                    FieldCondition(
+                        key="metadata.script_id", match=MatchValue(value=script_id)
+                    )
+                ]
+            )
+        ),
+    )
+
+    # Kiểm tra trạng thái của kết quả
+    if result.status == "completed":
+        return True
+    else:
+        return False
+
+
+async def update_script(script) -> None:
+    await asyncio.sleep(0.1)
+    await delete_script(script["id"])
+    await insert_script(script)

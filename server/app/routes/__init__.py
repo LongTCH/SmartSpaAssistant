@@ -1,7 +1,6 @@
 from app.routes.route_conversations import router as conversations_router
 from app.routes.route_documents import router as documents_router
 from app.routes.route_guests import router as guests_router
-from app.routes.route_nlp import router as nlp_router
 from app.routes.route_scripts import router as scripts_router
 from app.routes.route_sheets import router as sheets_router
 from app.routes.route_webhooks import router as webhooks_router
@@ -26,7 +25,6 @@ def include_router(app: FastAPI):
     app.include_router(init_router)
     app.include_router(conversations_router)
     app.include_router(documents_router)
-    app.include_router(nlp_router)
     app.include_router(webhooks_router)
     app.include_router(scripts_router)
     app.include_router(sheets_router)
