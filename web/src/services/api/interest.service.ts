@@ -82,4 +82,9 @@ export const interestService = {
       },
     });
   },
+
+  async getAllPublishedInterests(): Promise<Interest[]> {
+    const response = await apiClient.instance.get(API_ROUTES.INTEREST.GET_ALL_PUBLISHED);
+    return response.data as Interest[];
+  }
 };

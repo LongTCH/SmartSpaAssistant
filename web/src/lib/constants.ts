@@ -26,6 +26,7 @@ export const API_ROUTES = {
     CREATE: "/interests",
     DOWNLOAD: "/interests/download",
     UPLOAD: "/interests/upload",
+    GET_ALL_PUBLISHED: "/interests/all-published",
   },
   SHEET: {
     GET: "/sheets",
@@ -38,6 +39,7 @@ export const API_ROUTES = {
     DOWNLOAD: (sheetId: string) => `/sheets/${sheetId}/download`,
   },
   GUEST: {
+    GET: "/guests",
     DETAIL: (id: string) => `/guests/${id}`,
     UPDATE: (id: string) => `/guests/${id}`,
   },

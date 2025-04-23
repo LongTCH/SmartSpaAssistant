@@ -1,8 +1,8 @@
 from datetime import datetime
 
-from app.dtos import PagingDto
-from app.models import Guest
-from app.repositories import chat_repository, guest_repository
+from app.dtos import PaginationDto, PagingDto
+from app.models import Guest, GuestInfo
+from app.repositories import chat_repository, guest_info_repository, guest_repository
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -57,7 +57,31 @@ async def get_conversation_by_provider(
     return guest.to_dict() if guest else None
 
 
-async def insert_guest(db: AsyncSession, guest: Guest) -> dict:
+async def insert_guest(db: AsyncSession, guest_data: dict) -> dict:
+    # Tạo GuestInfo không có provider và account_name
+    guest_info = GuestInfo(
+        fullname=guest_data.get("fullname"),
+        gender=guest_data.get("gender"),
+        birthday=guest_data.get("birthday"),
+        phone=guest_data.get("phone"),
+        email=guest_data.get("email"),
+        address=guest_data.get("address"),
+    )
+    guest_info = await guest_info_repository.insert_guest_info(db, guest_info)
+
+    # Tạo Guest với provider và account_name
+    guest = Guest(
+        provider=guest_data.get("provider"),
+        account_id=guest_data.get("account_id"),
+        account_name=guest_data.get("account_name"),
+        avatar=guest_data.get("avatar"),
+        last_message_at=guest_data.get("last_message_at"),
+        last_message=guest_data.get("last_message", {}),
+        message_count=guest_data.get("message_count", 0),
+        sentiment=guest_data.get("sentiment", "neutral"),
+        assigned_to=guest_data.get("assigned_to", "AI"),
+        info_id=guest_info.id,
+    )
     guest = await guest_repository.insert_guest(db, guest)
     await db.commit()
     await db.refresh(guest)
@@ -94,22 +118,103 @@ async def update_guest_by_id(db: AsyncSession, guest_id: str, body: dict) -> Gue
     guest = await guest_repository.get_guest_by_id(db, guest_id)
     if not guest:
         return None
-    guest.fullname = body.get("fullname", guest.fullname)
-    guest.email = body.get("email", guest.email)
-    guest.phone = body.get("phone", guest.phone)
-    guest.birthday = body.get("birthday", guest.birthday)
+
+    # Lấy hoặc tạo GuestInfo nếu chưa có
+    if not guest.info:
+        guest_info = GuestInfo()
+        guest_info = await guest_info_repository.insert_guest_info(db, guest_info)
+        guest.info_id = guest_info.id
+    else:
+        guest_info = guest.info
+
+    # Cập nhật thông tin trong GuestInfo
+    guest_info.fullname = body.get("fullname", guest_info.fullname)
+    guest_info.email = body.get("email", guest_info.email)
+    guest_info.phone = body.get("phone", guest_info.phone)
+    guest_info.address = body.get("address", guest_info.address)
+    guest_info.gender = body.get("gender", guest_info.gender)
+
+    # Xử lý định dạng birthday nếu có
     if "birthday" in body and body["birthday"]:
         try:
-            # Parse the datetime with timezone info
+            # Parse datetime với timezone info
             dt_with_tz = datetime.fromisoformat(body["birthday"].replace("Z", "+00:00"))
-            # Convert to naive datetime by extracting date components
-            guest.birthday = datetime(dt_with_tz.year, dt_with_tz.month, dt_with_tz.day)
+            # Chuyển thành datetime không có timezone
+            guest_info.birthday = datetime(
+                dt_with_tz.year, dt_with_tz.month, dt_with_tz.day
+            )
         except (ValueError, AttributeError):
             pass
-    guest.gender = body.get("gender", guest.gender)
-    guest.address = body.get("address", guest.address)
 
+    # Cập nhật GuestInfo
+    await guest_info_repository.update_guest_info(db, guest_info)
+
+    # Cập nhật Guest
     guest = await guest_repository.update_guest(db, guest)
     await db.commit()
     await db.refresh(guest)
     return guest.to_dict()
+
+
+async def get_pagination_guests_with_interests(
+    db: AsyncSession, page: int, limit: int, filter_params=None
+) -> PaginationDto:
+    if filter_params and filter_params.get("keyword"):
+        # Sử dụng full-text search với PGroonga
+        keyword = filter_params.get("keyword")
+        count = await guest_repository.count_search_guests(db, keyword)
+        if count == 0:
+            return PaginationDto(page=page, limit=limit, total=0, data=[])
+
+        skip = (page - 1) * limit
+        data = await guest_repository.search_guests_by_keywords(
+            db, keyword, skip, limit
+        )
+        # Convert objects to dictionaries with interests included
+        data_dict = [guest.to_dict(include=["interests"]) for guest in data]
+        return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
+    else:
+        # Phân trang bình thường
+        count = await guest_repository.count_guests(db)
+        if count == 0:
+            return PaginationDto(page=page, limit=limit, total=0, data=[])
+        skip = (page - 1) * limit
+        data = await guest_repository.get_paging_guests_with_interests(db, skip, limit)
+        # Convert objects to dictionaries with interests included
+        data_dict = [guest.to_dict(include=["interests"]) for guest in data]
+        return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
+
+
+async def get_pagination_guests(
+    db: AsyncSession, page: int, limit: int
+) -> PaginationDto:
+    count = await guest_repository.count_guests(db)
+    if count == 0:
+        return PaginationDto(page=page, limit=limit, total=0, data=[])
+    skip = (page - 1) * limit
+    data = await guest_repository.get_paging_guests(db, skip, limit)
+    # Convert objects to dictionaries without including interests
+    data_dict = [guest.to_dict() for guest in data]
+    return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
+
+
+async def add_interest_to_guest(
+    db: AsyncSession, guest_id: str, interest_id: str
+) -> dict:
+    guest = await guest_repository.add_interest_to_guest(db, guest_id, interest_id)
+    if not guest:
+        return None
+    await db.commit()
+    await db.refresh(guest)
+    return guest.to_dict(include=["interests"])
+
+
+async def remove_interest_from_guest(
+    db: AsyncSession, guest_id: str, interest_id: str
+) -> dict:
+    guest = await guest_repository.remove_interest_from_guest(db, guest_id, interest_id)
+    if not guest:
+        return None
+    await db.commit()
+    await db.refresh(guest)
+    return guest.to_dict(include=["interests"])

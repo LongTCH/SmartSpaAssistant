@@ -86,3 +86,16 @@ async def insert_or_update_interests(
     db.add_all(interests)
     await db.flush()
     return None
+
+
+async def get_interests_by_status(db: AsyncSession, status: str) -> list[Interest]:
+    """
+    Get all interests from the database.
+    """
+    stmt = (
+        select(Interest)
+        .where(Interest.status == status)
+        .order_by(Interest.created_at.desc())
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()

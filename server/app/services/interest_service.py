@@ -194,3 +194,11 @@ async def insert_interests_from_excel(db: AsyncSession, sheet_file) -> None:
         print(f"Error inserting interests from Excel: {e}")
         await db.rollback()
         raise e
+
+
+async def get_all_interests_by_status(db: AsyncSession, status: str) -> list:
+    """
+    Get all interests by status from the database.
+    """
+    interests = await interest_repository.get_interests_by_status(db, status)
+    return [interest.to_dict() for interest in interests] if interests else []

@@ -1,3 +1,5 @@
+import { Interest } from "./interest";
+
 export interface GuestInfo {
   id: string;
   account_name: string;
@@ -8,7 +10,7 @@ export interface GuestInfo {
   address: string;
   gender: string;
   birthday: string;
-  skinCondition: string;
+  interests: Interest[];
 }
 
 export interface GuestInfoUpdate {

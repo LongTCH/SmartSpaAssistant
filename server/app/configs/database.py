@@ -1,9 +1,9 @@
-import os
 import re
 from typing import AsyncGenerator
 
 import asyncpg
 from app.configs import env_config
+from scripts.init_sql import create_custom_functions_and_triggers
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
@@ -13,8 +13,6 @@ match = re.search(
     env_config.DATABASE_URL,
 )
 db_name = match.group(1) if match else "smartspa"
-
-# Function to ensure database exists
 
 
 async def ensure_database_exists():
@@ -58,41 +56,6 @@ async def ensure_database_exists():
         raise
 
 
-async def run_pgroonga_setup():
-    """Run PGroonga setup script after tables are created"""
-    try:
-        # Convert SQLAlchemy URL to asyncpg compatible URL
-        asyncpg_url = env_config.DATABASE_URL.replace(
-            "postgresql+asyncpg://", "postgresql://"
-        )
-
-        # Connect to the database
-        conn = await asyncpg.connect(asyncpg_url)
-
-        # Get the path to the SQL script
-        script_path = os.path.join(os.getcwd(), "scripts", "pgroonga_setup.sql")
-
-        # Check if the file exists
-        if not os.path.exists(script_path):
-            print(f"PGroonga setup script not found at {script_path}")
-            await conn.close()
-            return
-
-        # Read the SQL script
-        with open(script_path, "r") as f:
-            sql_script = f.read()
-
-        # Execute the SQL script
-        print("Running PGroonga setup script...")
-        await conn.execute(sql_script)
-        print("PGroonga setup script completed successfully")
-
-        await conn.close()
-    except Exception as e:
-        print(f"Error running PGroonga setup script: {e}")
-        raise
-
-
 # SQLAlchemy setup
 engine = create_async_engine(
     env_config.DATABASE_URL,
@@ -112,8 +75,6 @@ async_session = async_sessionmaker(
 )
 
 Base = declarative_base()
-
-# Dependency for route handlers - changed to be compatible with FastAPI dependency injection
 
 
 async def get_session() -> AsyncGenerator[AsyncSession, None]:
@@ -144,8 +105,19 @@ async def init_models():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    # Run PGroonga setup after tables are created
-    await run_pgroonga_setup()
+    # Convert SQLAlchemy URL to asyncpg compatible URL
+    asyncpg_url = env_config.DATABASE_URL.replace(
+        "postgresql+asyncpg://", "postgresql://"
+    )
+
+    # Connect để tạo các functions, triggers, và set up PGroonga
+    conn = await asyncpg.connect(asyncpg_url)
+    try:
+        print("Thiết lập PGroonga và các triggers...")
+        await create_custom_functions_and_triggers(conn)
+        print("Thiết lập PGroonga và các triggers hoàn tất")
+    finally:
+        await conn.close()
 
 
 async def shutdown_models():

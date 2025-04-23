@@ -8,11 +8,11 @@ from typing import Any, Dict
 import aiohttp
 import requests
 from app.configs import env_config
-from app.configs.constants import CHAT_SIDES, PROVIDERS, WS_MESSAGES
+from app.configs.constants import CHAT_ASSIGNMENT, CHAT_SIDES, PROVIDERS, WS_MESSAGES
 from app.configs.database import async_session
 from app.dtos import WsMessageDto
-from app.models import Chat, Guest
-from app.repositories import chat_repository, guest_repository
+from app.models import Chat, Guest, GuestInfo
+from app.repositories import chat_repository, guest_info_repository, guest_repository
 from app.services import sentiment_service
 from app.services.connection_manager import manager
 from app.stores.store import LOCAL_DATA
@@ -88,13 +88,24 @@ async def insert_guest(db: AsyncSession, sender_id):
                     return {"error": "Không thể tải ảnh từ URL."}
 
                 fullname = data.get("last_name") + " " + data.get("first_name")
+
+                # Tạo GuestInfo trước - không có provider và account_name
+                guest_info = GuestInfo(fullname=fullname, gender=gender)
+
+                # Lưu GuestInfo vào database
+                guest_info = await guest_info_repository.insert_guest_info(
+                    db, guest_info
+                )
+
+                # Tạo Guest với provider và account_name trong guest
                 guest = Guest(
+                    provider=PROVIDERS.MESSENGER,
                     account_id=account_id,
                     account_name=account_name,
-                    gender=gender,
-                    provider=PROVIDERS.MESSENGER,
-                    fullname=fullname,
+                    info_id=guest_info.id,
+                    assigned_to=CHAT_ASSIGNMENT.AI,
                 )
+
                 image_path = os.path.join("static", "images", f"{guest.id}.jpg")
                 avatar_url = f"{env_config.BASE_URL}/static/images/{guest.id}.jpg"
                 # Lưu ảnh vào thư mục 'images'

@@ -25,6 +25,17 @@ async def get_interests(request: Request, db: AsyncSession = Depends(get_session
     return interests
 
 
+@router.get("/all-published")
+async def get_all_published_interests(
+    request: Request, db: AsyncSession = Depends(get_session)
+):
+    """
+    Get all published interests from the database.
+    """
+    interests = await interest_service.get_all_interests_by_status(db, "published")
+    return interests
+
+
 @router.get("/download")
 async def download_interests(
     background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)

@@ -1,13 +1,13 @@
 "use client";
 
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { Conversation } from "@/types";
 import ConversationInfoList from "./components/ConversationInfoList";
 import ChatArea from "./components/ChatArea";
 import SentimentConversations from "./components/SentimentConversations";
+import { LoadingScreen } from "@/components/loading-screen";
 
 export default function ChatInterface() {
-
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);
 
@@ -51,28 +51,29 @@ export default function ChatInterface() {
   };
 
   return (
-    <div className="flex flex-1 overflow-hidden">
-      {/* Left Sidebar - Conversation List */}
-      {/* Conversation Items */}
-      <ConversationInfoList
-        selectedConversation={selectedConversation}
-        setSelectedConversation={setSelectedConversation}
-        handleSelectConversation={handleSelectConversation}
-        onNewMessage={handleNewMessage}
-        unreadConversations={unreadConversations}
-      />
+    <Suspense fallback={<LoadingScreen />}>
+      <div className="flex flex-1 overflow-hidden">
+        {/* Left Sidebar - Conversation List */}
+        <ConversationInfoList
+          selectedConversation={selectedConversation}
+          setSelectedConversation={setSelectedConversation}
+          handleSelectConversation={handleSelectConversation}
+          onNewMessage={handleNewMessage}
+          unreadConversations={unreadConversations}
+        />
 
-      {/* Middle - Chat Area */}
-      <ChatArea
-        selectedConversation={selectedConversation}
-        onConversationRead={handleConversationRead}
-      />
+        {/* Middle - Chat Area */}
+        <ChatArea
+          selectedConversation={selectedConversation}
+          onConversationRead={handleConversationRead}
+        />
 
-      {/* Right Sidebar - Support Panel */}
-      <SentimentConversations
-        selectedConversation={selectedConversation}
-        setSelectedConversation={setSelectedConversation}
-      />
-    </div>
+        {/* Right Sidebar - Support Panel */}
+        <SentimentConversations
+          selectedConversation={selectedConversation}
+          setSelectedConversation={setSelectedConversation}
+        />
+      </div>
+    </Suspense>
   );
 }

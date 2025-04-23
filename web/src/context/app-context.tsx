@@ -34,8 +34,10 @@ interface AppContextType {
   isLoading: boolean;
   contentHeight: string;
   activeNavTab: string;
+  isPageLoading: boolean; // Thêm trạng thái loading cho trang
   setActiveNavTab: (tab: string) => void;
   setContentHeight: (height: string) => void;
+  setPageLoading: (loading: boolean) => void; // Thêm hàm để cập nhật trạng thái loading
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
   loginSuccess: (accessToken: string, user: User) => void;
@@ -53,6 +55,7 @@ const AppContext = createContext<AppContextType | undefined>(undefined);
 export function AppProvider({ children }: { children: ReactNode }) {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
+  const [isPageLoading, setPageLoading] = useState<boolean>(false);
   const [contentHeight, setContentHeight] = useState<string>("100vh");
   const [activeNavTab, setActiveNavTab] = useState<string>("");
   const [isWebSocketConnected, setIsWebSocketConnected] =
@@ -164,6 +167,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       setActiveNavTab("settings");
     } else if (pathname === "/analysis") {
       setActiveNavTab("analysis");
+    } else if (pathname === "/customers") {
+      setActiveNavTab("customers");
     }
   }, [pathname]);
 
@@ -217,6 +222,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setContentHeight,
     activeNavTab,
     setActiveNavTab,
+    isPageLoading,
+    setPageLoading,
     registerMessageHandler,
     sendWebSocketMessage,
     isWebSocketConnected,

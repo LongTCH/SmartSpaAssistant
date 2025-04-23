@@ -2,7 +2,7 @@ import os
 from contextlib import asynccontextmanager
 
 import uvicorn
-from app.configs import database
+from app.configs import database, env_config
 from app.middleware import catch_exceptions_middleware
 from app.routes import include_router
 from fastapi import FastAPI
@@ -10,9 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 # cors config
-origins = [
-    "http://localhost:3000",
-]
+origins = env_config.CLIENT_URLS.split(",")
 
 
 @asynccontextmanager
@@ -44,4 +42,4 @@ os.makedirs("static/images", exist_ok=True)
 app.mount("/static", StaticFiles(directory="static"), name="static")
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="0.0.0.0", port=8080)
+    uvicorn.run(app, host="0.0.0.0", port=env_config.SERVER_PORT)

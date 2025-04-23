@@ -6,7 +6,9 @@ from dotenv import load_dotenv
 load_dotenv(override=True)
 
 # Facebook Messenger config
+SERVER_PORT = int(os.getenv("SERVER_PORT", 8080))
 BASE_URL = os.getenv("BASE_URL")
+CLIENT_URLS = os.getenv("CLIENT_URLS")
 PAGE_ACCESS_TOKEN = os.getenv("PAGE_ACCESS_TOKEN")
 VERIFY_TOKEN = os.getenv("VERIFY_TOKEN")
 PAGE_ID = os.getenv("PAGE_ID")

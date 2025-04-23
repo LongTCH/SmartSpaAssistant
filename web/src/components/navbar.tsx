@@ -13,12 +13,17 @@ import { useApp } from "@/context/app-context";
 import { useRouter } from "next/navigation";
 
 export function Navbar() {
-  const { activeNavTab } = useApp();
+  const { activeNavTab, setActiveNavTab, logout, setPageLoading } = useApp();
   const router = useRouter();
 
-  // Không cần theo dõi pathname nữa vì mỗi trang sẽ tự set activeNavTab
-
   const handleTabChange = (value: string) => {
+    // Đặt tab active ngay lập tức
+    setActiveNavTab(value);
+
+    // Bắt đầu hiển thị loading
+    setPageLoading(true);
+
+    // Chuyển hướng đến trang tương ứng
     switch (value) {
       case "messages":
         router.push("/conversations");
@@ -28,6 +33,9 @@ export function Navbar() {
         break;
       case "analysis":
         router.push("/analysis");
+        break;
+      case "customers":
+        router.push("/customers");
         break;
       default:
         break;
@@ -79,6 +87,16 @@ export function Navbar() {
               Cài đặt
             </TabsTrigger>
             <TabsTrigger
+              value="customers"
+              className={`px-4 text-sm font-medium rounded-full cursor-pointer ${
+                activeNavTab === "customers"
+                  ? "bg-white text-[#6366F1]"
+                  : "text-white/90"
+              }`}
+            >
+              QL Khách hàng
+            </TabsTrigger>
+            <TabsTrigger
               value="analysis"
               className={`px-4 text-sm font-medium rounded-full cursor-pointer ${
                 activeNavTab === "analysis"
@@ -111,7 +129,7 @@ export function Navbar() {
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuItem className="text-destructive">
+            <DropdownMenuItem className="text-destructive" onClick={logout}>
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </DropdownMenuItem>
