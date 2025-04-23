@@ -75,6 +75,8 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
         # Get headers and convert to schema
         headers = list(excel_data.columns)
         schema = json.dumps(headers, ensure_ascii=False)
+        # Convert Excel data to list of dictionaries (JSON)
+        rows = excel_data.to_dict(orient="records")
 
         # Create new Sheet record
         new_sheet = Sheet(
@@ -82,13 +84,12 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
             description=sheet["description"],
             status=sheet["status"],
             schema=schema,
+            # first 2 row_data for sample
+            sample_rows=json.dumps(rows[0], ensure_ascii=False),
         )
 
         # Insert sheet to get ID
         new_sheet = await sheet_repository.insert_sheet(db, new_sheet)
-
-        # Convert Excel data to list of dictionaries (JSON)
-        rows = excel_data.to_dict(orient="records")
 
         # Create SheetRow records
         sheet_rows = []

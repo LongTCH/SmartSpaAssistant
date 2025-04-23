@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, FileText, Table2 } from "lucide-react";
+import { LayoutDashboard, FileText, Table2, TrendingUp } from "lucide-react";
 
 interface SidebarProps {
   activeSidebar: string;
@@ -43,6 +43,17 @@ export function Sidebar({ activeSidebar, setActiveSidebar }: SidebarProps) {
         >
           <Table2 className="h-5 w-5" />
           <span>Bảng tính</span>
+        </button>
+        <button
+          className={`w-full flex items-center space-x-3 px-4 py-3 text-left cursor-pointer ${
+            activeSidebar === "interests"
+              ? "bg-[#f1e2f9] text-fuchsia-800 border-r-4 border-r-fuchsia-800"
+              : "hover:bg-[#EDE9FE] text-[#4B5563]"
+          }`}
+          onClick={() => setActiveSidebar("interests")}
+        >
+          <TrendingUp className="h-5 w-5" />
+          <span>Xu hướng KH</span>
         </button>
       </div>
     </div>

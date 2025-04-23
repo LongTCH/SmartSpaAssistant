@@ -17,6 +17,16 @@ export const API_ROUTES = {
     DOWNLOAD: "/scripts/download",
     UPLOAD: "/scripts/upload",
   },
+  INTEREST: {
+    GET: "/interests",
+    DETAIL: (id: string) => `/interests/${id}`,
+    UPDATE: (id: string) => `/interests/${id}`,
+    DELETE: (id: string) => `/interests/${id}`,
+    DELETE_MULTIPLE: "/interests/delete-multiple",
+    CREATE: "/interests",
+    DOWNLOAD: "/interests/download",
+    UPLOAD: "/interests/upload",
+  },
   SHEET: {
     GET: "/sheets",
     DETAIL: (id: string) => `/sheets/${id}`,
