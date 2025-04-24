@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, Suspense } from "react";
+import { useState, Suspense, useEffect } from "react";
 import { Conversation } from "@/types";
 import ConversationInfoList from "./components/ConversationInfoList";
-import ChatArea from "./components/ChatArea";
+import ChatArea from "./components/chat-area/ChatArea";
 import SentimentConversations from "./components/SentimentConversations";
 import { LoadingScreen } from "@/components/loading-screen";
+import { guestService } from "@/services/api/guest.service";
 
 export default function ChatInterface() {
   const [selectedConversation, setSelectedConversation] =
@@ -15,6 +16,28 @@ export default function ChatInterface() {
   const [unreadConversations, setUnreadConversations] = useState<Set<string>>(
     new Set()
   );
+
+  // Check sessionStorage for selected conversation ID when component mounts
+  useEffect(() => {
+    const selectedId = sessionStorage.getItem("selectedConversationId");
+
+    if (selectedId) {
+      // Fetch the conversation data by ID
+      guestService
+        .getGuestInfo(selectedId)
+        .then((conversation) => {
+          if (conversation) {
+            setSelectedConversation(conversation);
+          }
+          // Clear the sessionStorage after using it
+          sessionStorage.removeItem("selectedConversationId");
+        })
+        .catch((error) => {
+          console.error("Error fetching conversation:", error);
+          sessionStorage.removeItem("selectedConversationId");
+        });
+    }
+  }, []);
 
   // Handle conversation selection
   const handleSelectConversation = (conversation: Conversation) => {
@@ -50,6 +73,12 @@ export default function ChatInterface() {
     });
   };
 
+  // Handle when guest information is updated
+  const handleConversationUpdated = (updatedConversation: Conversation) => {
+    // Update the selected conversation with the updated data
+    setSelectedConversation(updatedConversation);
+  };
+
   return (
     <Suspense fallback={<LoadingScreen />}>
       <div className="flex flex-1 overflow-hidden">
@@ -64,8 +93,9 @@ export default function ChatInterface() {
 
         {/* Middle - Chat Area */}
         <ChatArea
-          selectedConversation={selectedConversation}
+          selectedConversationId={selectedConversation?.id || null}
           onConversationRead={handleConversationRead}
+          onConversationUpdated={handleConversationUpdated}
         />
 
         {/* Right Sidebar - Support Panel */}

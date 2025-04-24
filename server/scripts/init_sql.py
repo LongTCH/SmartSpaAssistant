@@ -15,6 +15,7 @@ CREATE OR REPLACE FUNCTION update_guest_info_data_function()
 RETURNS TRIGGER AS $$
 DECLARE
     interest_names TEXT[];
+    interests_str TEXT;
 BEGIN
     -- Lấy danh sách tên interests
     SELECT ARRAY_AGG(i.name)
@@ -23,16 +24,17 @@ BEGIN
     JOIN guest_interests gi ON i.id = gi.interest_id
     WHERE gi.guest_id = (SELECT id FROM guests WHERE info_id = NEW.id);
     
-    -- Cập nhật trường data JSON, xử lý cẩn thận với null và array rỗng
+    -- Chuyển đổi mảng interest_names thành chuỗi phân tách bằng dấu phẩy
+    SELECT array_to_string(interest_names, ', ')
+    INTO interests_str;
+    
+    -- Cập nhật trường data JSON, xử lý cẩn thận với null và chuỗi rỗng
     NEW.data = jsonb_build_object(
         'fullname', COALESCE(NEW.fullname, ''),
         'phone', COALESCE(NEW.phone, ''),
         'email', COALESCE(NEW.email, ''),
         'address', COALESCE(NEW.address, ''),
-        'interests', CASE 
-            WHEN interest_names IS NULL THEN '[]'::jsonb
-            ELSE to_jsonb(interest_names)
-        END
+        'interests', COALESCE(interests_str, '')
     );
     
     RETURN NEW;

@@ -13,8 +13,11 @@ async def test_update_assignment_success(mock_update_assignment, mock_guest, tes
     # Setup mock
     guest_id = "test-guest-id"
     new_assignment = CHAT_ASSIGNMENT.ME.value
-    mock_guest.assigned_to = new_assignment
-    mock_update_assignment.return_value = mock_guest
+
+    # Update the dictionary to reflect new assignment
+    mock_guest_updated = mock_guest.copy()
+    mock_guest_updated["assigned_to"] = new_assignment
+    mock_update_assignment.return_value = mock_guest_updated
 
     # Make request
     response = test_app.patch(

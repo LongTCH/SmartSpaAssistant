@@ -190,6 +190,10 @@ export function UploadKeywordModal({
               disabled
               className="bg-gray-50"
             />
+            <p className="text-xs text-gray-500">
+              Định dạng Excel: Hãy đảm bảo file Excel của bạn có các cột: Nhãn,
+              Mô tả, Trạng thái và Màu sắc.
+            </p>
           </div>
 
           <div className="space-y-2">

@@ -93,7 +93,7 @@ export function InterestsTab() {
       setTotalPages(response.total_pages);
       setTotalItems(response.total);
     } catch (error) {
-      toast.error("Không thể tải danh sách từ khóa");
+      toast.error("Không thể tải danh sách nhãn");
     } finally {
       setIsLoading(false);
     }
@@ -155,7 +155,7 @@ export function InterestsTab() {
     if (selectedInterestIds.size > 0) {
       setShowDeleteConfirmation(true);
     } else {
-      toast.error("Vui lòng chọn ít nhất một từ khóa để xóa");
+      toast.error("Vui lòng chọn ít nhất một nhãn để xóa");
     }
   };
 
@@ -190,10 +190,10 @@ export function InterestsTab() {
         // Refetch interests to update the list
         await fetchInterests();
 
-        toast.success(`Đã xóa ${count} từ khóa`);
+        toast.success(`Đã xóa ${count} nhãn`);
         setShowDeleteConfirmation(false);
       } catch (error) {
-        toast.error("Có lỗi xảy ra khi xóa từ khóa");
+        toast.error("Có lỗi xảy ra khi xóa nhãn");
       } finally {
         setIsDeleting(false);
       }
@@ -209,10 +209,10 @@ export function InterestsTab() {
         // Refetch interests to update the list
         await fetchInterests();
 
-        toast.success("Đã xóa từ khóa");
+        toast.success("Đã xóa nhãn");
         setShowDeleteConfirmation(false);
       } catch (error) {
-        toast.error("Có lỗi xảy ra khi xóa từ khóa");
+        toast.error("Có lỗi xảy ra khi xóa nhãn");
       } finally {
         setIsDeleting(false);
       }
@@ -251,7 +251,7 @@ export function InterestsTab() {
 
   // Handle download interests
   const handleDownloadInterests = async () => {
-    const loadingToast = toast.loading("Đang tải xuống từ khóa...");
+    const loadingToast = toast.loading("Đang tải xuống nhãn...");
     try {
       // Get the file blob using our service
       const blob = await interestService.downloadInterests();
@@ -262,7 +262,7 @@ export function InterestsTab() {
       // Create a temporary anchor element to trigger download
       const link = document.createElement("a");
       link.href = url;
-      link.download = "Xu hướng Khách hàng.xlsx";
+      link.download = "Nhãn Khách hàng.xlsx";
       document.body.appendChild(link);
       link.click();
 
@@ -272,10 +272,10 @@ export function InterestsTab() {
 
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
-      toast.success("Tải xuống từ khóa thành công");
+      toast.success("Tải xuống nhãn thành công");
     } catch (error) {
       toast.dismiss(loadingToast);
-      toast.error("Không thể tải xuống từ khóa");
+      toast.error("Không thể tải xuống nhãn");
     }
   };
 
@@ -330,7 +330,7 @@ export function InterestsTab() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-6">TỪ KHÓA</h1>
+      <h1 className="text-2xl font-bold mb-6">NHÃN</h1>
 
       {/* Hidden file input */}
       <input
@@ -383,7 +383,7 @@ export function InterestsTab() {
             onClick={() => setShowAddModal(true)}
           >
             <Plus className="h-4 w-4" />
-            <span>Thêm từ khóa mới</span>
+            <span>Thêm nhãn mới</span>
           </Button>
         </div>
 
@@ -413,15 +413,15 @@ export function InterestsTab() {
                   disabled={interests.length === 0}
                 />
               </TableHead>
-              <TableHead className="text-[#6366F1] border-r">
-                Tên từ khóa
-              </TableHead>
-              <TableHead className="text-[#6366F1] border-r">
-                Từ khoá liên quan
+              <TableHead className="text-[#6366F1] border-r">Nhãn</TableHead>
+              <TableHead className="text-[#6366F1] border-r">Mô tả</TableHead>
+              <TableHead className="text-[#6366F1] border-r w-20">
+                Màu sắc
               </TableHead>
               <TableHead className="text-[#6366F1] border-r w-24">
                 Trạng thái
               </TableHead>
+
               <TableHead className="text-right text-[#6366F1] w-36">
                 Thao tác
               </TableHead>
@@ -470,6 +470,21 @@ export function InterestsTab() {
                     {interest.related_terms}
                   </TableCell>
                   <TableCell className="border-r">
+                    {interest.color ? (
+                      <div className="flex items-center">
+                        <div
+                          className="w-4 h-4 rounded-full mr-2"
+                          style={{ backgroundColor: interest.color }}
+                        ></div>
+                        <span className="text-xs">{interest.color}</span>
+                      </div>
+                    ) : (
+                      <span className="text-xs text-gray-400">
+                        Chưa đặt màu
+                      </span>
+                    )}
+                  </TableCell>
+                  <TableCell className="border-r">
                     <div
                       className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
                         interest.status === "published"
@@ -482,6 +497,7 @@ export function InterestsTab() {
                         : "Bản nháp"}
                     </div>
                   </TableCell>
+
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
                       <Button
@@ -510,7 +526,7 @@ export function InterestsTab() {
                   colSpan={5}
                   className="text-center py-8 text-gray-500"
                 >
-                  Không có từ khóa nào{" "}
+                  Không có nhãn nào{" "}
                   {status !== "all" &&
                     `có trạng thái "${
                       status === "published" ? "Xuất bản" : "Bản nháp"
@@ -532,8 +548,8 @@ export function InterestsTab() {
                 } - ${Math.min(
                   currentPage * ITEMS_PER_PAGE,
                   totalItems
-                )} trong số ${totalItems} từ khóa`
-              : "Không có từ khóa nào"}
+                )} trong số ${totalItems} nhãn`
+              : "Không có nhãn nào"}
           </div>
 
           <div className="flex items-center space-x-2">
@@ -607,8 +623,8 @@ export function InterestsTab() {
             </DialogTitle>
             <DialogDescription>
               Bạn có chắc chắn muốn xóa{" "}
-              {selectedCount !== 0 ? selectedCount : 1} từ khóa đã chọn? Hành
-              động này không thể hoàn tác.
+              {selectedCount !== 0 ? selectedCount : 1} nhãn đã chọn? Hành động
+              này không thể hoàn tác.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2 sm:justify-end">

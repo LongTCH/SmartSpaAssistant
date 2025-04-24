@@ -4,10 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { GuestInfo, GuestInfoUpdate } from "@/types";
-import { Edit, RotateCcw } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Badge } from "@/components/ui/badge";
+import { Conversation, GuestInfoUpdate, Interest } from "@/types";
+import { Edit, RotateCcw, X } from "lucide-react";
+import { useEffect, useState, useRef } from "react";
 import { guestService } from "@/services/api/guest.service";
+import { interestService } from "@/services/api/interest.service";
 import { toast } from "sonner";
 import {
   Select,
@@ -28,10 +30,9 @@ export function UserInfoModal({
   onOpenChange,
   guestId,
 }: UserInfoModalProps) {
-  const [guestInfo, setGuestInfo] = useState<GuestInfo | null>(null);
-  const [originalGuestInfo, setOriginalGuestInfo] = useState<GuestInfo | null>(
-    null
-  );
+  const [guestInfo, setGuestInfo] = useState<Conversation | null>(null);
+  const [originalGuestInfo, setOriginalGuestInfo] =
+    useState<Conversation | null>(null);
   const [editableFields, setEditableFields] = useState<Record<string, boolean>>(
     {
       fullname: false,
@@ -40,23 +41,51 @@ export function UserInfoModal({
       email: false,
       phone: false,
       address: false,
-      skinCondition: false,
+      interests: false,
     }
   );
   const [isSaving, setIsSaving] = useState(false);
+  const [availableInterests, setAvailableInterests] = useState<Interest[]>([]);
+  const [selectedInterestNames, setSelectedInterestNames] = useState<string[]>(
+    []
+  );
+  const [isInterestsLoading, setIsInterestsLoading] = useState(false);
+  const interestsContainerRef = useRef<HTMLDivElement>(null);
+  const [isInterestsDropdownOpen, setIsInterestsDropdownOpen] = useState(false);
 
   const fetchGuestInfo = async (guestId: string) => {
     try {
       const response = await guestService.getGuestInfo(guestId);
       setGuestInfo(response);
       setOriginalGuestInfo(response);
-    } catch (error) {}
+      // Khởi tạo danh sách tên nhãn đã chọn từ danh sách interests
+      setSelectedInterestNames(
+        response.interests.map((interest) => interest.name)
+      );
+    } catch (error) {
+      console.error("Error fetching guest info:", error);
+    }
+  };
+
+  // Fetch tất cả nhãn từ API
+  const fetchAllInterests = async () => {
+    try {
+      setIsInterestsLoading(true);
+      const response = await interestService.getAllPublishedInterests();
+      setAvailableInterests(response);
+    } catch (error) {
+      console.error("Error fetching interests:", error);
+    } finally {
+      setIsInterestsLoading(false);
+    }
   };
 
   useEffect(() => {
     if (open && guestId) {
       // Fetch guest information when the modal opens
       fetchGuestInfo(guestId);
+      // Fetch all interests when modal opens
+      fetchAllInterests();
       // Reset editable fields when modal opens
       setEditableFields({
         fullname: false,
@@ -65,10 +94,44 @@ export function UserInfoModal({
         email: false,
         phone: false,
         address: false,
-        skinCondition: false,
+        interests: false,
       });
     }
   }, [open, guestId]);
+
+  // Đóng dropdown khi click ra ngoài
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        interestsContainerRef.current &&
+        !interestsContainerRef.current.contains(event.target as Node)
+      ) {
+        setIsInterestsDropdownOpen(false);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
+  }, []);
+
+  // Add a keyword to selected list
+  const addInterest = (interestName: string) => {
+    setSelectedInterestNames((prev) => [...prev, interestName]);
+  };
+
+  // Remove a keyword from selected list
+  const removeInterest = (interestName: string) => {
+    setSelectedInterestNames((prev) =>
+      prev.filter((name) => name !== interestName)
+    );
+  };
+
+  // Find interest object by name
+  const getInterestByName = (name: string): Interest | undefined => {
+    return availableInterests.find((interest) => interest.name === name);
+  };
 
   const toggleEditField = (fieldName: string) => {
     setEditableFields((prev) => ({
@@ -82,7 +145,7 @@ export function UserInfoModal({
 
     setGuestInfo({
       ...guestInfo,
-      [fieldName]: originalGuestInfo[fieldName as keyof GuestInfo],
+      [fieldName]: originalGuestInfo[fieldName as keyof Conversation],
     });
     toggleEditField(fieldName);
   };
@@ -100,6 +163,14 @@ export function UserInfoModal({
     if (!guestInfo) return;
     setIsSaving(true);
     try {
+      // Lấy danh sách ID của các nhãn đã chọn
+      const interestIds = selectedInterestNames
+        .map((name) => {
+          const interest = availableInterests.find((i) => i.name === name);
+          return interest ? interest.id : null;
+        })
+        .filter((id): id is string => id !== null);
+
       const updateData: GuestInfoUpdate = {
         fullname: guestInfo.fullname,
         email: guestInfo.email,
@@ -107,10 +178,15 @@ export function UserInfoModal({
         address: guestInfo.address,
         gender: guestInfo.gender,
         birthday: guestInfo.birthday,
+        interest_ids: interestIds,
       };
-      const updated = await guestService.updateGuestInfo(guestId, updateData);
-      setGuestInfo(updated);
-      setOriginalGuestInfo(updated);
+
+      const updatedGuestInfo = await guestService.updateGuestInfo(
+        guestId,
+        updateData
+      );
+      setGuestInfo(updatedGuestInfo);
+      setOriginalGuestInfo(updatedGuestInfo);
       // Show success toast
       toast.success("Lưu thông tin thành công");
       // reset all editable fields
@@ -123,6 +199,7 @@ export function UserInfoModal({
       onOpenChange(false);
     } catch (error) {
       console.error(error);
+      toast.error("Không thể cập nhật thông tin");
     } finally {
       setIsSaving(false);
     }
@@ -132,7 +209,7 @@ export function UserInfoModal({
     guestInfo !== null && (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogTitle className="text-center text-lg font-bold"></DialogTitle>
-        <DialogContent className="sm:max-w-[550px] p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[850px] p-0 overflow-hidden">
           <div className="flex flex-col items-center pt-8 pb-6 bg-white">
             <div className="relative">
               <Avatar className="h-24 w-24 border-2 border-[#6366F1]">
@@ -354,29 +431,128 @@ export function UserInfoModal({
             </div>
 
             <div className="flex items-center justify-between">
-              <div className="w-[120px] font-medium">Tình trạng da:</div>
+              <div className="w-[120px] font-medium">Nhãn:</div>
               <div className="flex-1 flex items-center">
-                <Textarea
-                  value={guestInfo.skinCondition}
-                  className={`flex-1 ${
-                    !editableFields.skinCondition ? "bg-gray-50" : "bg-white"
-                  }`}
-                  readOnly={!editableFields.skinCondition}
-                  onChange={(e) =>
-                    handleInputChange("skinCondition", e.target.value)
-                  }
-                />
+                <div className="flex-1 relative" ref={interestsContainerRef}>
+                  <div
+                    className={`flex flex-wrap min-h-10 max-h-24 overflow-y-auto px-3 py-2 border rounded-md ${
+                      isInterestsDropdownOpen
+                        ? "border-[#6366F1] ring-2 ring-[#6366F1]/20"
+                        : "border-input"
+                    } ${
+                      !editableFields.interests ? "bg-gray-50" : "bg-white"
+                    } gap-1 cursor-pointer`}
+                    onClick={() => {
+                      if (editableFields.interests) {
+                        setIsInterestsDropdownOpen(true);
+                      }
+                    }}
+                  >
+                    {selectedInterestNames.length > 0 ? (
+                      selectedInterestNames.map((interestName) => {
+                        const interest = getInterestByName(interestName);
+                        const color = interest?.color || "#6366F1";
+
+                        return (
+                          <Badge
+                            key={interestName}
+                            className="mb-1 inline-flex"
+                            style={{
+                              backgroundColor: `${color}20`, // 20% opacity
+                              color: color,
+                              borderColor: `${color}30`, // 30% opacity
+                            }}
+                          >
+                            {interestName}
+                            {editableFields.interests && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  removeInterest(interestName);
+                                }}
+                              >
+                                <X className="h-3 w-3" />
+                              </Button>
+                            )}
+                          </Badge>
+                        );
+                      })
+                    ) : (
+                      <span className="text-muted-foreground text-sm">
+                        Chọn nhãn...
+                      </span>
+                    )}
+                  </div>
+
+                  {isInterestsDropdownOpen && editableFields.interests && (
+                    <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
+                      {isInterestsLoading ? (
+                        <div className="px-3 py-2 text-center">Đang tải...</div>
+                      ) : availableInterests.filter(
+                          (interest) =>
+                            !selectedInterestNames.includes(interest.name)
+                        ).length > 0 ? (
+                        availableInterests
+                          .filter(
+                            (interest) =>
+                              !selectedInterestNames.includes(interest.name)
+                          )
+                          .map((interest) => (
+                            <div
+                              key={interest.id}
+                              className="px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center"
+                              onClick={() => {
+                                addInterest(interest.name);
+                                if (
+                                  availableInterests.filter(
+                                    (i) =>
+                                      !selectedInterestNames.includes(i.name)
+                                  ).length === 1
+                                ) {
+                                  setIsInterestsDropdownOpen(false);
+                                }
+                              }}
+                            >
+                              <div
+                                className="w-3 h-3 rounded-full mr-2"
+                                style={{ backgroundColor: interest.color }}
+                              />
+                              {interest.name}
+                            </div>
+                          ))
+                      ) : (
+                        <div className="px-3 py-2 text-center text-gray-500">
+                          Không có nhãn nào
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
                   className="ml-2 h-8 w-8 text-gray-500"
                   onClick={() =>
-                    editableFields.skinCondition
-                      ? resetField("skinCondition")
-                      : toggleEditField("skinCondition")
+                    editableFields.interests
+                      ? (() => {
+                          // Nếu đang trong chế độ sửa, reset về danh sách nhãn ban đầu
+                          if (originalGuestInfo) {
+                            setSelectedInterestNames(
+                              originalGuestInfo.interests.map(
+                                (interest) => interest.name
+                              )
+                            );
+                          }
+                          toggleEditField("interests");
+                          setIsInterestsDropdownOpen(false);
+                        })()
+                      : toggleEditField("interests")
                   }
                 >
-                  {editableFields.skinCondition ? (
+                  {editableFields.interests ? (
                     <RotateCcw className="h-4 w-4" />
                   ) : (
                     <Edit className="h-4 w-4" />

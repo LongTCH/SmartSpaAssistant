@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ColorPicker } from "@/components/color-picker";
 import { Interest } from "@/types";
 import { toast } from "sonner";
 import { interestService } from "@/services/api/interest.service";
@@ -41,6 +42,7 @@ export function EditKeywordModal({
     name: "",
     related_terms: "",
     status: "published",
+    color: "#4CAF50", // Default color
   });
 
   // Fetch interest data when interestId changes
@@ -53,12 +55,12 @@ export function EditKeywordModal({
       try {
         const interest = await interestService.getInterestById(interestId);
         if (!interest) {
-          toast.error("Không tìm thấy từ khóa");
+          toast.error("Không tìm thấy nhãn");
           return;
         }
         setInterestData(interest);
       } catch (error) {
-        toast.error("Không thể tải thông tin từ khóa");
+        toast.error("Không thể tải thông tin nhãn");
       } finally {
         setIsLoading(false);
       }
@@ -80,13 +82,13 @@ export function EditKeywordModal({
     try {
       // Validate required fields
       if (!interestData.name) {
-        toast.error("Vui lòng điền tên từ khóa");
+        toast.error("Vui lòng điền tên nhãn");
         setIsSubmitting(false);
         return;
       }
 
       if (!interestId) {
-        toast.error("ID từ khóa không hợp lệ");
+        toast.error("ID nhãn không hợp lệ");
         setIsSubmitting(false);
         return;
       }
@@ -96,11 +98,11 @@ export function EditKeywordModal({
         interestId,
         interestData as Interest
       );
-      toast.success("Đã cập nhật từ khóa thành công");
+      toast.success("Đã cập nhật nhãn thành công");
       onSuccess?.();
       onOpenChange(false);
     } catch (error) {
-      toast.error("Có lỗi xảy ra khi cập nhật từ khóa");
+      toast.error("Có lỗi xảy ra khi cập nhật nhãn");
     } finally {
       setIsSubmitting(false);
     }
@@ -111,7 +113,7 @@ export function EditKeywordModal({
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-center">
-            Chỉnh sửa từ khóa
+            Chỉnh sửa nhãn
           </DialogTitle>
         </DialogHeader>
 
@@ -143,7 +145,7 @@ export function EditKeywordModal({
 
             <div className="space-y-2">
               <label className="text-sm font-medium">
-                Từ khóa: <span className="text-red-500">*</span>
+                Nhãn: <span className="text-red-500">*</span>
               </label>
               <Input
                 placeholder="nám"
@@ -153,7 +155,15 @@ export function EditKeywordModal({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Các từ liên quan:</label>
+              <label className="text-sm font-medium">Màu sắc:</label>
+              <ColorPicker
+                value={interestData.color || ""}
+                onChange={(color) => handleChange("color", color)}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-sm font-medium">Mô tả:</label>
               <Textarea
                 className="min-h-[120px]"
                 placeholder="nám, trị nám, nám mảng, nám đỉnh, chữa nám, nám lâu năm, làm mờ nám"

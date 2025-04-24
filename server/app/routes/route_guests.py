@@ -6,32 +6,6 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter(prefix="/guests", tags=["Guests"])
 
 
-@router.get("")
-async def get_guests(request: Request, db: AsyncSession = Depends(get_session)):
-    """
-    Get all guests from the database.
-    """
-    page = int(request.query_params.get("page", 1))
-    limit = int(request.query_params.get("limit", 10))
-    include_interests = (
-        request.query_params.get("include_interests", "").lower() == "true"
-    )
-    keyword = request.query_params.get("keyword", None)
-
-    filter_params = {}
-    if keyword:
-        filter_params["keyword"] = keyword
-
-    if include_interests or keyword:
-        guests = await guest_service.get_pagination_guests_with_interests(
-            db, page, limit, filter_params
-        )
-    else:
-        guests = await guest_service.get_pagination_guests(db, page, limit)
-
-    return guests
-
-
 @router.post("/filter")
 async def filter_guests(request: Request, db: AsyncSession = Depends(get_session)):
     """
@@ -54,6 +28,21 @@ async def filter_guests(request: Request, db: AsyncSession = Depends(get_session
     )
 
     return guests
+
+
+@router.post("/delete-multiple")
+async def delete_multiple_guests(
+    request: Request, db: AsyncSession = Depends(get_session)
+):
+    """
+    Delete multiple guests from the database by their IDs.
+    """
+    body = await request.json()
+    guest_ids = body.get("guest_ids", [])
+    if not guest_ids:
+        raise HTTPException(status_code=400, detail="guest_ids is required")
+    await guest_service.delete_multiple_guests(db, guest_ids)
+    return {"message": "Guests deleted successfully"}
 
 
 @router.get("/{guest_id}")
@@ -81,3 +70,16 @@ async def update_guest_by_id(
     if not guest:
         raise HTTPException(status_code=404, detail="Guest not found")
     return guest
+
+
+@router.delete("/{guest_id}")
+async def delete_guest_by_id(
+    request: Request, guest_id: str, db: AsyncSession = Depends(get_session)
+):
+    """
+    Delete guest by guest_id in the database.
+    """
+    guest = await guest_service.delete_guest_by_id(db, guest_id)
+    if not guest:
+        raise HTTPException(status_code=404, detail="Guest not found")
+    return {"message": "Guest deleted successfully"}

@@ -59,6 +59,7 @@ async def insert_interest(db: AsyncSession, interest: dict) -> dict:
             name=interest["name"],
             related_terms=interest["related_terms"],
             status=interest["status"],
+            color=interest["color"],
         )
         interest_obj = await interest_repository.insert_interest(db, interest_obj)
         await db.commit()
@@ -83,6 +84,7 @@ async def update_interest(db: AsyncSession, interest_id: str, interest: dict) ->
         existing_interest.name = interest["name"]
         existing_interest.related_terms = interest["related_terms"]
         existing_interest.status = interest["status"]
+        existing_interest.color = interest["color"]
         updated_interest = await interest_repository.update_interest(
             db, existing_interest
         )
@@ -143,6 +145,7 @@ async def download_interests_as_excel(db: AsyncSession) -> str:
         "name": "Từ khóa",
         "related_terms": "Các từ liên quan",
         "status": "Trạng thái",
+        "color": "Mã màu",
     }
 
     headers = list(headers_map.values())
@@ -151,6 +154,7 @@ async def download_interests_as_excel(db: AsyncSession) -> str:
             headers_map["name"]: interest.name,
             headers_map["related_terms"]: interest.related_terms,
             headers_map["status"]: interest.status,
+            headers_map["color"]: interest.color,
         }
         for interest in interests
     ]
@@ -177,7 +181,7 @@ async def insert_interests_from_excel(db: AsyncSession, sheet_file) -> None:
     # Read the Excel file
     try:
         excel_data = pd.read_excel(BytesIO(sheet_file), engine="openpyxl")
-        headers = ["Từ khóa", "Các từ liên quan", "Trạng thái"]
+        headers = ["Từ khóa", "Các từ liên quan", "Trạng thái", "Mã màu"]
 
         interests: list[Interest] = []
         for _, row in excel_data.iterrows():
@@ -185,6 +189,7 @@ async def insert_interests_from_excel(db: AsyncSession, sheet_file) -> None:
                 name=row[headers[0]],
                 related_terms=row[headers[1]],
                 status=row[headers[2]],
+                color=row[headers[3]],
             )
             interests.append(interest)
         await interest_repository.insert_or_update_interests(db, interests)

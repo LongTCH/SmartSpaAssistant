@@ -110,11 +110,20 @@ async def create_and_insert_guests():
                     "interests": [],  # Ban đầu chưa có interests
                 }
 
-                # Thêm guest_info trước - không có provider và account_name
+                # Thêm guest_info trước - không có provider và account_name, với mệnh đề ON CONFLICT
                 await conn.execute(
                     """
                 INSERT INTO guest_infos (id, fullname, gender, birthday, phone, email, address, data, updated_at)
                 VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+                ON CONFLICT (id) DO UPDATE SET
+                    fullname = EXCLUDED.fullname,
+                    gender = EXCLUDED.gender,
+                    birthday = EXCLUDED.birthday,
+                    phone = EXCLUDED.phone,
+                    email = EXCLUDED.email,
+                    address = EXCLUDED.address,
+                    data = EXCLUDED.data,
+                    updated_at = EXCLUDED.updated_at
                 """,
                     guest_info_id,
                     customer["fullname"],

@@ -2,35 +2,31 @@
 
 import { useState, useEffect, Suspense } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
-import {
-  Download,
-  ChevronLeft,
-  ChevronRight,
-  Pencil,
-  Trash2,
-  Search,
-  Loader2,
-} from "lucide-react";
+  Dialog,
+  DialogClose,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { Download, Search, Trash2, AlertTriangle } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { KeywordFilter } from "./components/KeywordFilter";
+import { CustomerTable } from "./components/CustomerTable";
+import { CustomerPagination } from "./components/CustomerPagination";
 import { LoadingScreen } from "@/components/loading-screen";
+import { UserInfoModal } from "../conversations/components/UserInfoModal";
 import { guestService } from "@/services/api/guest.service";
-import { GuestInfo } from "@/types";
+import { interestService } from "@/services/api/interest.service";
+import { Conversation } from "@/types";
 import { toast } from "sonner";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
 
 export default function CustomerManagement() {
   const [selectedKeywords, setSelectedKeywords] = useState<string[]>([]);
-  const [customers, setCustomers] = useState<GuestInfo[]>([]);
+  const [pendingKeywords, setPendingKeywords] = useState<string[]>([]); // Từ khóa được chọn tạm thời
+  const [customers, setCustomers] = useState<Conversation[]>([]);
   const [loading, setLoading] = useState(true);
   const [pagination, setPagination] = useState({
     page: 1,
@@ -39,23 +35,41 @@ export default function CustomerManagement() {
     total: 0,
   });
   const [searchQuery, setSearchQuery] = useState("");
+  const [pendingSearchQuery, setPendingSearchQuery] = useState("");
   const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
   const [isAllSelected, setIsAllSelected] = useState(false);
   const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
   const [customerToDelete, setCustomerToDelete] = useState<string | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [interestIds, setInterestIds] = useState<string[]>([]);
+
+  // State cho UserInfoModal
+  const [isUserInfoModalOpen, setIsUserInfoModalOpen] = useState(false);
+  const [editingCustomerId, setEditingCustomerId] = useState<string | null>(
+    null
+  );
+
+  // Khởi tạo pendingKeywords từ selectedKeywords khi trang được tải
+  useEffect(() => {
+    setPendingKeywords(selectedKeywords);
+  }, []);
 
   // Fetch customers from API
   useEffect(() => {
-    fetchCustomers();
-  }, [pagination.page, pagination.limit]);
+    if (interestIds !== undefined) {
+      // Chỉ fetch khi interestIds đã được khởi tạo
+      fetchCustomers();
+    }
+  }, [pagination.page, pagination.limit, searchQuery, interestIds]); // Thêm searchQuery và interestIds vào dependencies
 
   const fetchCustomers = async () => {
     try {
       setLoading(true);
       const response = await guestService.getGuestsWithInterests(
         pagination.page,
-        pagination.limit
+        pagination.limit,
+        searchQuery || "",
+        interestIds
       );
       setCustomers(response.data);
       setPagination({
@@ -71,37 +85,40 @@ export default function CustomerManagement() {
     }
   };
 
-  // Search functionality - applied client-side for now
-  const filteredCustomers = customers.filter((customer) => {
-    // Filter by search query across multiple fields
-    const matchesSearch =
-      !searchQuery ||
-      customer.fullname.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.email.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      customer.phone.toLowerCase().includes(searchQuery.toLowerCase());
+  // Effect to convert selected keyword names to IDs when they change
+  useEffect(() => {
+    const updateInterestIds = async () => {
+      if (selectedKeywords.length === 0) {
+        setInterestIds([]);
+        return;
+      }
 
-    // Filter by selected keywords/interests
-    const matchesKeywords =
-      selectedKeywords.length === 0 ||
-      customer.interests.some((interest) =>
-        selectedKeywords.includes(interest.name)
-      );
+      try {
+        // Get all published interests
+        const interests = await interestService.getAllPublishedInterests();
 
-    return matchesSearch && matchesKeywords;
-  });
+        // Filter to get only the IDs of interests that match our selected keywords
+        const filteredIds = interests
+          .filter((interest) => selectedKeywords.includes(interest.name))
+          .map((interest) => interest.id);
 
-  // Pagination navigation
-  const goToPage = (page: number) => {
-    if (page < 1 || page > pagination.totalPages) return;
-    setPagination({ ...pagination, page });
-  };
+        setInterestIds(filteredIds);
+      } catch (error) {
+        console.error("Error fetching interests:", error);
+        toast.error("Không thể lấy danh sách từ khóa");
+      }
+    };
+
+    updateInterestIds();
+    // Lưu ý: Không gọi fetchCustomers ở đây để tránh gọi API nhiều lần
+  }, [selectedKeywords]);
 
   // Select/deselect all customers
   const toggleSelectAll = () => {
     if (isAllSelected) {
       setSelectedCustomers([]);
     } else {
-      setSelectedCustomers(filteredCustomers.map((c) => c.id));
+      setSelectedCustomers(customers.map((c) => c.id));
     }
     setIsAllSelected(!isAllSelected);
   };
@@ -109,30 +126,49 @@ export default function CustomerManagement() {
   // Toggle selection of a single customer
   const toggleSelectCustomer = (id: string) => {
     if (selectedCustomers.includes(id)) {
-      setSelectedCustomers(selectedCustomers.filter((customerId) => customerId !== id));
+      setSelectedCustomers(
+        selectedCustomers.filter((customerId) => customerId !== id)
+      );
       setIsAllSelected(false);
     } else {
       setSelectedCustomers([...selectedCustomers, id]);
-      if (selectedCustomers.length + 1 === filteredCustomers.length) {
+      if (selectedCustomers.length + 1 === customers.length) {
         setIsAllSelected(true);
       }
     }
   };
 
-  // Delete a customer
+  // Delete a customer or multiple customers
   const handleDeleteCustomer = async () => {
-    if (!customerToDelete) return;
-    
     setIsDeleting(true);
     try {
-      // Replace with actual API call when available
-      // await guestService.deleteGuest(customerToDelete);
-      toast.success("Đã xóa khách hàng thành công");
-      
-      // Update UI by removing deleted customer
-      setCustomers(customers.filter(c => c.id !== customerToDelete));
-      setSelectedCustomers(selectedCustomers.filter(id => id !== customerToDelete));
-      
+      if (selectedCustomers.length > 0) {
+        // Delete multiple customers
+        await guestService.deleteGuests(selectedCustomers);
+
+        toast.success(
+          `Đã xóa ${selectedCustomers.length} khách hàng thành công`
+        );
+
+        // Update UI by removing deleted customers
+        setCustomers(
+          customers.filter((c) => !selectedCustomers.includes(c.id))
+        );
+        setSelectedCustomers([]);
+        setIsAllSelected(false);
+      } else if (customerToDelete) {
+        // Delete single customer
+        await guestService.deleteGuest(customerToDelete);
+
+        toast.success("Đã xóa khách hàng thành công");
+
+        // Update UI by removing deleted customer
+        setCustomers(customers.filter((c) => c.id !== customerToDelete));
+        setSelectedCustomers(
+          selectedCustomers.filter((id) => id !== customerToDelete)
+        );
+      }
+
       setDeleteConfirmOpen(false);
       setCustomerToDelete(null);
     } catch (error) {
@@ -157,6 +193,31 @@ export default function CustomerManagement() {
     return date.getFullYear().toString();
   };
 
+  // Navigate to specific page
+  const goToPage = (page: number) => {
+    if (page < 1 || page > pagination.totalPages) return;
+    setPagination({ ...pagination, page });
+  };
+
+  // Handle customer delete action
+  const handleCustomerDelete = (id: string) => {
+    setCustomerToDelete(id);
+    setDeleteConfirmOpen(true);
+  };
+
+  // Xử lý khi nhấn nút chỉnh sửa khách hàng
+  const handleCustomerEdit = (id: string) => {
+    setEditingCustomerId(id);
+    setIsUserInfoModalOpen(true);
+  };
+
+  // Xử lý khi modal chỉnh sửa đóng lại
+  const handleModalClose = () => {
+    setIsUserInfoModalOpen(false);
+    // Cập nhật lại danh sách khách hàng sau khi chỉnh sửa
+    fetchCustomers();
+  };
+
   return (
     <Suspense fallback={<LoadingScreen />}>
       <div className="flex-1 overflow-auto p-6">
@@ -164,21 +225,31 @@ export default function CustomerManagement() {
 
         <div className="flex items-center space-x-4 mb-6">
           <div className="relative">
-            <div className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-red-500 text-white flex items-center justify-center text-xs">
-              {selectedCustomers.length}
-            </div>
-            <Button 
-              variant="outline" 
-              size="icon" 
+            <Button
+              variant="outline"
+              size="icon"
               className="h-10 w-10"
               disabled={selectedCustomers.length === 0}
               onClick={() => setDeleteConfirmOpen(true)}
             >
-              <Trash2 className="h-5 w-5 text-gray-500" />
+              <Trash2
+                className={`h-5 w-5 ${
+                  selectedCustomers.length > 0
+                    ? "text-red-500"
+                    : "text-gray-500"
+                }`}
+              />
             </Button>
+            <div
+              className={`absolute -top-2 -right-2 w-5 h-5 rounded-full ${
+                selectedCustomers.length > 0 ? "bg-red-500" : "bg-gray-300"
+              } text-white flex items-center justify-center text-xs`}
+            >
+              {selectedCustomers.length}
+            </div>
           </div>
-          <Button 
-            variant="outline" 
+          <Button
+            variant="outline"
             className="space-x-2"
             onClick={exportCustomersData}
           >
@@ -186,181 +257,134 @@ export default function CustomerManagement() {
             <span>Export file</span>
           </Button>
 
-          <div className="relative flex-1 max-w-md">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-            <Input 
-              placeholder="Search..." 
-              className="pl-10" 
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
+          <div className="flex flex-1 items-center gap-2">
+            <div className="flex-1">
+              <Input
+                type="text"
+                placeholder="Tìm kiếm khách hàng..."
+                value={pendingSearchQuery}
+                onChange={(e) => setPendingSearchQuery(e.target.value)}
+                className="w-full"
+              />
+            </div>
+
+            <KeywordFilter
+              selectedKeywords={pendingKeywords}
+              onChange={setPendingKeywords}
             />
-          </div>
 
-          <KeywordFilter
-            selectedKeywords={selectedKeywords}
-            setSelectedKeywords={setSelectedKeywords}
+            <Button
+              onClick={async () => {
+                // Cập nhật searchQuery từ pendingSearchQuery
+                setSearchQuery(pendingSearchQuery);
+                // Cập nhật selectedKeywords từ pendingKeywords
+                setSelectedKeywords(pendingKeywords);
+                // Reset trang về 1
+                setPagination({ ...pagination, page: 1 });
+              }}
+              className="bg-[#6366F1] text-white"
+            >
+              <Search className="h-4 w-4 mr-2" />
+              Tìm kiếm
+            </Button>
+          </div>
+        </div>
+
+        {/* Customer Table Component */}
+        <CustomerTable
+          customers={customers}
+          loading={loading}
+          selectedCustomers={selectedCustomers}
+          toggleSelectCustomer={toggleSelectCustomer}
+          toggleSelectAll={toggleSelectAll}
+          isAllSelected={isAllSelected}
+          onEdit={handleCustomerEdit}
+          onDelete={handleCustomerDelete}
+          formatBirthday={formatBirthday}
+        />
+
+        {/* Pagination Component */}
+        {!loading && customers.length > 0 && (
+          <CustomerPagination
+            page={pagination.page}
+            totalPages={pagination.totalPages}
+            total={pagination.total}
+            limit={pagination.limit}
+            onPageChange={goToPage}
           />
-        </div>
-
-        <div className="border rounded-md">
-          <Table>
-            <TableHeader>
-              <TableRow className="bg-gray-50">
-                <TableHead className="w-12">
-                  <Checkbox 
-                    checked={isAllSelected && filteredCustomers.length > 0} 
-                    onCheckedChange={toggleSelectAll}
-                  />
-                </TableHead>
-                <TableHead className="text-[#6366F1] font-medium">
-                  Tên khách hàng
-                </TableHead>
-                <TableHead className="text-[#6366F1] font-medium">
-                  Giới tính
-                </TableHead>
-                <TableHead className="text-[#6366F1] font-medium">
-                  Năm sinh
-                </TableHead>
-                <TableHead className="text-[#6366F1] font-medium">
-                  SĐT
-                </TableHead>
-                <TableHead className="text-[#6366F1] font-medium">
-                  Email
-                </TableHead>
-                <TableHead className="text-[#6366F1] font-medium">
-                  Địa chỉ
-                </TableHead>
-                <TableHead className="text-[#6366F1] font-medium">
-                  Xu hướng
-                </TableHead>
-                <TableHead className="text-[#6366F1] font-medium text-right">
-                  Thao tác
-                </TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center">
-                    <Loader2 className="h-6 w-6 animate-spin mx-auto" />
-                    <div className="mt-2">Đang tải dữ liệu...</div>
-                  </TableCell>
-                </TableRow>
-              ) : filteredCustomers.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={9} className="h-24 text-center text-gray-500">
-                    Không có dữ liệu khách hàng
-                  </TableCell>
-                </TableRow>
-              ) : (
-                filteredCustomers.map((customer) => (
-                  <TableRow key={customer.id}>
-                    <TableCell>
-                      <Checkbox 
-                        checked={selectedCustomers.includes(customer.id)}
-                        onCheckedChange={() => toggleSelectCustomer(customer.id)}
-                      />
-                    </TableCell>
-                    <TableCell>{customer.fullname}</TableCell>
-                    <TableCell>{customer.gender}</TableCell>
-                    <TableCell>{formatBirthday(customer.birthday)}</TableCell>
-                    <TableCell>{customer.phone}</TableCell>
-                    <TableCell>{customer.email}</TableCell>
-                    <TableCell className="max-w-xs truncate">
-                      {customer.address}
-                    </TableCell>
-                    <TableCell>
-                      {customer.interests.map(interest => interest.name).join(", ")}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <Button variant="ghost" size="icon">
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                        <Button 
-                          variant="ghost" 
-                          size="icon"
-                          onClick={() => {
-                            setCustomerToDelete(customer.id);
-                            setDeleteConfirmOpen(true);
-                          }}
-                        >
-                          <Trash2 className="h-4 w-4 text-red-500" />
-                        </Button>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </div>
-
-        {!loading && filteredCustomers.length > 0 && (
-          <div className="flex justify-center items-center mt-6 space-x-2">
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-10 w-10"
-              disabled={pagination.page === 1}
-              onClick={() => goToPage(pagination.page - 1)}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-            {Array.from({ length: pagination.totalPages }, (_, i) => i + 1).map((page) => (
-              <Button 
-                key={page}
-                className={pagination.page === page ? "bg-[#6366F1] text-white h-10 w-10" : "variant-outline h-10 w-10"}
-                onClick={() => goToPage(page)}
-              >
-                {page}
-              </Button>
-            ))}
-            <Button 
-              variant="outline" 
-              size="icon" 
-              className="h-10 w-10"
-              disabled={pagination.page === pagination.totalPages}
-              onClick={() => goToPage(pagination.page + 1)}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-          </div>
         )}
       </div>
 
       {/* Delete confirmation dialog */}
       <Dialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
         <DialogContent className="sm:max-w-[425px]">
-          <div className="p-6">
-            <h2 className="text-xl font-semibold mb-4">Xác nhận xóa</h2>
-            <p className="mb-6">Bạn có chắc chắn muốn xóa khách hàng này?</p>
-            <div className="flex justify-end space-x-2">
-              <Button 
-                variant="outline" 
-                onClick={() => setDeleteConfirmOpen(false)}
-                disabled={isDeleting}
-              >
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-xl">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Xác nhận xóa
+            </DialogTitle>
+            <DialogDescription>
+              Bạn có chắc chắn muốn xóa
+              {selectedCustomers.length > 1 ||
+              (customerToDelete === null && selectedCustomers.length === 1)
+                ? ` ${selectedCustomers.length} khách hàng`
+                : " khách hàng này"}
+              ? Hành động này không thể hoàn tác.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:justify-end">
+            <DialogClose asChild>
+              <Button type="button" variant="outline" disabled={isDeleting}>
                 Hủy
               </Button>
-              <Button 
-                onClick={handleDeleteCustomer}
-                disabled={isDeleting}
-                className="bg-red-500 hover:bg-red-600 text-white"
-              >
-                {isDeleting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                    Đang xóa
-                  </>
-                ) : (
-                  "Xóa"
-                )}
-              </Button>
-            </div>
-          </div>
+            </DialogClose>
+            <Button
+              type="button"
+              variant="destructive"
+              className="bg-red-500 hover:bg-red-600 text-white"
+              onClick={handleDeleteCustomer}
+              disabled={isDeleting}
+            >
+              {isDeleting ? (
+                <span className="flex items-center">
+                  <svg
+                    className="animate-spin -ml-1 mr-2 h-4 w-4 text-white"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                  >
+                    <circle
+                      className="opacity-25"
+                      cx="12"
+                      cy="12"
+                      r="10"
+                      stroke="currentColor"
+                      strokeWidth="4"
+                    ></circle>
+                    <path
+                      className="opacity-75"
+                      fill="currentColor"
+                      d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    ></path>
+                  </svg>
+                  Đang xóa...
+                </span>
+              ) : (
+                "Xóa"
+              )}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* UserInfoModal for editing customer */}
+      {editingCustomerId && (
+        <UserInfoModal
+          open={isUserInfoModalOpen}
+          onOpenChange={handleModalClose}
+          guestId={editingCustomerId}
+        />
+      )}
     </Suspense>
   );
 }

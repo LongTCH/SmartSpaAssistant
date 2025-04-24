@@ -1,3 +1,5 @@
+import { Interest } from "./interest";
+
 export type ProviderType = "messenger" | "web";
 export type ConversationalistType = "client" | "staff";
 export type ChatAttachmentType = "image" | "video" | "audio" | "file";
@@ -13,6 +15,13 @@ export interface Conversation {
   provider: ProviderType;
   sentiment: SentimentType;
   assigned_to: ChatAssignmentType;
+  fullname: string;
+  email: string;
+  phone: string;
+  address: string;
+  gender: string;
+  birthday: string;
+  interests: Interest[];
 }
 
 export interface ChatAttachmentPayload {

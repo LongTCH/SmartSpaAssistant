@@ -39,9 +39,11 @@ export const API_ROUTES = {
     DOWNLOAD: (sheetId: string) => `/sheets/${sheetId}/download`,
   },
   GUEST: {
-    GET: "/guests",
+    FILTER: "/guests/filter",
     DETAIL: (id: string) => `/guests/${id}`,
+    DELETE: (id: string) => `/guests/${id}`,
     UPDATE: (id: string) => `/guests/${id}`,
+    DELETE_MULTIPLE: "/guests/delete-multiple",
   },
   CONVERSATION: {
     GET: "/conversations",
@@ -58,13 +60,10 @@ export const APP_ROUTES = {
   DASHBOARD: "/dashboard",
   PROFILE: "/profile",
   AUTH_CALLBACK: "/auth/callback",
-  SPACES: {
-    PUBLIC: "/spaces/public",
-    MINE: "/spaces/me",
-  },
-  DOCUMENT: {
-    UPLOAD_PROGRESS: (id: string) => `/documents/upload-progress/${id}`,
-  },
+  CONVERSATIONS: "/conversations",
+  SETTINGS: "/settings",
+  ANALYSIS: "/analysis",
+  CUSTOMERS: "/customers",
 };
 
 export const WS_MESSAGES = {

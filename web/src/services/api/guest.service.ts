@@ -1,9 +1,9 @@
 import apiClient from "@/lib/axios";
 import { API_ROUTES } from "@/lib/constants";
-import { GuestInfo, GuestInfoUpdate } from "@/types";
+import { Conversation, GuestInfoUpdate } from "@/types";
 
 export interface GuestsPaginationResponse {
-  data: GuestInfo[];
+  data: Conversation[];
   total: number;
   page: number;
   limit: number;
@@ -15,31 +15,46 @@ export interface GuestsPaginationResponse {
 }
 
 export const guestService = {
-  async getGuestInfo(guestId: string): Promise<GuestInfo> {
+  async getGuestInfo(guestId: string): Promise<Conversation> {
     const response = await apiClient.instance.get(
       API_ROUTES.GUEST.DETAIL(guestId)
     );
-    return response.data as GuestInfo;
+    return response.data as Conversation;
   },
 
   async updateGuestInfo(
     guestId: string,
     data: GuestInfoUpdate
-  ): Promise<GuestInfo> {
+  ): Promise<Conversation> {
     const response = await apiClient.instance.put(
       API_ROUTES.GUEST.DETAIL(guestId),
       data
     );
-    return response.data as GuestInfo;
+    return response.data as Conversation;
   },
 
   async getGuestsWithInterests(
     page: number,
-    limit: number
+    limit: number,
+    keyword: string,
+    interest_ids: string[]
   ): Promise<GuestsPaginationResponse> {
-    const response = await apiClient.instance.get(API_ROUTES.GUEST.GET, {
-      params: { page, limit },
+    const response = await apiClient.instance.post(API_ROUTES.GUEST.FILTER, {
+      page,
+      limit,
+      keyword,
+      interest_ids,
     });
     return response.data as GuestsPaginationResponse;
+  },
+
+  async deleteGuest(guestId: string): Promise<void> {
+    await apiClient.instance.delete(API_ROUTES.GUEST.DELETE(guestId));
+  },
+
+  async deleteGuests(guestIds: string[]): Promise<void> {
+    await apiClient.instance.post(API_ROUTES.GUEST.DELETE_MULTIPLE, {
+      guest_ids: guestIds,
+    });
   },
 };

@@ -46,7 +46,7 @@ async def test_get_conversations_by_assignment(
     """Test getting conversations filtered by assignment."""
     # Setup mock - Filter to just AI assigned conversations
     filtered_guests = [
-        g for g in mock_guest_list if g.assigned_to == CHAT_ASSIGNMENT.AI.value
+        g for g in mock_guest_list if g["assigned_to"] == CHAT_ASSIGNMENT.AI.value
     ]
     mock_get_conversations_by_assignment.return_value = PagingDto(
         skip=0, limit=10, data=filtered_guests, total=len(filtered_guests)

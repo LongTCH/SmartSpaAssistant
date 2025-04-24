@@ -15,7 +15,7 @@ async def test_get_conversations_by_sentiment(
     """Test getting conversations filtered by sentiment."""
     # Setup mock - Filter to just positive sentiment
     sentiment = SENTIMENTS.POSITIVE.value
-    filtered_guests = [g for g in mock_guest_list if g.sentiment == sentiment]
+    filtered_guests = [g for g in mock_guest_list if g["sentiment"] == sentiment]
     mock_get_paging_guests_by_sentiment.return_value = PagingDto(
         skip=0, limit=10, data=filtered_guests, total=len(filtered_guests)
     )

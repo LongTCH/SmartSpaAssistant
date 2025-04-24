@@ -134,42 +134,6 @@ async def create_and_insert_guest_interests():
                         insert_query, {"guest_id": guest_id, "interest_id": interest_id}
                     )
 
-                # Cập nhật trường data trong guest_info để bao gồm interest mới
-                # Đầu tiên lấy guest_info_id từ guest
-                query_guest = text(
-                    """
-                SELECT info_id FROM guests WHERE id = :guest_id
-                """
-                )
-                result = await session.execute(query_guest, {"guest_id": guest_id})
-                guest_info_id = result.scalar()
-
-                if guest_info_id:
-                    # Lấy interest name
-                    query_interest = text(
-                        """
-                    SELECT name FROM interests WHERE id = :interest_id
-                    """
-                    )
-                    result = await session.execute(
-                        query_interest, {"interest_id": interest_id}
-                    )
-                    interest_name = result.scalar()
-
-                    if interest_name:
-                        # Sử dụng phương pháp đơn giản hơn: thực hiện truy vấn trực tiếp với execute_raw_sql
-                        # để tránh vấn đề với các tham số và loại dữ liệu jsonb
-                        raw_sql = f"""
-                        UPDATE guest_infos 
-                        SET data = jsonb_set(
-                            COALESCE(data, '{{}}'::jsonb),
-                            '{{interests}}',
-                            COALESCE(data->'interests', '[]'::jsonb) || '["{interest_name}"]'::jsonb
-                        )
-                        WHERE id = '{guest_info_id}'
-                        """
-                        await session.execute(text(raw_sql))
-
         await session.commit()
 
     await engine.dispose()

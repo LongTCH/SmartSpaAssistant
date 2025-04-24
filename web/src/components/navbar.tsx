@@ -13,10 +13,19 @@ import { useApp } from "@/context/app-context";
 import { useRouter } from "next/navigation";
 
 export function Navbar() {
-  const { activeNavTab, setActiveNavTab, logout, setPageLoading } = useApp();
+  const {
+    activeNavTab,
+    setActiveNavTab,
+    logout,
+    setPageLoading,
+    isPageLoading,
+  } = useApp();
   const router = useRouter();
 
   const handleTabChange = (value: string) => {
+    // Nếu đang loading, không cho phép chuyển tab
+    if (isPageLoading) return;
+
     // Đặt tab active ngay lập tức
     setActiveNavTab(value);
 
@@ -45,19 +54,12 @@ export function Navbar() {
   return (
     <header className="flex items-center justify-between px-6 py-3 bg-indigo-600 text-white">
       <div className="flex items-center space-x-4">
-        <div className="w-9 h-9 rounded-full bg-white/10 flex items-center justify-center">
-          <svg
-            width="24"
-            height="24"
-            viewBox="0 0 24 24"
-            fill="none"
-            xmlns="http://www.w3.org/2000/svg"
-          >
-            <path
-              d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM12 5C13.66 5 15 6.34 15 8C15 9.66 13.66 11 12 11C10.34 11 9 9.66 9 8C9 6.34 10.34 5 12 5ZM12 19.2C9.5 19.2 7.29 17.92 6 15.98C6.03 13.99 10 12.9 12 12.9C13.99 12.9 17.97 13.99 18 15.98C16.71 17.92 14.5 19.2 12 19.2Z"
-              fill="white"
-            />
-          </svg>
+        <div className="flex items-center mr-4">
+          <img
+            src="/smart-spa.png"
+            alt="Smart Spa Logo"
+            className="h-10 w-auto rounded"
+          />
         </div>
 
         <Tabs
@@ -65,9 +67,14 @@ export function Navbar() {
           onValueChange={handleTabChange}
           className="w-auto"
         >
-          <TabsList className="bg-white/10 h-10 p-1 rounded-full">
+          <TabsList
+            className={`bg-white/10 h-10 p-1 rounded-full ${
+              isPageLoading ? "opacity-70 pointer-events-none" : ""
+            }`}
+          >
             <TabsTrigger
               value="messages"
+              disabled={isPageLoading}
               className={`px-4 text-sm font-medium rounded-full cursor-pointer ${
                 activeNavTab === "messages"
                   ? "bg-white text-[#6366F1]"
@@ -78,6 +85,7 @@ export function Navbar() {
             </TabsTrigger>
             <TabsTrigger
               value="settings"
+              disabled={isPageLoading}
               className={`px-4 text-sm font-medium rounded-full cursor-pointer ${
                 activeNavTab === "settings"
                   ? "bg-white text-[#6366F1]"
@@ -88,6 +96,7 @@ export function Navbar() {
             </TabsTrigger>
             <TabsTrigger
               value="customers"
+              disabled={isPageLoading}
               className={`px-4 text-sm font-medium rounded-full cursor-pointer ${
                 activeNavTab === "customers"
                   ? "bg-white text-[#6366F1]"
@@ -98,6 +107,7 @@ export function Navbar() {
             </TabsTrigger>
             <TabsTrigger
               value="analysis"
+              disabled={isPageLoading}
               className={`px-4 text-sm font-medium rounded-full cursor-pointer ${
                 activeNavTab === "analysis"
                   ? "bg-white text-[#6366F1]"
@@ -114,6 +124,7 @@ export function Navbar() {
           variant="ghost"
           size="icon"
           className="text-white/90 hover:text-white hover:bg-white/10 rounded-full"
+          disabled={isPageLoading}
         >
           <Bell className="h-5 w-5" />
         </Button>
@@ -123,13 +134,18 @@ export function Navbar() {
               variant="ghost"
               size="icon"
               className="text-white/90 hover:text-white hover:bg-white/10 rounded-full"
+              disabled={isPageLoading}
             >
               <User className="h-4 w-4" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end">
             <DropdownMenuLabel>My Account</DropdownMenuLabel>
-            <DropdownMenuItem className="text-destructive" onClick={logout}>
+            <DropdownMenuItem
+              className="text-destructive"
+              onClick={logout}
+              disabled={isPageLoading}
+            >
               <LogOut className="h-4 w-4 mr-2" />
               Logout
             </DropdownMenuItem>

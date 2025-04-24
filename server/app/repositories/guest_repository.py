@@ -2,6 +2,7 @@ from app.models import Guest, Interest
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload, selectinload
+from sqlalchemy.sql import text
 
 
 async def count_guests(db: AsyncSession) -> int:
@@ -14,6 +15,42 @@ async def count_guests_by_assignment(db: AsyncSession, assigned_to: str) -> int:
     stmt = select(Guest).where(Guest.assigned_to == assigned_to)
     result = await db.execute(stmt)
     return len(result.scalars().all())
+
+
+async def count_guests_by_interests(db: AsyncSession, interest_ids: list[str]) -> int:
+    """
+    Đếm số lượng khách hàng theo danh sách interest_ids
+    """
+    stmt = select(Guest).join(Guest.interests).where(Interest.id.in_(interest_ids))
+    result = await db.execute(stmt)
+    return len(result.scalars().all())
+
+
+async def count_guests_by_interests_and_keywords(
+    db: AsyncSession, interest_ids: list[str], keywords: str
+) -> int:
+    """
+    Đếm số lượng khách hàng theo danh sách interest_ids và từ khóa tìm kiếm
+    """
+    # Sửa lại cách sử dụng IN clause cho đúng với asyncpg
+    stmt = text(
+        """
+        SELECT COUNT(DISTINCT g.id)
+        FROM guests g
+        JOIN guest_infos gi ON g.info_id = gi.id
+        JOIN guest_interests gi2 ON g.id = gi2.guest_id
+        WHERE gi.data &@~ :keywords 
+        AND gi2.interest_id = ANY(:interest_ids)
+        """
+    )
+
+    # Sử dụng bindparams để truyền parameters vào query
+    result = await db.execute(
+        stmt.bindparams(keywords=keywords, interest_ids=interest_ids)
+    )
+
+    count = result.scalar_one()
+    return count
 
 
 async def get_paging_guests(db: AsyncSession, skip: int, limit: int) -> list[Guest]:
@@ -29,7 +66,7 @@ async def get_paging_conversation(
     # Eager load guest_info
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info))
+        .options(joinedload(Guest.info), selectinload(Guest.interests))
         .order_by(Guest.last_message_at.desc())
         .offset(skip)
         .limit(limit)
@@ -44,7 +81,7 @@ async def get_paging_conversation_by_assignment(
     # Eager load guest_info
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info))
+        .options(joinedload(Guest.info), selectinload(Guest.interests))
         .where(Guest.assigned_to == assigned_to)
         .order_by(Guest.last_message_at.desc())
         .offset(skip)
@@ -139,7 +176,7 @@ async def get_guests_by_sentiment(
 
 
 async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -> Guest:
-    stmt = select(Guest).where(Guest.id == guest_id)
+    stmt = select(Guest).options(joinedload(Guest.info)).where(Guest.id == guest_id)
     result = await db.execute(stmt)
     guest = result.scalars().first()
     if guest:
@@ -187,8 +224,11 @@ async def add_interest_to_guest(
 ) -> Guest:
     """
     Thêm interest cho guest
+    Trigger trong database sẽ tự động cập nhật trường data.interests trong guest_info
     """
-    stmt_guest = select(Guest).where(Guest.id == guest_id)
+    stmt_guest = (
+        select(Guest).options(joinedload(Guest.info)).where(Guest.id == guest_id)
+    )
     result_guest = await db.execute(stmt_guest)
     guest = result_guest.scalars().first()
 
@@ -197,8 +237,10 @@ async def add_interest_to_guest(
     interest = result_interest.scalars().first()
 
     if guest and interest:
-        guest.interests.append(interest)
-        await db.flush()
+        # Thêm interest vào mối quan hệ nhiều-nhiều nếu chưa tồn tại
+        if interest not in guest.interests:
+            guest.interests.append(interest)
+            await db.flush()
 
     return guest
 
@@ -208,8 +250,11 @@ async def remove_interest_from_guest(
 ) -> Guest:
     """
     Xóa interest khỏi guest
+    Trigger trong database sẽ tự động cập nhật trường data.interests trong guest_info
     """
-    stmt_guest = select(Guest).where(Guest.id == guest_id)
+    stmt_guest = (
+        select(Guest).options(joinedload(Guest.info)).where(Guest.id == guest_id)
+    )
     result_guest = await db.execute(stmt_guest)
     guest = result_guest.scalars().first()
 
@@ -218,6 +263,7 @@ async def remove_interest_from_guest(
     interest = result_interest.scalars().first()
 
     if guest and interest and interest in guest.interests:
+        # Xóa interest từ mối quan hệ nhiều-nhiều
         guest.interests.remove(interest)
         await db.flush()
 
@@ -230,17 +276,20 @@ async def search_guests_by_keywords(
     """
     Tìm kiếm guest sử dụng PGroonga thông qua bảng guest_info
     """
-    stmt = f"""
+    stmt = text(
+        f"""
     SELECT g.*
     FROM guests g
     JOIN guest_infos gi ON g.info_id = gi.id
-    WHERE gi.data &@~ :keywords OR g.provider &@~ :keywords OR g.account_name &@~ :keywords
+    WHERE gi.data &@~ :keywords
     ORDER BY g.last_message_at DESC
     LIMIT :limit OFFSET :skip
     """
-    result = await db.execute(
-        stmt, {"keywords": keywords, "limit": limit, "skip": skip}
     )
+    result = await db.execute(
+        stmt, {"limit": limit, "skip": skip, "keywords": keywords}
+    )
+
     guests_rows = result.mappings().all()
 
     # Chuyển đổi kết quả thành danh sách guest objects
@@ -257,12 +306,102 @@ async def search_guests_by_keywords(
 async def count_search_guests(db: AsyncSession, keywords: str) -> int:
     """
     Đếm số lượng kết quả tìm kiếm
+
+    Hỗ trợ đếm kết quả khi tìm kiếm nhiều interests cùng lúc
     """
-    stmt = f"""
+    stmt = text(
+        f"""
     SELECT COUNT(*) as count
     FROM guests g
     JOIN guest_infos gi ON g.info_id = gi.id
     WHERE gi.data &@~ :keywords
     """
+    )
     result = await db.execute(stmt, {"keywords": keywords})
+
     return result.scalar()
+
+
+async def get_guests_by_interests(
+    db: AsyncSession, interest_ids: list[str], skip: int, limit: int
+) -> list[Guest]:
+    """
+    Lấy danh sách khách hàng theo danh sách interest_ids
+    """
+    stmt = (
+        select(Guest)
+        .options(joinedload(Guest.info), selectinload(Guest.interests))
+        .join(Guest.interests)
+        .where(Interest.id.in_(interest_ids))
+        .order_by(Guest.last_message_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def get_guests_by_interests_and_keywords(
+    db: AsyncSession, interest_ids: list[str], keywords: str, skip: int, limit: int
+) -> list[Guest]:
+    """
+    Lấy danh sách khách hàng theo danh sách interest_ids và từ khóa tìm kiếm
+    """
+    # Sử dụng text để xây dựng SQL query trực tiếp kết hợp cả tìm kiếm theo interests và keywords
+    stmt = text(
+        """
+        SELECT g.*
+        FROM guests g
+        JOIN guest_infos gi ON g.info_id = gi.id
+        JOIN guest_interests gi2 ON g.id = gi2.guest_id
+        WHERE gi.data &@~ :keywords 
+        AND gi2.interest_id = ANY(:interest_ids)
+        ORDER BY g.last_message_at DESC
+        LIMIT :limit OFFSET :skip
+        """
+    )
+
+    # Sử dụng bindparams để truyền parameters vào query
+    result = await db.execute(
+        stmt.bindparams(
+            limit=limit, skip=skip, keywords=keywords, interest_ids=interest_ids
+        )
+    )
+
+    guests_rows = result.mappings().all()
+
+    # Chuyển đổi kết quả thành danh sách guest objects
+    guests = []
+    for row in guests_rows:
+        # Query lại để lấy đầy đủ thông tin cho mỗi guest
+        guest = await get_guest_by_id(db, row["id"])
+        if guest:
+            guests.append(guest)
+
+    return guests
+
+
+async def delete_guest_by_id(db: AsyncSession, guest_id: str) -> Guest:
+    """
+    Xóa khách hàng theo ID
+    """
+    stmt = select(Guest).where(Guest.id == guest_id)
+    result = await db.execute(stmt)
+    guest = result.scalars().first()
+    if guest:
+        await db.delete(guest)
+        await db.flush()
+        return guest
+    return None
+
+
+async def delete_multiple_guests(db: AsyncSession, guest_ids: list[str]) -> None:
+    """
+    Xóa nhiều khách hàng theo danh sách ID
+    """
+    stmt = select(Guest).where(Guest.id.in_(guest_ids))
+    result = await db.execute(stmt)
+    guests = result.scalars().all()
+    for guest in guests:
+        await db.delete(guest)
+    await db.flush()

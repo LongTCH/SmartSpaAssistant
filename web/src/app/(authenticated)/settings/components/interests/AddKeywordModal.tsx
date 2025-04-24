@@ -18,6 +18,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ColorPicker } from "@/components/color-picker";
 import { InterestData } from "@/types";
 import { toast } from "sonner";
 import { interestService } from "@/services/api/interest.service";
@@ -38,6 +39,7 @@ export function AddKeywordModal({
     name: "",
     related_terms: "",
     status: "published",
+    color: "#4CAF50", // Default color
   });
 
   const handleChange = (field: keyof InterestData, value: string) => {
@@ -53,13 +55,13 @@ export function AddKeywordModal({
     try {
       // Validate required fields
       if (!interestData.name) {
-        toast.error("Vui lòng điền tên từ khóa");
+        toast.error("Vui lòng điền tên nhãn");
         setIsSubmitting(false);
         return;
       }
 
       await interestService.createInterest(interestData);
-      toast.success("Đã thêm từ khóa mới thành công");
+      toast.success("Đã thêm nhãn mới thành công");
 
       // Call onSuccess callback if provided
       onSuccess?.();
@@ -70,9 +72,10 @@ export function AddKeywordModal({
         name: "",
         related_terms: "",
         status: "published",
+        color: "#4CAF50",
       });
     } catch (error) {
-      toast.error("Có lỗi xảy ra khi lưu từ khóa");
+      toast.error("Có lỗi xảy ra khi lưu nhãn");
     } finally {
       setIsSubmitting(false);
     }
@@ -83,7 +86,7 @@ export function AddKeywordModal({
       <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold text-center">
-            Thêm từ khóa mới
+            Thêm nhãn mới
           </DialogTitle>
         </DialogHeader>
         <div className="space-y-6 py-4 overflow-y-auto pr-1">
@@ -107,7 +110,7 @@ export function AddKeywordModal({
 
           <div className="space-y-2">
             <label className="text-sm font-medium">
-              Từ khóa: <span className="text-red-500">*</span>
+              Nhãn: <span className="text-red-500">*</span>
             </label>
             <Input
               placeholder="nám"
@@ -117,7 +120,15 @@ export function AddKeywordModal({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Các từ liên quan:</label>
+            <label className="text-sm font-medium">Màu sắc:</label>
+            <ColorPicker
+              value={interestData.color}
+              onChange={(color) => handleChange("color", color)}
+            />
+          </div>
+
+          <div className="space-y-2">
+            <label className="text-sm font-medium">Mô tả:</label>
             <Textarea
               className="min-h-[120px]"
               placeholder="nám, trị nám, nám mảng, nám đỉnh, chữa nám, nám lâu năm, làm mờ nám"

@@ -2,40 +2,36 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Frown, Info, ChevronDown, Smile } from "lucide-react";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+import { ChevronDown } from "lucide-react";
+
 import { useState, useEffect, useRef } from "react";
 import { conversationService } from "@/services/api/conversation.service";
-import { Conversation, Chat } from "@/types";
-import { getBadge } from "./ConversationInfo";
+import { guestService } from "@/services/api/guest.service";
+import { Conversation, Chat, ChatAssignmentType, SentimentType } from "@/types";
 import { useApp } from "@/context/app-context";
 import { MarkdownContent } from "@/components/markdown-content";
 import { AttachmentViewer } from "@/components/attachment-viewer";
 import { WS_MESSAGES } from "@/lib/constants";
-import { toast } from "sonner";
-import { UserInfoModal } from "./UserInfoModal";
+import { UserInfoModal } from "../UserInfoModal";
+import { TagRow } from "./TagRow";
+import ChatHeader from "./ChatHeader";
 
 interface ChatAreaProps {
-  selectedConversation: Conversation | null;
+  selectedConversationId: string | null; // Changed from selectedConversation object to just ID
   onNewMessageAdded?: (chat: Chat) => void;
-  onConversationRead?: (conversationId: string) => void; // New prop for marking as read
+  onConversationRead?: (conversationId: string) => void;
+  onConversationUpdated?: (conversation: Conversation) => void; // Thêm prop này
 }
 
 export default function ChatArea(props: ChatAreaProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [chatList, setChatList] = useState<Chat[]>([]);
   const [sentiment, setSentiment] = useState<string>("neutral");
+  const [conversationData, setConversationData] = useState<Conversation | null>(
+    null
+  ); // Add state for full conversation data
+  const [isLoadingConversation, setIsLoadingConversation] =
+    useState<boolean>(false); // Add loading state for conversation
   const messageLimit = 20; // Limit the number of messages loaded each time
   const [showUserInfo, setShowUserInfo] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
@@ -47,47 +43,9 @@ export default function ChatArea(props: ChatAreaProps) {
   const [isAtBottom, setIsAtBottom] = useState<boolean>(true);
   const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(false);
   const [isConversationSwitching, setIsConversationSwitching] = useState(false);
-  const [currentAssignment, setCurrentAssignment] = useState<string>("ai");
 
   // Use the WebSocket context from app-context
   const { registerMessageHandler } = useApp();
-
-  const getSentimentPopover = (sentiment: string) => {
-    if (sentiment === "neutral") {
-      return <></>;
-    }
-
-    return (
-      <Popover>
-        {sentiment === "negative" ? (
-          <PopoverTrigger asChild>
-            <Button variant="link" size="icon" className="w-5 h-5 rounded-full">
-              <Frown className="h-6 w-6 text-red-500" />
-            </Button>
-          </PopoverTrigger>
-        ) : (
-          <PopoverTrigger asChild>
-            <Button variant="link" size="icon" className="w-5 h-5 rounded-full">
-              <Smile className="h-6 w-6 text-green-500" />
-            </Button>
-          </PopoverTrigger>
-        )}
-        {/* Popover content */}
-        <PopoverContent className="w-80 p-4">
-          <div className="space-y-2">
-            <h4 className="font-medium">Dự đoán cảm xúc</h4>
-            <p className="text-sm text-gray-500">
-              AI dự đoán cảm xúc của người dùng trong đoạn hội thoại là{" "}
-              <strong>
-                {sentiment === "negative" ? "tiêu cực" : "tích cực"}
-              </strong>
-              .
-            </p>
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
-  };
 
   const fetchConversationMessages = async (
     conversationId: string,
@@ -137,6 +95,23 @@ export default function ChatArea(props: ChatAreaProps) {
     }
   };
 
+  // Add a new function to fetch conversation data by ID
+  const fetchConversationData = async (conversationId: string) => {
+    try {
+      setIsLoadingConversation(true);
+      const response = await guestService.getGuestInfo(conversationId);
+      setConversationData(response);
+      setSentiment(response.sentiment as string);
+      return response;
+    } catch (error) {
+      console.error("Error fetching conversation data:", error);
+      setConversationData(null);
+      return null;
+    } finally {
+      setIsLoadingConversation(false);
+    }
+  };
+
   // Scroll to latest messages with enhanced reliability
   const scrollToBottom = () => {
     if (chatContainerRef.current) {
@@ -153,7 +128,7 @@ export default function ChatArea(props: ChatAreaProps) {
   // Handle new messages from WebSocket
   const handleIncomingMessage = (conversation: Conversation) => {
     // Only process if the message belongs to the current conversation
-    if (props.selectedConversation?.id === conversation.id) {
+    if (props.selectedConversationId === conversation.id) {
       if (conversation.last_message) {
         // Create a new Chat object from the conversation data
         const newChat: Chat = {
@@ -216,14 +191,14 @@ export default function ChatArea(props: ChatAreaProps) {
     return () => {
       unregister();
     };
-  }, [props.selectedConversation?.id, isAtBottom]);
+  }, [props.selectedConversationId, isAtBottom]);
 
   useEffect(() => {
     const unregister = registerMessageHandler(
       WS_MESSAGES.UPDATE_SENTIMENT,
       (data) => {
         const conversation = data as Conversation;
-        if (props.selectedConversation?.id === conversation.id) {
+        if (props.selectedConversationId === conversation.id) {
           setSentiment(conversation.sentiment as string);
         }
       }
@@ -232,24 +207,24 @@ export default function ChatArea(props: ChatAreaProps) {
     return () => {
       unregister();
     };
-  }, [props.selectedConversation?.id]);
+  }, [props.selectedConversationId]);
 
   // Handle conversation change
   useEffect(() => {
-    if (props.selectedConversation?.id) {
+    if (props.selectedConversationId) {
       // Reset state before fetching new data
       setIsConversationSwitching(true);
       setChatList([]); // Clear old messages immediately to avoid displaying incorrect data
       setHasMoreMessages(false);
       setHasNewMessage(false);
       setIsAtBottom(true);
-      setSentiment(props.selectedConversation.sentiment as string);
+      setSentiment("neutral");
     }
-  }, [props.selectedConversation?.id]);
+  }, [props.selectedConversationId]);
 
   useEffect(() => {
-    if (isConversationSwitching && props.selectedConversation?.id) {
-      fetchConversationMessages(props.selectedConversation.id)
+    if (isConversationSwitching && props.selectedConversationId) {
+      fetchConversationMessages(props.selectedConversationId)
         .then((response) => {
           if (response.data && response.data.length > 0) {
             // Make sure to scroll to bottom after messages are loaded
@@ -273,7 +248,7 @@ export default function ChatArea(props: ChatAreaProps) {
   useEffect(() => {
     // Chỉ cuộn xuống khi thay đổi hội thoại và dữ liệu đã được tải
     if (
-      props.selectedConversation?.id &&
+      props.selectedConversationId &&
       !isLoadingMessages &&
       chatList.length > 0 &&
       isConversationSwitching
@@ -282,7 +257,7 @@ export default function ChatArea(props: ChatAreaProps) {
     }
   }, [
     isLoadingMessages,
-    props.selectedConversation?.id,
+    props.selectedConversationId,
     isConversationSwitching,
   ]);
 
@@ -305,14 +280,14 @@ export default function ChatArea(props: ChatAreaProps) {
   useEffect(() => {
     // When a conversation is selected and messages are loaded, mark it as read
     if (
-      props.selectedConversation?.id &&
+      props.selectedConversationId &&
       !isLoadingMessages &&
       chatList.length > 0 &&
       props.onConversationRead
     ) {
-      props.onConversationRead(props.selectedConversation.id);
+      props.onConversationRead(props.selectedConversationId);
     }
-  }, [props.selectedConversation?.id, isLoadingMessages, chatList]);
+  }, [props.selectedConversationId, isLoadingMessages, chatList]);
 
   // Force scroll to bottom when chat list changes and we're at initial load
   useEffect(() => {
@@ -327,81 +302,23 @@ export default function ChatArea(props: ChatAreaProps) {
     }
   }, [chatList, isLoadingMessages]);
 
-  // Cập nhật currentAssignment khi props.selectedConversation thay đổi
+  // Effect to load conversation data when conversation ID changes
   useEffect(() => {
-    if (props.selectedConversation) {
-      setCurrentAssignment(props.selectedConversation.assigned_to || "ai");
+    if (props.selectedConversationId) {
+      fetchConversationData(props.selectedConversationId);
+    } else {
+      setConversationData(null);
     }
-  }, [props.selectedConversation]);
+  }, [props.selectedConversationId]);
 
   return (
     <div className="flex-1 flex flex-col bg-gray-50">
       {/* Chat Header */}
-      <div className="p-3 border-b bg-white flex items-center gap-2">
-        <div className="flex items-center justify-between flex-1">
-          <div className="flex items-center space-x-2">
-            <Avatar className="w-10 h-10">
-              <AvatarImage src={props.selectedConversation?.avatar} />
-              <AvatarFallback>?</AvatarFallback>
-            </Avatar>
-            <span className="text-sm font-medium text-gray-800">
-              {props.selectedConversation?.account_name}
-            </span>
-            {getBadge(props.selectedConversation?.provider)}
-            {sentiment && getSentimentPopover(sentiment as string)}
-          </div>
-
-          <div className="flex items-center space-x-2">
-            <span className="text-sm text-gray-600">Giao cho</span>
-            <Select
-              value={currentAssignment}
-              onValueChange={async (value: string) => {
-                if (props.selectedConversation?.id) {
-                  try {
-                    // Cập nhật state trước để UI phản hồi ngay lập tức
-
-                    // Cập nhật trạng thái phụ trách trên server
-                    await conversationService.updateAssignment(
-                      props.selectedConversation.id,
-                      value
-                    );
-                    setCurrentAssignment(value);
-
-                    // Hiển thị thông báo thành công
-                    toast.success(
-                      `Đã giao cho ${value === "ai" ? "AI" : "Tôi"}`
-                    );
-                  } catch (error) {
-                    toast.error("Lỗi khi cập nhật người phụ trách");
-                  }
-                }
-              }}
-              disabled={!props.selectedConversation}
-            >
-              <SelectTrigger className="w-[120px] h-8">
-                <SelectValue placeholder="AI" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ai">AI</SelectItem>
-                <SelectItem value="me">Tôi</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-            onClick={() => setShowUserInfo(true)}
-          >
-            <Info className="h-4 w-4" />
-            <span className="sr-only">Information</span>
-          </Button>
-        </div>
-      </div>
-
+      <ChatHeader
+        conversationData={conversationData}
+        setShowUserInfo={setShowUserInfo}
+        selectedConversationId={props.selectedConversationId || ""}
+      />
       {/* Chat Messages Area */}
       <div className="h-[10vh] flex-1 flex flex-col relative">
         {/* Scrollable Messages - Thay đổi từ flex-col-reverse thành flex-col thông thường */}
@@ -419,14 +336,14 @@ export default function ChatArea(props: ChatAreaProps) {
               target.scrollTop < 50 &&
               hasMoreMessages &&
               !isLoadingMessages &&
-              props.selectedConversation?.id
+              props.selectedConversationId
             ) {
               // Save current scroll height and position before loading more messages
               prevScrollHeight.current = target.scrollHeight;
               prevScrollTop.current = target.scrollTop;
 
               // Load more messages by calling the function directly
-              fetchConversationMessages(props.selectedConversation.id, true);
+              fetchConversationMessages(props.selectedConversationId, true);
             }
           }}
         >
@@ -456,7 +373,7 @@ export default function ChatArea(props: ChatAreaProps) {
                     className="flex items-start space-x-2 max-w-[80%]"
                   >
                     <Avatar>
-                      <AvatarImage src={props.selectedConversation?.avatar} />
+                      <AvatarImage src="/placeholder.svg?height=40&width=40" />
                       <AvatarFallback>?</AvatarFallback>
                     </Avatar>
                     <div>
@@ -541,7 +458,7 @@ export default function ChatArea(props: ChatAreaProps) {
           ) : (
             <div className="flex justify-center items-center h-full">
               <div className="text-gray-500">
-                {props.selectedConversation
+                {props.selectedConversationId
                   ? "No messages available"
                   : "Please select a conversation"}
               </div>
@@ -565,6 +482,10 @@ export default function ChatArea(props: ChatAreaProps) {
 
         {/* Fixed System Message at Bottom */}
         <div className="p-2 border-t bg-white sticky bottom-0 z-10">
+          {/* Hiển thị các nhãn của cuộc hội thoại */}
+          {conversationData && conversationData.interests && (
+            <TagRow interests={conversationData.interests} />
+          )}
           <div className="text-xs text-gray-500 text-center bg-gray-50 py-2 rounded border border-gray-200">
             Xin lỗi, nhắn tin trực tiếp không được hỗ trợ.
           </div>
@@ -573,8 +494,27 @@ export default function ChatArea(props: ChatAreaProps) {
       {/* User Info Modal */}
       <UserInfoModal
         open={showUserInfo}
-        onOpenChange={setShowUserInfo}
-        guestId={props.selectedConversation?.id || ""}
+        onOpenChange={(open) => {
+          setShowUserInfo(open);
+          // Nếu đóng modal và có conversation đã chọn, cập nhật lại thông tin từ API
+          if (!open && props.selectedConversationId) {
+            // Fetch lại thông tin khách hàng mà không cần fetch lại tin nhắn chat
+            fetchConversationData(props.selectedConversationId)
+              .then((updatedConversation) => {
+                // Báo lên component cha rằng conversation đã được cập nhật nếu có callback
+                if (props.onConversationUpdated && updatedConversation) {
+                  props.onConversationUpdated(updatedConversation);
+                }
+              })
+              .catch((error) => {
+                console.error(
+                  "Lỗi khi cập nhật lại dữ liệu cuộc trò chuyện:",
+                  error
+                );
+              });
+          }
+        }}
+        guestId={props.selectedConversationId || ""}
       />
     </div>
   );

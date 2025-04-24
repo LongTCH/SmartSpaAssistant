@@ -103,21 +103,19 @@ class Guest(Base):
         if include is None:
             include = []
 
-        # Lấy dữ liệu từ info nếu có, ngược lại dùng None
-        info = self.info
-
+        # Tạo dict kết quả trước, không truy cập lazy relationship trực tiếp
         result = {
             "id": self.id,
-            "provider": self.provider,  # Lấy trực tiếp từ guest
+            "provider": self.provider,
             "account_id": self.account_id,
-            "account_name": self.account_name,  # Lấy trực tiếp từ guest
+            "account_name": self.account_name,
             "avatar": self.avatar,
-            "fullname": info.fullname if info else None,
-            "gender": info.gender if info else None,
-            "birthday": info.birthday.isoformat() if info and info.birthday else None,
-            "phone": info.phone if info else None,
-            "email": info.email if info else None,
-            "address": info.address if info else None,
+            "fullname": None,
+            "gender": None,
+            "birthday": None,
+            "phone": None,
+            "email": None,
+            "address": None,
             "last_message_at": (
                 self.last_message_at.isoformat() if self.last_message_at else None
             ),
@@ -128,7 +126,23 @@ class Guest(Base):
             "assigned_to": self.assigned_to,
         }
 
-        if "interests" in include and self.interests:
+        # Chỉ truy cập thuộc tính info nếu nó đã được tải trước đó
+        # Cách này giúp tránh lỗi greenlet_spawn
+        info_dict = {}
+        if "info" in self.__dict__ and self.info is not None:
+            info_dict = {
+                "fullname": self.info.fullname,
+                "gender": self.info.gender,
+                "birthday": (
+                    self.info.birthday.isoformat() if self.info.birthday else None
+                ),
+                "phone": self.info.phone,
+                "email": self.info.email,
+                "address": self.info.address,
+            }
+            result.update(info_dict)
+
+        if "interests" in include and "interests" in self.__dict__ and self.interests:
             result["interests"] = [
                 interest.to_dict(include=[]) for interest in self.interests
             ]
@@ -222,6 +236,7 @@ class Interest(Base):
     name = Column(String(255), nullable=False)
     related_terms = Column(Text, nullable=False)
     status = Column(String(50), default="published")
+    color = Column(String(50), default="#000000")
     created_at = Column(DateTime, default=datetime.datetime.now)
 
     # Relationship to Guest
@@ -241,6 +256,7 @@ class Interest(Base):
             "name": self.name,
             "related_terms": self.related_terms,
             "status": self.status,
+            "color": self.color,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
 

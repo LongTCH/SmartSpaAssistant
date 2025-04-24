@@ -38,20 +38,22 @@ async def create_and_insert_interests():
         Column("name", String(255), nullable=False),
         Column("related_terms", Text, nullable=False),
         Column("status", String(50), default="published"),
+        Column("color", String(50), default="#000000"),
         Column("created_at", DateTime, default=datetime.datetime.now),
     )
 
     async with engine.begin() as conn:
         await conn.run_sync(metadata.create_all)
 
+    # Sử dụng async with để quản lý session, tự động đóng session khi kết thúc khối
     async with async_session() as session:
         for interest in interests:
             query = interests_table.insert().values(**interest)
             await session.execute(query)
         await session.commit()
 
+    # Chỉ cần đóng engine, session đã được đóng tự động
     await engine.dispose()
-    await session.close()
 
 
 if __name__ == "__main__":

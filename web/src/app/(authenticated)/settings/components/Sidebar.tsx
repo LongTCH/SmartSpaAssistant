@@ -1,6 +1,6 @@
 "use client";
 
-import { LayoutDashboard, FileText, Table2, TrendingUp } from "lucide-react";
+import { LayoutDashboard, FileText, Table2, Tag } from "lucide-react";
 
 interface SidebarProps {
   activeSidebar: string;
@@ -52,8 +52,8 @@ export function Sidebar({ activeSidebar, setActiveSidebar }: SidebarProps) {
           }`}
           onClick={() => setActiveSidebar("interests")}
         >
-          <TrendingUp className="h-5 w-5" />
-          <span>Xu hướng KH</span>
+          <Tag className="h-5 w-5" />
+          <span>Nhãn</span>
         </button>
       </div>
     </div>
