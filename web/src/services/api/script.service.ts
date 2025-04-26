@@ -41,7 +41,7 @@ export const scriptService = {
     return response.data as Script;
   },
 
-  async updateScript(scriptId: string, script: Script): Promise<Script> {
+  async updateScript(scriptId: string, script: ScriptData): Promise<Script> {
     const response = await apiClient.instance.put(
       API_ROUTES.SCRIPT.UPDATE(scriptId),
       script
@@ -75,5 +75,12 @@ export const scriptService = {
         "Content-Type": "multipart/form-data",
       },
     });
+  },
+
+  async getAllPublishedScripts(): Promise<Script[]> {
+    const response = await apiClient.instance.get(
+      API_ROUTES.SCRIPT.GET_ALL_PUBLISHED
+    );
+    return response.data as Script[];
   },
 };

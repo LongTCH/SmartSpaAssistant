@@ -207,3 +207,45 @@ async def get_all_interests_by_status(db: AsyncSession, status: str) -> list:
     """
     interests = await interest_repository.get_interests_by_status(db, status)
     return [interest.to_dict() for interest in interests] if interests else []
+
+
+async def get_interest_ids_from_text(db: AsyncSession, text: str) -> list[str]:
+    """
+    Get interest IDs from a given text and associate them with a guest.
+    """
+    try:
+        if not text:
+            return []
+
+        # Convert text to lowercase for case-insensitive matching
+        text = text.lower() if isinstance(text, str) else str(text).lower()
+
+        # Get all interests in a single query
+        interests = await interest_repository.get_interests_by_status(db, "published")
+        if not interests:
+            return []
+
+        # Find matching interests
+        interest_ids = []
+        for interest in interests:
+            keywords = []
+            if interest.name:
+                keywords.append(interest.name.lower())
+
+            if interest.related_terms:
+                keywords.extend(
+                    [
+                        kw.strip().lower()
+                        for kw in interest.related_terms.split(",")
+                        if kw.strip()
+                    ]
+                )
+
+            # Check if any keyword is in the text
+            if any(kw in text for kw in keywords if kw):
+                interest_ids.append(interest.id)
+
+        return interest_ids
+    except Exception as e:
+        print(f"Error in add_interest_ids_from_text: {e}")
+        return []

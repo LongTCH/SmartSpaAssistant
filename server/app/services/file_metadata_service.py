@@ -3,7 +3,7 @@ from io import BytesIO
 from app.dtos import FileMetaData, ProcessedFileData, ProcessedSheetData
 from app.models import FileMetaData, SheetRow
 from app.repositories import file_metadata_repository, sheet_row_repository
-from app.services import google_service, vectordb_service
+from app.services.integrations import google_service, vectordb_service
 from app.stores import store
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select

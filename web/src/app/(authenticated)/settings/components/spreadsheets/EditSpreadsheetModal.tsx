@@ -247,54 +247,63 @@ export function EditSpreadsheetModal({
                   <div className="p-4 text-center">Đang tải dữ liệu...</div>
                 ) : rows.length > 0 && sheetData.schema ? (
                   <div className="flex flex-col">
-                    <div
-                      className="max-h-[300px] overflow-y-auto"
-                      onScroll={handleScroll}
-                    >
-                      <Table>
-                        <TableHeader>
-                          <TableRow>
-                            <TableHead className="w-12 border-r sticky top-0 bg-background z-10">
-                              #
-                            </TableHead>
-                            {sheetData.schema.map((header, index) => (
-                              <TableHead
-                                key={index}
-                                className={`${
-                                  index < sheetData.schema!.length - 1
-                                    ? "border-r"
-                                    : ""
-                                } sticky top-0 bg-background z-10`}
-                              >
-                                {header}
-                              </TableHead>
-                            ))}
-                          </TableRow>
-                        </TableHeader>
-                        <TableBody>
-                          {rows.map((row, rowIndex) => (
-                            <TableRow key={rowIndex}>
-                              <TableCell className="border-r">
-                                {rowIndex + 1}
-                              </TableCell>
-                              {sheetData.schema!.map((header, cellIndex) => (
-                                <TableCell
-                                  key={cellIndex}
-                                  className={
-                                    cellIndex < sheetData.schema!.length - 1
-                                      ? "border-r"
-                                      : ""
-                                  }
-                                >
-                                  {row[header] !== undefined
-                                    ? String(row[header])
-                                    : ""}
-                                </TableCell>
+                    <div className="relative max-h-[300px]">
+                      <div
+                        className="overflow-y-auto overflow-x-auto"
+                        style={{ maxHeight: "300px", width: "100%" }}
+                        onScroll={handleScroll}
+                      >
+                        <div style={{ minWidth: "100%", width: "max-content" }}>
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead className="w-12 border-r sticky top-0 bg-background z-10">
+                                  #
+                                </TableHead>
+                                {sheetData.schema.map((header, index) => (
+                                  <TableHead
+                                    key={index}
+                                    className={`${
+                                      index < sheetData.schema!.length - 1
+                                        ? "border-r"
+                                        : ""
+                                    } sticky top-0 bg-background z-10`}
+                                    style={{ minWidth: "150px" }}
+                                  >
+                                    {header}
+                                  </TableHead>
+                                ))}
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {rows.map((row, rowIndex) => (
+                                <TableRow key={rowIndex}>
+                                  <TableCell className="border-r">
+                                    {rowIndex + 1}
+                                  </TableCell>
+                                  {sheetData.schema!.map(
+                                    (header, cellIndex) => (
+                                      <TableCell
+                                        key={cellIndex}
+                                        className={
+                                          cellIndex <
+                                          sheetData.schema!.length - 1
+                                            ? "border-r"
+                                            : ""
+                                        }
+                                      >
+                                        {row[header] !== undefined
+                                          ? String(row[header])
+                                          : ""}
+                                      </TableCell>
+                                    )
+                                  )}
+                                </TableRow>
                               ))}
-                            </TableRow>
-                          ))}
-                        </TableBody>
-                      </Table>
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </div>
                     </div>
 
                     {isLoadingRows && (

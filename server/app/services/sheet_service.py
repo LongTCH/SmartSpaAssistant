@@ -1,8 +1,10 @@
 import json
+import math
 import os
 from datetime import datetime
 from io import BytesIO
 
+import numpy as np
 import pandas as pd
 from app.dtos import PaginationDto, PagingDto
 from app.models import Sheet, SheetRow
@@ -75,8 +77,29 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
         # Get headers and convert to schema
         headers = list(excel_data.columns)
         schema = json.dumps(headers, ensure_ascii=False)
-        # Convert Excel data to list of dictionaries (JSON)
-        rows = excel_data.to_dict(orient="records")
+
+        # Convert Excel data to list of dictionaries and handle Timestamp objects
+        rows = []
+        for _, row in excel_data.iterrows():
+            row_dict = {}
+            for col in excel_data.columns:
+                value = row[col]
+
+                # Handle NaN values
+                if pd.isna(value) or (isinstance(value, float) and math.isnan(value)):
+                    row_dict[col] = None
+                # Convert Timestamp objects to ISO format strings
+                elif pd.api.types.is_datetime64_any_dtype(excel_data[col]):
+                    row_dict[col] = value.isoformat() if pd.notna(value) else None
+                # Handle numpy numeric types
+                elif isinstance(value, (np.integer, np.floating)):
+                    row_dict[col] = (
+                        int(value) if isinstance(value, np.integer) else float(value)
+                    )
+                else:
+                    row_dict[col] = value
+
+            rows.append(row_dict)
 
         # Create new Sheet record
         new_sheet = Sheet(
@@ -84,8 +107,8 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
             description=sheet["description"],
             status=sheet["status"],
             schema=schema,
-            # first 2 row_data for sample
-            sample_rows=json.dumps(rows[0], ensure_ascii=False),
+            # first row for sample
+            sample_rows=json.dumps(rows[0] if rows else {}, ensure_ascii=False),
         )
 
         # Insert sheet to get ID
@@ -173,7 +196,17 @@ async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
     # Get all rows for this sheet
     sheet_rows = await sheet_row_repository.get_all_sheet_rows_by_sheet_id(db, sheet_id)
 
-    headers = json.loads(sheet.schema)
+    # Ensure we have valid headers from the schema
+    # The schema is already a JSON string, so we just need to parse it
+    try:
+        headers = json.loads(sheet.schema)
+    except json.JSONDecodeError:
+        # If we can't parse the schema, use an empty list
+        headers = []
+
+    # Ensure headers is a list
+    if not isinstance(headers, list):
+        headers = [] if not headers else [headers]
 
     # Tạo thư mục temp nếu chưa tồn tại
     temp_dir = os.path.join(os.getcwd(), "temp")
@@ -188,7 +221,20 @@ async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
     # Tạo DataFrame từ dữ liệu
     data_list = []
     for row_data in sheet_rows:
-        row_dict = {header: row_data.data.get(header, "") for header in headers}
+        # Handle the case where row_data.data is stored as a JSON string
+        data = row_data.data
+        if isinstance(data, str):
+            try:
+                data = json.loads(data)
+            except json.JSONDecodeError:
+                # If we can't parse it as JSON, use an empty dict
+                data = {}
+
+        # Make sure data is a dictionary
+        if not isinstance(data, dict):
+            data = {}
+
+        row_dict = {header: data.get(header, "") for header in headers}
         data_list.append(row_dict)
 
     df = pd.DataFrame(data_list)

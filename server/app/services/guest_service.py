@@ -175,17 +175,23 @@ async def update_guest_by_id(db: AsyncSession, guest_id: str, body: dict) -> Gue
         # Lấy danh sách interest_ids hiện tại
         current_interest_ids = [interest.id for interest in guest.interests]
 
-        # Xóa interests không còn trong danh sách mới
-        for current_id in current_interest_ids:
-            if current_id not in new_interest_ids:
-                await guest_repository.remove_interest_from_guest(
-                    db, guest_id, current_id
-                )
+        # Tìm interests để thêm (có trong new nhưng không có trong current)
+        interests_to_add = [
+            id for id in new_interest_ids if id not in current_interest_ids
+        ]
+        if interests_to_add:
+            await guest_repository.add_interests_to_guest(
+                db, guest_id, interests_to_add
+            )
 
-        # Thêm interests mới
-        for new_id in new_interest_ids:
-            if new_id not in current_interest_ids:
-                await guest_repository.add_interest_to_guest(db, guest_id, new_id)
+        # Tìm interests để xóa (có trong current nhưng không có trong new)
+        interests_to_remove = [
+            id for id in current_interest_ids if id not in new_interest_ids
+        ]
+        if interests_to_remove:
+            await guest_repository.remove_interests_from_guest(
+                db, guest_id, interests_to_remove
+            )
 
     # Cập nhật Guest
     guest = await guest_repository.update_guest(db, guest)
@@ -265,10 +271,10 @@ async def get_pagination_guests(
     return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
 
 
-async def add_interest_to_guest(
-    db: AsyncSession, guest_id: str, interest_id: str
+async def add_interests_to_guest(
+    db: AsyncSession, guest_id: str, interest_ids: list[str]
 ) -> dict:
-    guest = await guest_repository.add_interest_to_guest(db, guest_id, interest_id)
+    guest = await guest_repository.add_interests_to_guest(db, guest_id, interest_ids)
     if not guest:
         return None
     await db.commit()
@@ -276,10 +282,12 @@ async def add_interest_to_guest(
     return guest.to_dict(include=["interests"])
 
 
-async def remove_interest_from_guest(
-    db: AsyncSession, guest_id: str, interest_id: str
+async def remove_interests_from_guest(
+    db: AsyncSession, guest_id: str, interest_ids: list[str]
 ) -> dict:
-    guest = await guest_repository.remove_interest_from_guest(db, guest_id, interest_id)
+    guest = await guest_repository.remove_interests_from_guest(
+        db, guest_id, interest_ids
+    )
     if not guest:
         return None
     await db.commit()

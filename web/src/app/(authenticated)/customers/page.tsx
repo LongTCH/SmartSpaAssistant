@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, Suspense, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -54,13 +54,39 @@ export default function CustomerManagement() {
     setPendingKeywords(selectedKeywords);
   }, []);
 
+  // Biến cờ để theo dõi lần fetch đầu tiên và các lần fetch tiếp theo
+  const initialLoadRef = useRef({
+    hasFetchedInitial: false,
+    isInitializing: false,
+  });
+
+  // Biến để lưu trữ trang và trạng thái trước đó
+  let oldPage = useRef(1);
+  let oldSearchQuery = useRef("");
+  let oldInterestIds = useRef<string[]>([]);
+
+  // Sử dụng useRef để theo dõi trạng thái đã tải
+  const hasInitialFetch = useRef(false);
+
   // Fetch customers from API
   useEffect(() => {
-    if (interestIds !== undefined) {
-      // Chỉ fetch khi interestIds đã được khởi tạo
+    // Chỉ fetch khi thay đổi page, searchQuery, interestIds hoặc chưa tải lần đầu
+    if (
+      !hasInitialFetch.current ||
+      oldPage.current !== pagination.page ||
+      oldSearchQuery.current !== searchQuery ||
+      JSON.stringify(oldInterestIds.current) !== JSON.stringify(interestIds)
+    ) {
+      // Cập nhật các giá trị cũ
+      oldPage.current = pagination.page;
+      oldSearchQuery.current = searchQuery;
+      oldInterestIds.current = [...interestIds];
+
+      // Gọi API để lấy dữ liệu
       fetchCustomers();
+      hasInitialFetch.current = true;
     }
-  }, [pagination.page, pagination.limit, searchQuery, interestIds]); // Thêm searchQuery và interestIds vào dependencies
+  }, [pagination.page, pagination.limit, searchQuery, interestIds]);
 
   const fetchCustomers = async () => {
     try {
@@ -71,7 +97,13 @@ export default function CustomerManagement() {
         searchQuery || "",
         interestIds
       );
-      setCustomers(response.data);
+
+      // Đảm bảo không có dữ liệu trùng lặp bằng cách sử dụng Set với ID
+      const uniqueCustomers = Array.from(
+        new Map(response.data.map((item) => [item.id, item])).values()
+      );
+
+      setCustomers(uniqueCustomers);
       setPagination({
         ...pagination,
         totalPages: response.total_pages,
@@ -275,12 +307,45 @@ export default function CustomerManagement() {
 
             <Button
               onClick={async () => {
-                // Cập nhật searchQuery từ pendingSearchQuery
+                // Tạo một bản sao của pagination với page = 1
+                const newPagination = { ...pagination, page: 1 };
+
+                // Cập nhật tất cả state trong một lần render
+                setPagination(newPagination);
                 setSearchQuery(pendingSearchQuery);
-                // Cập nhật selectedKeywords từ pendingKeywords
                 setSelectedKeywords(pendingKeywords);
-                // Reset trang về 1
-                setPagination({ ...pagination, page: 1 });
+
+                // Gọi fetchCustomers trực tiếp với dữ liệu mới thay vì chờ useEffect
+                try {
+                  setLoading(true);
+                  const response = await guestService.getGuestsWithInterests(
+                    1, // Luôn sử dụng page 1 khi tìm kiếm mới
+                    pagination.limit,
+                    pendingSearchQuery || "",
+                    // Filter theo từ khóa mới
+                    // interestIds sẽ được cập nhật sau bởi useEffect, nên ta sử dụng dữ liệu hiện có
+                    interestIds
+                  );
+
+                  // Đảm bảo không có dữ liệu trùng lặp
+                  const uniqueCustomers = Array.from(
+                    new Map(
+                      response.data.map((item) => [item.id, item])
+                    ).values()
+                  );
+
+                  setCustomers(uniqueCustomers);
+                  setPagination({
+                    ...newPagination,
+                    totalPages: response.total_pages,
+                    total: response.total,
+                  });
+                } catch (error) {
+                  console.error("Error fetching customers:", error);
+                  toast.error("Không thể tải danh sách khách hàng");
+                } finally {
+                  setLoading(false);
+                }
               }}
               className="bg-[#6366F1] text-white"
             >

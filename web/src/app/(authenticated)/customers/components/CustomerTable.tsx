@@ -490,45 +490,53 @@ export function CustomerTable({
                   <TableCell
                     className="border-r"
                     style={{ width: columnWidths.interests + "px" }}
-                    title={customer.interests
-                      .map((interest) => interest.name)
-                      .join(", ")}
+                    title={
+                      customer.interests
+                        ? customer.interests
+                            .map((interest) => interest.name)
+                            .join(", ")
+                        : ""
+                    }
                   >
                     <div className="flex flex-wrap items-center">
                       {customer.interests
-                        .slice(0, getVisibleTagsForCustomer(customer))
-                        .map((interest) => (
+                        ? customer.interests
+                            .slice(0, getVisibleTagsForCustomer(customer))
+                            .map((interest) => (
+                              <Badge
+                                key={interest.id}
+                                className="mr-1 mb-1 inline-flex"
+                                style={{
+                                  backgroundColor: `${interest.color}20`, // 20% opacity
+                                  color: interest.color,
+                                  borderColor: `${interest.color}30`, // 30% opacity
+                                }}
+                              >
+                                {interest.name}
+                              </Badge>
+                            ))
+                        : null}
+                      {customer.interests &&
+                        customer.interests.length > 0 &&
+                        customer.interests.length >
+                          getVisibleTagsForCustomer(customer) && (
                           <Badge
-                            key={interest.id}
-                            className="mr-1 mb-1 inline-flex"
+                            className="mr-1 mb-1 inline-flex cursor-help"
                             style={{
-                              backgroundColor: `${interest.color}20`, // 20% opacity
-                              color: interest.color,
-                              borderColor: `${interest.color}30`, // 30% opacity
+                              backgroundColor: "#6366F120", // Màu chính với 20% opacity
+                              color: "#6366F1",
+                              borderColor: "#6366F130", // 30% opacity
                             }}
+                            title={customer.interests
+                              .slice(getVisibleTagsForCustomer(customer))
+                              .map((interest) => interest.name)
+                              .join(", ")}
                           >
-                            {interest.name}
+                            +
+                            {customer.interests.length -
+                              getVisibleTagsForCustomer(customer)}
                           </Badge>
-                        ))}
-                      {customer.interests.length >
-                        getVisibleTagsForCustomer(customer) && (
-                        <Badge
-                          className="mr-1 mb-1 inline-flex cursor-help"
-                          style={{
-                            backgroundColor: "#6366F120", // Màu chính với 20% opacity
-                            color: "#6366F1",
-                            borderColor: "#6366F130", // 30% opacity
-                          }}
-                          title={customer.interests
-                            .slice(getVisibleTagsForCustomer(customer))
-                            .map((interest) => interest.name)
-                            .join(", ")}
-                        >
-                          +
-                          {customer.interests.length -
-                            getVisibleTagsForCustomer(customer)}
-                        </Badge>
-                      )}
+                        )}
                     </div>
                   </TableCell>
                   <TableCell

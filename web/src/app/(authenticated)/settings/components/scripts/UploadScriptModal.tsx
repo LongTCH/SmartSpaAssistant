@@ -201,54 +201,54 @@ export function UploadScriptModal({
                 </div>
               ) : excelData ? (
                 <div className="flex flex-col">
-                  <div
-                    className="max-h-[400px] overflow-y-auto"
-                    onScroll={handleScroll}
-                  >
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12 border-r sticky top-0 bg-background z-10">
-                            #
-                          </TableHead>
-                          {excelData.headers.map((header, index) => (
-                            <TableHead
-                              key={index}
-                              className={`${
-                                index < excelData.headers.length - 1
-                                  ? "border-r"
-                                  : ""
-                              } sticky top-0 bg-background z-10`}
-                            >
-                              {header}
-                            </TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {excelData.rows.map((row, rowIndex) => (
-                          <TableRow key={rowIndex}>
-                            <TableCell className="border-r">
-                              {rowIndex + 1}
-                            </TableCell>
-                            {excelData.headers.map((_, cellIndex) => (
-                              <TableCell
-                                key={cellIndex}
-                                className={
-                                  cellIndex < excelData.headers.length - 1
-                                    ? "border-r"
-                                    : ""
-                                }
-                              >
-                                {row[cellIndex] !== undefined
-                                  ? String(row[cellIndex])
-                                  : ""}
-                              </TableCell>
+                  <div className="relative max-h-[400px]">
+                    <div
+                      className="overflow-y-auto overflow-x-auto"
+                      style={{ maxHeight: "400px", width: "100%" }}
+                      onScroll={handleScroll}
+                    >
+                      <div style={{ minWidth: "100%", width: "max-content" }}>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              {excelData.headers.map((header, index) => (
+                                <TableHead
+                                  key={index}
+                                  className={`${
+                                    index < excelData.headers.length - 1
+                                      ? "border-r"
+                                      : ""
+                                  } sticky top-0 bg-background z-10`}
+                                  style={{ minWidth: "150px" }}
+                                >
+                                  {header}
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {excelData.rows.map((row, rowIndex) => (
+                              <TableRow key={rowIndex}>
+                                {excelData.headers.map((_, cellIndex) => (
+                                  <TableCell
+                                    key={cellIndex}
+                                    className={
+                                      cellIndex < excelData.headers.length - 1
+                                        ? "border-r"
+                                        : ""
+                                    }
+                                  >
+                                    {row[cellIndex] !== undefined
+                                      ? String(row[cellIndex])
+                                      : ""}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
                             ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
                   </div>
 
                   {isLoadingMore && (

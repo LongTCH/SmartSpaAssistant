@@ -8,3 +8,4 @@ sampling/*.json
 __pycache__
 static
 temp
+vietnamese-embedding-local

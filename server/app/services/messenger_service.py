@@ -9,12 +9,13 @@ import aiohttp
 import requests
 from app.configs import env_config
 from app.configs.constants import CHAT_ASSIGNMENT, CHAT_SIDES, PROVIDERS, WS_MESSAGES
-from app.configs.database import async_session
+from app.configs.database import process_background_with_session
 from app.dtos import WsMessageDto
 from app.models import Chat, Guest, GuestInfo
 from app.repositories import chat_repository, guest_info_repository, guest_repository
-from app.services import sentiment_service
+from app.services import interest_service
 from app.services.connection_manager import manager
+from app.services.integrations import sentiment_service
 from app.stores.store import LOCAL_DATA
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -105,6 +106,7 @@ async def insert_guest(db: AsyncSession, sender_id):
                     info_id=guest_info.id,
                     assigned_to=CHAT_ASSIGNMENT.AI,
                 )
+                guest = await guest_repository.insert_guest(db, guest)
 
                 image_path = os.path.join("static", "images", f"{guest.id}.jpg")
                 avatar_url = f"{env_config.BASE_URL}/static/images/{guest.id}.jpg"
@@ -112,7 +114,8 @@ async def insert_guest(db: AsyncSession, sender_id):
                 with open(image_path, "wb") as f:
                     f.write(image_response.content)
                 guest.avatar = avatar_url
-                return await guest_repository.insert_guest(db, guest)
+                await db.commit()
+                return guest
             else:
                 print(f"Error fetching user info: {response.status}")
                 return None
@@ -130,7 +133,7 @@ async def send_message_to_ws(guest: Guest):
 
 
 async def process_message(
-    sender_psid, receipient_psid, timestamp, webhook_event, db: AsyncSession
+    db: AsyncSession, sender_psid, receipient_psid, timestamp, webhook_event
 ):
     """
     Process incoming messages and implements waiting logic
@@ -139,8 +142,10 @@ async def process_message(
         message = webhook_event.get("message")
         if message:
             text = message.get("text")
+            if text:
+                text = messenger_to_markdown(text)
             attachments = message.get("attachments")
-            created_at = datetime.datetime.fromtimestamp(timestamp / 1000)
+            created_at = datetime.fromtimestamp(timestamp / 1000)
 
             if message.get("is_echo", False):
                 guest = await get_conversation(db, receipient_psid)
@@ -186,7 +191,9 @@ async def process_message(
 
             # Tạo timer mới với db session được truyền vào
             map_message[sender_psid]["timer"] = asyncio.create_task(
-                process_after_wait(sender_psid, LOCAL_DATA.chat_wait_seconds, guest, db)
+                process_background_with_session(
+                    process_after_wait, sender_psid, LOCAL_DATA.chat_wait_seconds, guest
+                )
             )
     except Exception as e:
         print(f"Error in process_message: {e}")
@@ -194,7 +201,7 @@ async def process_message(
 
 
 async def process_after_wait(
-    sender_psid, wait_seconds: float, guest: Guest, db: AsyncSession = None
+    db: AsyncSession, sender_psid, wait_seconds: float, guest: Guest
 ):
     """
     Đợi một khoảng thời gian rồi xử lý tin nhắn tích lũy
@@ -213,52 +220,46 @@ async def process_after_wait(
             # Xóa dữ liệu người dùng
             del map_message[sender_psid]
 
-            await sentiment_service.analyze_sentiment(db, guest)
-
             # Gộp tin nhắn
             combined_message = combine_messages(texts, attachments)
 
             # Xử lý tin nhắn
             if combined_message:
-                # Create a new session for this background task
-                session = async_session()
-                try:
-                    await handle_chat(sender_psid, combined_message, session)
-                    await session.commit()
-                except Exception as e:
-                    await session.rollback()
-                    print(f"Database error in process_after_wait: {e}")
-                finally:
-                    await session.close()  # Ensure the session is always closed
+                sentiment, should_reset = await sentiment_service.analyze_sentiment(
+                    db, guest
+                )
+                if sentiment != guest.sentiment:
+                    guest.sentiment = sentiment
+                    await sentiment_service.update_sentiment_to_websocket(guest)
+                    await guest_repository.update_sentiment(db, guest.id, sentiment)
+                if should_reset:
+                    await guest_repository.reset_message_count(db, guest.id)
+                # Process interests
+                interest_ids = await interest_service.get_interest_ids_from_text(
+                    db, combined_message
+                )
+                await guest_repository.add_interests_to_guest_by_id(
+                    db, guest.id, interest_ids
+                )
+                # Handle the chat message
+                await handle_chat(sender_psid, combined_message, db)
 
-    except asyncio.CancelledError:
+    except asyncio.CancelledError as ex:
         # Timer đã bị hủy do có tin nhắn mới
-        pass
+        raise ex
     except Exception as e:
         print(f"Error in process_after_wait: {e}")
 
 
 async def handle_chat(sender_psid, message, db: AsyncSession = None):
     """Handle chat with optional db session"""
-    # If no session was provided, create one
-    needs_session = db is None
-    session = None
 
     if message:
         try:
-            if needs_session:
-                session = async_session()
-                db = session
-
             await send_action(sender_psid, SENDER_ACTION["mark_seen"])
-            await asyncio.sleep(1)
-            await send_action(sender_psid, SENDER_ACTION["typing_on"])
-
-            # Create a stop event for the typing indicator
-            stop_typing = asyncio.Event()
 
             # Start typing indicator in a background task
-            typing_task = asyncio.create_task(keep_typing(sender_psid, stop_typing))
+            typing_task = asyncio.create_task(keep_typing(sender_psid))
 
             # Handle the message
             response_text = await send_to_n8n(sender_psid, message)
@@ -266,39 +267,28 @@ async def handle_chat(sender_psid, message, db: AsyncSession = None):
             message_parts = parse_and_format_message(response_text)
 
             for part in message_parts:
-                try:
-                    if part.get("text"):
-                        response = {"text": part["text"]}
-                    elif part.get("type"):
-                        response = {
-                            "attachments": [
-                                {
-                                    "type": part["type"],
-                                    "payload": {
-                                        "url": part["url"],
-                                    },
-                                }
-                            ]
-                        }
-                    await call_send_api(sender_psid, response)
-                    await asyncio.sleep(3)  # Delay between messages
-                except Exception as inner_e:
-                    print(f"Error sending message part: {inner_e}")
-
-            # Stop the typing indicator
-            stop_typing.set()
-            await typing_task
-
-            if needs_session and session:
-                await session.commit()
+                if part.get("text"):
+                    response = {"text": part["text"]}
+                elif part.get("type"):
+                    response = {
+                        "attachments": [
+                            {
+                                "type": part["type"],
+                                "payload": {
+                                    "url": part["url"],
+                                },
+                            }
+                        ]
+                    }
+                await call_send_api(sender_psid, response)
+                await asyncio.sleep(1)
 
         except Exception as e:
             print(f"Error in handle_chat: {e}")
-            if needs_session and session:
-                await session.rollback()
+            raise e
         finally:
-            if needs_session and session:
-                await session.close()
+            if typing_task:
+                typing_task.cancel()
 
 
 def get_attachment_type_name(attachment):
@@ -358,12 +348,12 @@ async def send_action(sender_psid, action):
             pass
 
 
-async def keep_typing(sender_psid, stop_event):
+async def keep_typing(sender_psid):
     """
-    Continuously sends typing_on indicator until stop_event is set
+    Continuously sends typing_on indicator
     """
     try:
-        while not stop_event.is_set():
+        while True:
             await send_action(sender_psid, SENDER_ACTION["typing_on"])
             await asyncio.sleep(3)  # Send typing indicator every 3 seconds
     except Exception as e:
@@ -470,39 +460,73 @@ async def send_to_n8n(sender_psid, message):
             return "Hiện tại em chưa thể trả lời được ạ. Em sẽ cố gắng trả lời sớm nhất có thể."
 
 
+def markdown_to_messenger(text):
+    # In đậm: **bold** → *bold*
+    text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
+    # In nghiêng: *italic* → _italic_
+    text = re.sub(r"\*(.*?)\*", r"_\1_", text)
+    # Gạch ngang: ~~strikethrough~~ → ~strikethrough~
+    text = re.sub(r"~~(.*?)~~", r"~\1~", text)
+    # Mã nguồn: `code` → `code`
+    text = re.sub(r"`(.*?)`", r"`\1`", text)
+    # Khối mã: ```code``` → ```code```
+    text = re.sub(r"```(.*?)```", r"``` \1 ```", text, flags=re.DOTALL)
+    # Liên kết: [text](url) → [text](url)
+    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"[\1](\2)", text)
+    return text
+
+
+def messenger_to_markdown(text):
+    # In đậm: *bold* → **bold**
+    text = re.sub(r"\*(.*?)\*", r"**\1**", text)
+    # In nghiêng: _italic_ → *italic*
+    text = re.sub(r"_(.*?)_", r"*\1*", text)
+    # Gạch ngang: ~strikethrough~ → ~~strikethrough~~
+    text = re.sub(r"~(.*?)~", r"~~\1~~", text)
+    # Mã nguồn: `code` → `code`
+    text = re.sub(r"`(.*?)`", r"`\1`", text)
+    # Khối mã: ```code``` → ```code```
+    text = re.sub(r"```(.*?)```", r"``` \1 ```", text, flags=re.DOTALL)
+    # Liên kết: [text](url) → [text](url)
+    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"[\1](\2)", text)
+    return text
+
+
 def parse_and_format_message(message):
-    # Define regex patterns for different types of links (image, video, file)
+    # Định nghĩa các mẫu regex cho các loại liên kết (hình ảnh, video, tệp)
     media_patterns = {
-        # Match image files
-        "image": r"!\[.*?\]\((https?://\S+\.(?:jpg|jpeg|png|gif|bmp|svg|webp))\)",
-        # Match video files
-        "video": r"!\[.*?\]\((https?://\S+\.(?:mp4|mov|avi|mkv|flv))\)",
-        # Match file links
-        "file": r"!\[.*?\]\((https?://\S+\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))\)",
+        "image": r"!\[.*?\]\((https?://\S+\.(?:jpg|jpeg|png|gif|bmp|svg|webp))\)|(https?://\S+\.(?:jpg|jpeg|png|gif|bmp|svg|webp))",
+        "video": r"!\[.*?\]\((https?://\S+\.(?:mp4|mov|avi|mkv|flv))\)|(https?://\S+\.(?:mp4|mov|avi|mkv|flv))",
+        "file": r"!\[.*?\]\((https?://\S+\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))\)|(https?://\S+\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))",
     }
 
-    # If no media found, just return the text
+    # Nếu không tìm thấy media, chỉ trả về văn bản
     if not any(re.search(pattern, message) for pattern in media_patterns.values()):
         return [{"text": message.strip()}]
 
-    # Replace bold text (**) with italic text (*)
-    # message = re.sub(r'\*\*(.*?)\*\*', r'*\1*', message)
+    message = markdown_to_messenger(message)
 
-    # Create a list to store media items with positions
+    # Danh sách chứa các phần media với vị trí
     media_items = []
 
-    # Create working copy of the message that we'll modify
+    # Tạo bản sao làm việc của tin nhắn để chỉnh sửa
     working_message = message
 
-    # Find all media occurrences with their positions
+    # Tìm tất cả các media với vị trí của chúng
     for media_type, pattern in media_patterns.items():
         for match in re.finditer(pattern, message):
-            full_match = match.group(0)  # The entire markdown syntax
-            media_url = match.group(1)  # Just the URL part
+            full_match = match.group(0)
+            # Xử lý cả hai trường hợp: URL trong markdown và URL trực tiếp
+            if len(match.groups()) >= 1 and match.group(1):
+                media_url = match.group(1)  # URL trong markdown ![...](URL)
+            elif len(match.groups()) >= 2 and match.group(2):
+                media_url = match.group(2)  # URL trực tiếp
+            else:
+                media_url = full_match  # Fallback đến toàn bộ match
+
             start_pos = match.start()
             end_pos = match.end()
 
-            # Add to our media items list
             media_items.append(
                 {
                     "type": media_type,
@@ -513,10 +537,10 @@ def parse_and_format_message(message):
                 }
             )
 
-    # Sort media items by their position (from end to beginning to avoid position shifts)
+    # Sắp xếp các phần media theo vị trí (từ cuối đến đầu để tránh thay đổi vị trí)
     media_items.sort(key=lambda x: x["start"], reverse=True)
 
-    # Replace all media markdown with placeholders in our working copy
+    # Thay thế tất cả các markdown media bằng placeholder trong bản sao làm việc
     for i, item in enumerate(media_items):
         placeholder = f"__MEDIA_PLACEHOLDER_{i}__"
         working_message = (
@@ -525,23 +549,18 @@ def parse_and_format_message(message):
             + working_message[item["end"] :]
         )
 
-    # Split the modified message by placeholders
+    # Tách tin nhắn đã chỉnh sửa theo các placeholder
     parts = re.split(r"__MEDIA_PLACEHOLDER_\d+__", working_message)
 
-    # Create the result with interleaved text and media
+    # Tạo kết quả với văn bản và media xen kẽ
     result = []
-    media_items.sort(key=lambda x: x["start"])  # Sort back to original order
+    media_items.sort(key=lambda x: x["start"])
 
-    # Add text parts (filtered to remove empty ones) and media parts in correct order
     media_index = 0
-
-    # Combine parts keeping track of original positions
     combined_parts = []
 
-    # Add text parts first (removing empty ones)
     for i, text in enumerate(parts):
         if text and text.strip():
-            # Find appropriate position
             start_pos = 0
             if i > 0 and media_index < len(media_items):
                 start_pos = media_items[i - 1]["end"]
@@ -550,7 +569,6 @@ def parse_and_format_message(message):
                 {"type": "text", "content": text.strip(), "pos": start_pos}
             )
 
-    # Add media parts
     for item in media_items:
         combined_parts.append(
             {
@@ -561,10 +579,8 @@ def parse_and_format_message(message):
             }
         )
 
-    # Sort all parts by their position
     combined_parts.sort(key=lambda x: x["pos"])
 
-    # Convert to final output format
     for part in combined_parts:
         if part["type"] == "text":
             result.append({"text": part["content"]})

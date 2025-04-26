@@ -97,14 +97,14 @@ def mock_external_dependencies():
         ),
         # Mock sentiment service analyze_sentiment method if it exists
         patch(
-            "app.services.sentiment_service.analyze_sentiment",
+            "app.services.integrations.sentiment_service.analyze_sentiment",
             new_callable=AsyncMock,
             return_value="neutral",
             create=True,
         ),
         # Mock Google services if used
         patch(
-            "app.services.google_service.get_service",
+            "app.services.integrations.google_service.get_service",
             return_value=MagicMock(),
             create=True,
         ),

@@ -13,3 +13,5 @@ tqdm
 aiohttp
 langchain
 openpyxl
+sentence-transformers
+cohere

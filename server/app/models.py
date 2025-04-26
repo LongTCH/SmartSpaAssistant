@@ -16,6 +16,14 @@ guest_interest = Table(
     Column("interest_id", String, ForeignKey("interests.id", ondelete="CASCADE")),
 )
 
+# Association table for Script-Script self-referential many-to-many relationship
+script_attachments = Table(
+    "script_attachments",
+    Base.metadata,
+    Column("parent_script_id", String, ForeignKey("scripts.id", ondelete="CASCADE")),
+    Column("attached_script_id", String, ForeignKey("scripts.id", ondelete="CASCADE")),
+)
+
 
 class FileMetaData(Base):
     __tablename__ = "file_metadata"
@@ -218,8 +226,26 @@ class Script(Base):
     status = Column(String(50), default="published")
     created_at = Column(DateTime, default=datetime.datetime.now)
 
-    def to_dict(self):
-        return {
+    # Relationship to self for related scripts
+    related_scripts = relationship(
+        "Script",
+        secondary=script_attachments,
+        primaryjoin=id == script_attachments.c.parent_script_id,
+        secondaryjoin=id == script_attachments.c.attached_script_id,
+        backref="attached_scripts",
+    )
+
+    def to_dict(self, include=None):
+        """
+        Convert object to dictionary representation
+
+        Args:
+            include: Optional list of related objects to include in the output
+        """
+        if include is None:
+            include = []
+
+        result = {
             "id": self.id,
             "name": self.name,
             "description": self.description,
@@ -227,6 +253,14 @@ class Script(Base):
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,
         }
+
+        # Include related scripts if specified
+        if "related_scripts" in include and hasattr(self, "related_scripts"):
+            result["related_scripts"] = [
+                script.to_dict(include=[]) for script in self.related_scripts
+            ]
+
+        return result
 
 
 class Interest(Base):

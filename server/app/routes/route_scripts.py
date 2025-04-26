@@ -25,6 +25,18 @@ async def get_scripts(request: Request, db: AsyncSession = Depends(get_session))
     return scripts
 
 
+@router.get("/all-published")
+async def get_all_published_scripts(
+    request: Request, db: AsyncSession = Depends(get_session)
+):
+    """
+    Get all published scripts from the database.
+    """
+
+    scripts = await script_service.get_all_published_scripts(db)
+    return scripts
+
+
 @router.get("/download")
 async def download_scripts(
     background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)

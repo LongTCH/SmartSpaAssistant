@@ -1,4 +1,5 @@
-from app.models import Guest, Interest
+from app.models import Guest, Interest, guest_interest
+from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload, selectinload
@@ -32,7 +33,6 @@ async def count_guests_by_interests_and_keywords(
     """
     Đếm số lượng khách hàng theo danh sách interest_ids và từ khóa tìm kiếm
     """
-    # Sửa lại cách sử dụng IN clause cho đúng với asyncpg
     stmt = text(
         """
         SELECT COUNT(DISTINCT g.id)
@@ -44,7 +44,6 @@ async def count_guests_by_interests_and_keywords(
         """
     )
 
-    # Sử dụng bindparams để truyền parameters vào query
     result = await db.execute(
         stmt.bindparams(keywords=keywords, interest_ids=interest_ids)
     )
@@ -219,57 +218,6 @@ async def get_paging_guests_with_interests(
     return result.scalars().all()
 
 
-async def add_interest_to_guest(
-    db: AsyncSession, guest_id: str, interest_id: str
-) -> Guest:
-    """
-    Thêm interest cho guest
-    Trigger trong database sẽ tự động cập nhật trường data.interests trong guest_info
-    """
-    stmt_guest = (
-        select(Guest).options(joinedload(Guest.info)).where(Guest.id == guest_id)
-    )
-    result_guest = await db.execute(stmt_guest)
-    guest = result_guest.scalars().first()
-
-    stmt_interest = select(Interest).where(Interest.id == interest_id)
-    result_interest = await db.execute(stmt_interest)
-    interest = result_interest.scalars().first()
-
-    if guest and interest:
-        # Thêm interest vào mối quan hệ nhiều-nhiều nếu chưa tồn tại
-        if interest not in guest.interests:
-            guest.interests.append(interest)
-            await db.flush()
-
-    return guest
-
-
-async def remove_interest_from_guest(
-    db: AsyncSession, guest_id: str, interest_id: str
-) -> Guest:
-    """
-    Xóa interest khỏi guest
-    Trigger trong database sẽ tự động cập nhật trường data.interests trong guest_info
-    """
-    stmt_guest = (
-        select(Guest).options(joinedload(Guest.info)).where(Guest.id == guest_id)
-    )
-    result_guest = await db.execute(stmt_guest)
-    guest = result_guest.scalars().first()
-
-    stmt_interest = select(Interest).where(Interest.id == interest_id)
-    result_interest = await db.execute(stmt_interest)
-    interest = result_interest.scalars().first()
-
-    if guest and interest and interest in guest.interests:
-        # Xóa interest từ mối quan hệ nhiều-nhiều
-        guest.interests.remove(interest)
-        await db.flush()
-
-    return guest
-
-
 async def search_guests_by_keywords(
     db: AsyncSession, keywords: str, skip: int, limit: int
 ) -> list[Guest]:
@@ -328,15 +276,26 @@ async def get_guests_by_interests(
     """
     Lấy danh sách khách hàng theo danh sách interest_ids
     """
+    # Sử dụng subquery với DISTINCT để lấy unique guest IDs trước
+    subquery = (
+        select(Guest.id)
+        .join(Guest.interests)
+        .where(Interest.id.in_(interest_ids))
+        .distinct()
+        .order_by(Guest.id)
+        .offset(skip)
+        .limit(limit)
+        .subquery()
+    )
+
+    # Sau đó join với subquery để lấy chi tiết guest
     stmt = (
         select(Guest)
         .options(joinedload(Guest.info), selectinload(Guest.interests))
-        .join(Guest.interests)
-        .where(Interest.id.in_(interest_ids))
+        .join(subquery, Guest.id == subquery.c.id)
         .order_by(Guest.last_message_at.desc())
-        .offset(skip)
-        .limit(limit)
     )
+
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -350,13 +309,13 @@ async def get_guests_by_interests_and_keywords(
     # Sử dụng text để xây dựng SQL query trực tiếp kết hợp cả tìm kiếm theo interests và keywords
     stmt = text(
         """
-        SELECT g.*
+        SELECT DISTINCT ON (g.id) g.*
         FROM guests g
         JOIN guest_infos gi ON g.info_id = gi.id
         JOIN guest_interests gi2 ON g.id = gi2.guest_id
         WHERE gi.data &@~ :keywords 
         AND gi2.interest_id = ANY(:interest_ids)
-        ORDER BY g.last_message_at DESC
+        ORDER BY g.id, g.last_message_at DESC
         LIMIT :limit OFFSET :skip
         """
     )
@@ -405,3 +364,29 @@ async def delete_multiple_guests(db: AsyncSession, guest_ids: list[str]) -> None
     for guest in guests:
         await db.delete(guest)
     await db.flush()
+
+
+async def add_interests_to_guest_by_id(
+    db: AsyncSession, guest_id: str, interest_ids: list[str]
+) -> None:
+    """
+    Insert interest associations for a given guest using the relationship table.
+    """
+    from app.models import guest_interest
+
+    for interest_id in interest_ids:
+        stmt = insert(guest_interest).values(guest_id=guest_id, interest_id=interest_id)
+        await db.execute(stmt)
+
+
+async def remove_interests_from_guest_by_id(
+    db: AsyncSession, guest_id: str, interest_ids: list[str]
+) -> None:
+    """
+    Delete interest associations for a given guest using the relationship table.
+    """
+    stmt = delete(guest_interest).where(
+        guest_interest.c.guest_id == guest_id,
+        guest_interest.c.interest_id.in_(interest_ids),
+    )
+    await db.execute(stmt)

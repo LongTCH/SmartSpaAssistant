@@ -79,13 +79,23 @@ export function AddSpreadsheetModal({
 
             if (jsonData.length > 0) {
               const headers = jsonData[0] as string[];
-              const rows = jsonData.slice(1) as any[][];
 
-              // Lưu trữ toàn bộ dữ liệu
-              setAllRows(rows);
+              // Lọc các dòng trống (một dòng được coi là trống nếu tất cả các ô đều undefined, null, hoặc chuỗi rỗng)
+              const filteredRows = (jsonData.slice(1) as any[][]).filter(
+                (row) => {
+                  return row.some((cell) => {
+                    const cellValue =
+                      cell !== undefined ? String(cell).trim() : "";
+                    return cellValue !== "";
+                  });
+                }
+              );
+
+              // Lưu trữ toàn bộ dữ liệu đã lọc
+              setAllRows(filteredRows);
 
               // Hiển thị số lượng dòng ban đầu
-              const initialRows = rows.slice(0, rowsPerPage);
+              const initialRows = filteredRows.slice(0, rowsPerPage);
               setVisibleRows(initialRows);
 
               setExcelData({
@@ -248,54 +258,60 @@ export function AddSpreadsheetModal({
                 </div>
               ) : excelData ? (
                 <div className="flex flex-col">
-                  <div
-                    className="max-h-[300px] overflow-y-auto"
-                    onScroll={handleScroll}
-                  >
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead className="w-12 border-r sticky top-0 bg-background z-10">
-                            #
-                          </TableHead>
-                          {excelData.headers.map((header, index) => (
-                            <TableHead
-                              key={index}
-                              className={`${
-                                index < excelData.headers.length - 1
-                                  ? "border-r"
-                                  : ""
-                              } sticky top-0 bg-background z-10`}
-                            >
-                              {header}
-                            </TableHead>
-                          ))}
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {excelData.rows.map((row, rowIndex) => (
-                          <TableRow key={rowIndex}>
-                            <TableCell className="border-r">
-                              {rowIndex + 1}
-                            </TableCell>
-                            {excelData.headers.map((_, cellIndex) => (
-                              <TableCell
-                                key={cellIndex}
-                                className={
-                                  cellIndex < excelData.headers.length - 1
-                                    ? "border-r"
-                                    : ""
-                                }
-                              >
-                                {row[cellIndex] !== undefined
-                                  ? String(row[cellIndex])
-                                  : ""}
-                              </TableCell>
+                  <div className="relative max-h-[300px]">
+                    <div
+                      className="overflow-y-auto overflow-x-auto"
+                      style={{ maxHeight: "300px", width: "100%" }}
+                      onScroll={handleScroll}
+                    >
+                      <div style={{ minWidth: "100%", width: "max-content" }}>
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-12 border-r sticky top-0 bg-background z-10">
+                                #
+                              </TableHead>
+                              {excelData.headers.map((header, index) => (
+                                <TableHead
+                                  key={index}
+                                  className={`${
+                                    index < excelData.headers.length - 1
+                                      ? "border-r"
+                                      : ""
+                                  } sticky top-0 bg-background z-10`}
+                                  style={{ minWidth: "150px" }}
+                                >
+                                  {header}
+                                </TableHead>
+                              ))}
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {excelData.rows.map((row, rowIndex) => (
+                              <TableRow key={rowIndex}>
+                                <TableCell className="border-r">
+                                  {rowIndex + 1}
+                                </TableCell>
+                                {excelData.headers.map((_, cellIndex) => (
+                                  <TableCell
+                                    key={cellIndex}
+                                    className={
+                                      cellIndex < excelData.headers.length - 1
+                                        ? "border-r"
+                                        : ""
+                                    }
+                                  >
+                                    {row[cellIndex] !== undefined
+                                      ? String(row[cellIndex])
+                                      : ""}
+                                  </TableCell>
+                                ))}
+                              </TableRow>
                             ))}
-                          </TableRow>
-                        ))}
-                      </TableBody>
-                    </Table>
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </div>
                   </div>
 
                   {isLoadingMore && (

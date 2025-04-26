@@ -1,3 +1,4 @@
+from app.routes.route_ai import router as ai_router
 from app.routes.route_conversations import router as conversations_router
 from app.routes.route_documents import router as documents_router
 from app.routes.route_guests import router as guests_router
@@ -32,3 +33,4 @@ def include_router(app: FastAPI):
     app.include_router(ws_router)
     app.include_router(guests_router)
     app.include_router(interests_router)
+    app.include_router(ai_router)

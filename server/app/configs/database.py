@@ -3,7 +3,6 @@ from typing import AsyncGenerator
 
 import asyncpg
 from app.configs import env_config
-from scripts.init_sql import create_custom_functions_and_triggers
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
@@ -106,20 +105,33 @@ async def init_models():
         await conn.run_sync(Base.metadata.create_all)
 
     # Convert SQLAlchemy URL to asyncpg compatible URL
-    asyncpg_url = env_config.DATABASE_URL.replace(
-        "postgresql+asyncpg://", "postgresql://"
-    )
+    # asyncpg_url = env_config.DATABASE_URL.replace(
+    #     "postgresql+asyncpg://", "postgresql://"
+    # )
 
-    # Connect để tạo các functions, triggers, và set up PGroonga
-    conn = await asyncpg.connect(asyncpg_url)
-    try:
-        print("Thiết lập PGroonga và các triggers...")
-        await create_custom_functions_and_triggers(conn)
-        print("Thiết lập PGroonga và các triggers hoàn tất")
-    finally:
-        await conn.close()
+    # # Connect để tạo các functions, triggers, và set up PGroonga
+    # conn = await asyncpg.connect(asyncpg_url)
+    # try:
+    #     print("Thiết lập PGroonga và các triggers...")
+    #     await create_custom_functions_and_triggers(conn)
+    #     print("Thiết lập PGroonga và các triggers hoàn tất")
+    # finally:
+    #     await conn.close()
 
 
 async def shutdown_models():
     """Close all connections during application shutdown"""
     await engine.dispose()
+
+
+async def process_background_with_session(func, *args, **kwargs):
+    """Process a function in the background with a session"""
+    session = get_db_session()
+    try:
+        await func(session, *args, **kwargs)
+        await session.commit()
+    except Exception as e:
+        await session.rollback()
+        raise e
+    finally:
+        await session.close()

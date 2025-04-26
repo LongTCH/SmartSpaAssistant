@@ -1,7 +1,7 @@
 import asyncio
 
 from app.configs import env_config
-from app.configs.database import async_session, get_session
+from app.configs.database import get_session, process_background_with_session
 from app.services import messenger_service
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -57,15 +57,14 @@ async def post_webhook(request: Request, db: AsyncSession = Depends(get_session)
             timestamp = webhook_event.get("timestamp")
 
             # Chuyển xử lý message sang task riêng - create a copy of the db session
-            session = async_session()
-            task = asyncio.create_task(
-                process_message_wrapper(
-                    sender_psid, receipient_psid, timestamp, webhook_event, session
+            asyncio.create_task(
+                process_background_with_session(
+                    messenger_service.process_message,
+                    sender_psid,
+                    receipient_psid,
+                    timestamp,
+                    webhook_event,
                 )
-            )
-            # Add a done callback to ensure session is closed
-            task.add_done_callback(
-                lambda t: asyncio.create_task(close_session(session, t))
             )
 
         # Returns a '200 OK' response to all requests
@@ -73,25 +72,3 @@ async def post_webhook(request: Request, db: AsyncSession = Depends(get_session)
     else:
         # Returns a '404 Not Found' if event is not from a page subscription
         raise HTTPException(status_code=404)
-
-
-async def process_message_wrapper(
-    sender_psid, receipient_psid, timestamp, webhook_event, db
-):
-    try:
-        await messenger_service.process_message(
-            sender_psid, receipient_psid, timestamp, webhook_event, db
-        )
-        await db.commit()
-    except Exception as e:
-        await db.rollback()
-        print(f"Error in process_message_wrapper: {e}")
-
-
-async def close_session(session, task):
-    try:
-        # Handle any exceptions from the task if needed
-        if task.exception():
-            print(f"Task raised an exception: {task.exception()}")
-    finally:
-        await session.close()

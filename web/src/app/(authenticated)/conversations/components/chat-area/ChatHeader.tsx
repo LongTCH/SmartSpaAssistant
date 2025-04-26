@@ -35,17 +35,6 @@ export default function ChatHeader(props: ChatHeaderProps) {
     }
   }, [props.conversationData]);
 
-  useEffect(() => {
-    if (props.selectedConversationId) {
-      // Cast currentAssignment to ChatAssignmentType since we're controlling the values
-      // Update the conversation assignment on the server
-      conversationService.updateAssignment(
-        props.selectedConversationId,
-        currentAssignment as ChatAssignmentType
-      );
-    }
-  }, [currentAssignment]);
-
   const getSentimentPopover = (sentiment: string) => {
     if (sentiment === "neutral") {
       return <></>;

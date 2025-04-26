@@ -16,6 +16,7 @@ export const API_ROUTES = {
     CREATE: "/scripts",
     DOWNLOAD: "/scripts/download",
     UPLOAD: "/scripts/upload",
+    GET_ALL_PUBLISHED: "/scripts/all-published",
   },
   INTEREST: {
     GET: "/interests",

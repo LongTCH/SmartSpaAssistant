@@ -99,8 +99,6 @@ export function ScriptsTab() {
 
   // Fetch data when page or status changes
   useEffect(() => {
-    // Chỉ fetch khi thay đổi status hoặc page, hoặc chưa tải lần đầu
-    console.log({ oldPage, currentPage, oldStatus, status });
     if (
       !hasInitialFetch.current ||
       oldPage !== currentPage ||
