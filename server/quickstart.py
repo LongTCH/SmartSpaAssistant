@@ -1,135 +1,484 @@
+import json
 import re
 
 
 def markdown_to_messenger(text):
-    # In đậm: **bold** → *bold*
-    text = re.sub(r"\*\*(.*?)\*\*", r"*\1*", text)
-    # In nghiêng: *italic* → _italic_
-    text = re.sub(r"\*(.*?)\*", r"_\1_", text)
-    # Gạch ngang: ~~strikethrough~~ → ~strikethrough~
-    text = re.sub(r"~~(.*?)~~", r"~\1~", text)
-    # Mã nguồn: `code` → `code`
-    text = re.sub(r"`(.*?)`", r"`\1`", text)
-    # Khối mã: ```code``` → ```code```
-    text = re.sub(r"```(.*?)```", r"``` \1 ```", text, flags=re.DOTALL)
-    # Liên kết: [text](url) → [text](url)
-    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"[\1](\2)", text)
-    return text
+    """
+    Chuyển đổi định dạng Markdown sang định dạng Messenger.
+    """
+    # Thêm một số ký tự đặc biệt vào văn bản để đánh dấu các định dạng
+    # Thay thế **bold** thành <bold>bold</bold>
+    text_after_bold = re.sub(r"\*\*(.*?)\*\*", r"<bold>\1</bold>", text)
+
+    # Thay thế *italic* thành <italic>italic</italic>
+    text_after_italic = re.sub(
+        r"(?<!\*)\*(?!\*)(.*?)(?<!\*)\*(?!\*)", r"<italic>\1</italic>", text_after_bold
+    )
+
+    # Thay thế các dấu danh sách
+    text_after_lists = re.sub(
+        r"^\s*[\*\-]\s+", "• ", text_after_italic, flags=re.MULTILINE
+    )
+
+    # Sau khi đã xử lý xong các định dạng khác, chuyển đổi về định dạng Messenger
+    # <bold>text</bold> -> *text*
+    text_final_bold = re.sub(r"<bold>(.*?)</bold>", r"*\1*", text_after_lists)
+
+    # <italic>text</italic> -> _text_
+    text_final_italic = re.sub(r"<italic>(.*?)</italic>", r"_\1_", text_final_bold)
+
+    # Xử lý các định dạng khác nếu cần
+    final_text = re.sub(r"~~(.*?)~~", r"~\1~", text_final_italic)  # Gạch ngang
+
+    return final_text
 
 
 def messenger_to_markdown(text):
-    # In đậm: *bold* → **bold**
-    text = re.sub(r"\*(.*?)\*", r"**\1**", text)
-    # In nghiêng: _italic_ → *italic*
-    text = re.sub(r"_(.*?)_", r"*\1*", text)
-    # Gạch ngang: ~strikethrough~ → ~~strikethrough~~
-    text = re.sub(r"~(.*?)~", r"~~\1~~", text)
-    # Mã nguồn: `code` → `code`
-    text = re.sub(r"`(.*?)`", r"`\1`", text)
-    # Khối mã: ```code``` → ```code```
-    text = re.sub(r"```(.*?)```", r"``` \1 ```", text, flags=re.DOTALL)
-    # Liên kết: [text](url) → [text](url)
-    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"[\1](\2)", text)
+    """
+    Chuyển đổi định dạng từ Messenger sang Markdown.
+    """
+    # Tương tự, sử dụng tags tạm thời để tránh xung đột
+
+    # Thay thế *bold* thành <bold>bold</bold>
+    text = re.sub(r"(?<!_)\*(?!_)(.*?)(?<!_)\*(?!_)", r"<bold>\1</bold>", text)
+
+    # Thay thế _italic_ thành <italic>italic</italic>
+    text = re.sub(r"_(.*?)_", r"<italic>\1</italic>", text)
+
+    # Thay thế • thành dấu *
+    text = re.sub(r"^\s*•\s+", "* ", text, flags=re.MULTILINE)
+
+    # Chuyển đổi định dạng tạm về Markdown
+    text = re.sub(r"<bold>(.*?)</bold>", r"**\1**", text)
+    text = re.sub(r"<italic>(.*?)</italic>", r"*\1*", text)
+
+    # Xử lý các định dạng khác
+    text = re.sub(r"~(.*?)~", r"~~\1~~", text)  # Gạch ngang
+
     return text
 
 
-def parse_and_format_message(message):
+def parse_and_format_message(message, char_limit=2000):
+    """
+    Parses and formats a message for Messenger, splitting it into multiple parts if it exceeds the character limit.
+
+    Args:
+        message: The message in markdown format to parse
+        char_limit: The maximum number of characters allowed per message (default: 2000 for Messenger)
+
+    Returns:
+        A list of dictionaries containing either text or media parts
+    """
     # Định nghĩa các mẫu regex cho các loại liên kết (hình ảnh, video, tệp)
     media_patterns = {
-        "image": r"!\[.*?\]\((https?://\S+\.(?:jpg|jpeg|png|gif|bmp|svg|webp))\)|(https?://\S+\.(?:jpg|jpeg|png|gif|bmp|svg|webp))",
-        "video": r"!\[.*?\]\((https?://\S+\.(?:mp4|mov|avi|mkv|flv))\)|(https?://\S+\.(?:mp4|mov|avi|mkv|flv))",
-        "file": r"!\[.*?\]\((https?://\S+\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))\)|(https?://\S+\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))",
+        "image": r"(?:!\[.*?\]\((https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp))[^\)]*\))|(?:\[(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp))\])|(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp))",
+        "video": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp4|mov|avi|mkv|flv))[^\)]*\))|(?:\[(https?://\S+?\.(?:mp4|mov|avi|mkv|flv))\])|(https?://\S+?\.(?:mp4|mov|avi|mkv|flv))",
+        "file": r"(?:!\[.*?\]\((https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))[^\)]*\))|(?:\[(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))\])|(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))",
     }
 
-    # Nếu không tìm thấy media, chỉ trả về văn bản
-    if not any(re.search(pattern, message) for pattern in media_patterns.values()):
-        return [{"text": message.strip()}]
+    # Tìm tất cả các media matches và vị trí của chúng
+    all_matches = []
+    extracted_urls = []  # Lưu trữ tất cả các URL đã trích xuất để loại bỏ trùng lặp
 
-    message = markdown_to_messenger(message)
-
-    # Danh sách chứa các phần media với vị trí
-    media_items = []
-
-    # Tạo bản sao làm việc của tin nhắn để chỉnh sửa
-    working_message = message
-
-    # Tìm tất cả các media với vị trí của chúng
     for media_type, pattern in media_patterns.items():
         for match in re.finditer(pattern, message):
-            full_match = match.group(0)
-            # Xử lý cả hai trường hợp: URL trong markdown và URL trực tiếp
-            if len(match.groups()) >= 1 and match.group(1):
-                media_url = match.group(1)  # URL trong markdown ![...](URL)
-            elif len(match.groups()) >= 2 and match.group(2):
-                media_url = match.group(2)  # URL trực tiếp
+            # Xác định URL từ các nhóm match
+            url = None
+            if match.group(1):  # Trường hợp ![...](URL)
+                url = match.group(1)
+            elif match.group(2):  # Trường hợp [URL]
+                url = match.group(2)
+            elif match.group(3):  # Trường hợp URL trực tiếp
+                url = match.group(3)
             else:
-                media_url = full_match  # Fallback đến toàn bộ match
+                url = match.group(0)
 
-            start_pos = match.start()
-            end_pos = match.end()
+            # Làm sạch URL nếu còn bất kỳ dấu markdown nào
+            if "](" in url:
+                url = url.split("](")[-1]
+            if "(" in url and ")" in url:
+                url = url.split("(")[-1].split(")")[0]
 
-            media_items.append(
+            all_matches.append(
                 {
                     "type": media_type,
-                    "url": media_url,
-                    "start": start_pos,
-                    "end": end_pos,
-                    "full_match": full_match,
+                    "url": url,
+                    "start": match.start(),
+                    "end": match.end(),
+                    "full_match": match.group(0),
                 }
             )
+            extracted_urls.append(url)
 
-    # Sắp xếp các phần media theo vị trí (từ cuối đến đầu để tránh thay đổi vị trí)
-    media_items.sort(key=lambda x: x["start"], reverse=True)
+    # Nếu không tìm thấy media, chỉ trả về văn bản (có thể được chia nhỏ)
+    if not all_matches:
+        text_content = message.strip()
+        # Loại bỏ các dấu markdown liên quan đến URL trong phần văn bản
+        # Thay thế [text](url) bằng url
+        text_content = re.sub(r"\[(.*?)\]\((.*?)\)", r"\2", text_content)
+        # Loại bỏ các link markdown còn sót lại mà không có text (ví dụ: [](url))
+        text_content = re.sub(r"\[\]\((.*?)\)", r"\1", text_content)
+        # Loại bỏ các URL đứng riêng trong ngoặc đơn nếu regex trên chưa bắt được
+        text_content = re.sub(r"\((https?://[^)]+)\)", r"\1", text_content)
 
-    # Thay thế tất cả các markdown media bằng placeholder trong bản sao làm việc
-    for i, item in enumerate(media_items):
-        placeholder = f"__MEDIA_PLACEHOLDER_{i}__"
-        working_message = (
-            working_message[: item["start"]]
-            + placeholder
-            + working_message[item["end"] :]
-        )
+        # Chuyển đổi định dạng Markdown sang Messenger
+        formatted_text = markdown_to_messenger(text_content)
 
-    # Tách tin nhắn đã chỉnh sửa theo các placeholder
-    parts = re.split(r"__MEDIA_PLACEHOLDER_\d+__", working_message)
-
-    # Tạo kết quả với văn bản và media xen kẽ
-    result = []
-    media_items.sort(key=lambda x: x["start"])
-
-    media_index = 0
-    combined_parts = []
-
-    for i, text in enumerate(parts):
-        if text and text.strip():
-            start_pos = 0
-            if i > 0 and media_index < len(media_items):
-                start_pos = media_items[i - 1]["end"]
-
-            combined_parts.append(
-                {"type": "text", "content": text.strip(), "pos": start_pos}
-            )
-
-    for item in media_items:
-        combined_parts.append(
-            {
-                "type": "media",
-                "media_type": item["type"],
-                "url": item["url"],
-                "pos": item["start"],
-            }
-        )
-
-    combined_parts.sort(key=lambda x: x["pos"])
-
-    for part in combined_parts:
-        if part["type"] == "text":
-            result.append({"text": part["content"]})
+        # Chia nhỏ nếu vượt quá giới hạn ký tự
+        if len(formatted_text) <= char_limit:
+            return [{"text": formatted_text}]
         else:
-            result.append({"type": part["media_type"], "url": part["url"]})
+            return split_text_into_chunks(formatted_text, char_limit)
+
+    # Sắp xếp các match theo vị trí
+    all_matches.sort(key=lambda x: x["start"])
+
+    # Loại bỏ các match trùng nhau hoặc chồng lấn
+    filtered_matches = []
+    for match in all_matches:
+        # Kiểm tra xem URL đã tồn tại trong filtered_matches chưa
+        if not any(match["url"] == existing["url"] for existing in filtered_matches):
+            filtered_matches.append(match)
+
+    # Chuyển đổi thành kết quả cuối cùng
+    result = []
+    current_pos = 0
+
+    for match in filtered_matches:
+        # Thêm text trước match
+        if match["start"] > current_pos:
+            text_before = message[current_pos : match["start"]].strip()
+            if text_before:
+                # Loại bỏ các dấu markdown liên quan đến URL trong phần văn bản
+                # Thay thế [text](url) bằng url
+                text_before = re.sub(r"\[(.*?)\]\((.*?)\)", r"\2", text_before)
+                # Loại bỏ các link markdown còn sót lại mà không có text (ví dụ: [](url))
+                text_before = re.sub(r"\[\]\((.*?)\)", r"\1", text_before)
+                # Loại bỏ các URL đứng riêng trong ngoặc đơn nếu regex trên chưa bắt được
+                text_before = re.sub(r"\((https?://[^)]+)\)", r"\1", text_before)
+
+                # Chuyển đổi định dạng Markdown sang Messenger
+                text_before = markdown_to_messenger(text_before)
+
+                # Chia nhỏ nếu vượt quá giới hạn ký tự
+                if len(text_before) <= char_limit:
+                    result.append({"text": text_before})
+                else:
+                    result.extend(split_text_into_chunks(text_before, char_limit))
+
+        # Thêm media
+        result.append({"type": match["type"], "url": match["url"]})
+        current_pos = match["end"]
+
+    # Thêm text còn lại sau match cuối cùng
+    if current_pos < len(message):
+        text_after = message[current_pos:].strip()
+        if text_after:
+            # Xử lý nội dung còn lại
+            # Loại bỏ các URL đã được trích xuất thành media riêng để tránh trùng lặp
+            for url in extracted_urls:
+                text_after = text_after.replace(url, "")
+
+            # Sửa định dạng MD sạch sẽ trước khi chuyển đổi
+            # Trích xuất lại các danh sách và định dạng sạch sẽ
+            lines = text_after.split("\n")
+            clean_lines = []
+
+            for line in lines:
+                # Xử lý danh sách với dấu *
+                if line.strip().startswith("*   **"):  # Danh sách lồng có đánh dấu đậm
+                    # Sửa lại: Giữ nguyên định dạng in đậm cho tiêu đề phụ (không chuyển sang in nghiêng)
+                    line = line.replace("*   **", "• **")
+                elif line.strip().startswith("*   "):  # Danh sách thông thường
+                    line = line.replace("*   ", "• ")
+
+                # Thêm dòng đã sửa vào danh sách
+                clean_lines.append(line)
+
+            # Ghép các dòng lại
+            text_after = "\n".join(clean_lines)
+
+            # Loại bỏ các dấu markdown liên quan đến URL trong phần văn bản
+            text_after = re.sub(r"\[(.*?)\]\((.*?)\)", r"\2", text_after)
+            text_after = re.sub(r"\[\]\((.*?)\)", r"\1", text_after)
+            text_after = re.sub(r"\((https?://[^)]+)\)", r"\1", text_after)
+
+            # Loại bỏ các dấu ngoặc rỗng
+            # Loại bỏ dấu ngoặc đơn rỗng ()
+            text_after = re.sub(r"\(\s*\)", "", text_after)
+            # Loại bỏ dấu ngoặc vuông rỗng []
+            text_after = re.sub(r"\[\s*\]", "", text_after)
+            text_after = text_after.replace("()", "")
+
+            # Chuyển đổi định dạng Markdown sang Messenger
+            text_after = markdown_to_messenger(text_after)
+
+            # Xử lý cuối cùng - làm sạch khoảng trắng thừa và định dạng lỗi
+            # Sửa định dạng danh sách lồng nhau
+            text_after = text_after.replace("* _", "• _")
+
+            # Fix lỗi định dạng: chuyển lại các tiêu đề phụ từ in nghiêng sang in đậm
+            # Tìm các mẫu như "• _Tẩy trang M32:_" và thay thế thành "• *Tẩy trang M32:*"
+            text_after = re.sub(r"• _(.*?)(_\s)", r"• *\1*\2", text_after)
+            text_after = re.sub(r"• _(.*?):_", r"• *\1:*", text_after)
+
+            # Loại bỏ dòng trống thừa
+            # Loại bỏ dòng trống thừa
+            text_after = re.sub(r"\n\s+\n", "\n\n", text_after)
+            # Giảm số dòng trống liên tiếp
+            text_after = re.sub(r"\n{3,}", "\n\n", text_after)
+
+            if (
+                text_after.strip()
+            ):  # Chỉ thêm vào kết quả nếu còn nội dung sau khi loại bỏ URL
+                # Chia nhỏ nếu vượt quá giới hạn ký tự
+                if len(text_after) <= char_limit:
+                    result.append({"text": text_after})
+                else:
+                    result.extend(split_text_into_chunks(text_after, char_limit))
 
     return result
 
 
-text = "Dưới đây là thông tin chi tiết về Bộ C02 – “Cơm Áo Gạo Tiền” của Mailisa:\n\n1. Tên sản phẩm  \n   • Bộ C02 – Cơm Áo Gạo Tiền  \n\n2. Mã SKU  \n   • C02  \n\n3. Mô tả ngắn  \n   “Bộ C02 ‘Cơm Áo Gạo Tiền’ (gồm M19, M23, M32, M55) – không thể thiếu trong quy trình chăm sóc da hàng ngày, giúp nuôi dưỡng, bảo vệ và duy trì làn da khỏe đẹp, căng trắng, mịn màng.”\n\n4. Giá bán  \n   • Giá gốc: 1.400.000 Đ  \n   • Giá khuyến mãi: 1.138.000 Đ (giảm 18,71%)  \n\n5. Đơn vị  \n   • Đ  \n\n6. Hình ảnh sản phẩm  \n   https://mailisa.com/wp-content/uploads/2025/03/BO-C02.jpg  \n\n7. Thành phần & công dụng chính  \n   • M32 (Tẩy trang):  \n     – Loại bỏ lớp trang điểm, bụi bẩn, dầu nhờn dư thừa sâu dưới lỗ chân lông, nhẹ nhàng, không gây khô da.  \n   • M19 (Sữa rửa mặt sạch sâu Acid Amino):  \n     – Làm sạch da sâu, loại bỏ bụi bẩn và dầu nhờn tích tụ lâu ngày, cho da căng bóng, mịn màng.  \n   • M55 (Cát tẩy tế bào chết):  \n     – Hạt siêu mịn, làm sạch sâu, loại tế bào chết, thu nhỏ lỗ chân lông, ngừa mụn, giúp da mịn và tăng hiệu quả sản phẩm tiếp theo.  \n   • M23 (Kem chống nắng BB Nano Che Khuyết Điểm):  \n     – Bảo vệ da khỏi tia UV, ngăn ngừa lão hóa, cung cấp dưỡng chất nuôi dưỡng da khỏe mạnh, cân bằng tông màu, thay thế lớp nền trang điểm tự nhiên.\n\n8. Hướng dẫn sử dụng  \n   Buổi sáng:  \n     1. M32 – Tẩy trang siêu cấp X2 (nếu có trang điểm): lấy lượng vừa đủ, lau nhẹ theo hướng từ trong ra ngoài.  \n     2. M19 – Sữa rửa mặt Acid Amino: tạo bọt và mát-xa để làm sạch sâu, rửa lại nước sạch, lau khô.  \n     3. Thoa các sản phẩm dưỡng (nếu có).  \n     4. M23 – Kem chống nắng BB Nano: chấm 5 điểm trên mặt, tán đều và vỗ nhẹ, thoa lại sau 5 tiếng nếu hoạt động ngoài trời nhiều.\n\n   Buổi tối:  \n     1. M32 – Tẩy trang siêu cấp X2: lấy lượng vừa đủ, lau nhẹ để loại bỏ trang điểm và bụi bẩn.  \n     2. M19 – Sữa rửa mặt Acid Amino: tạo bọt, massage, rửa sạch, lau khô.  \n     3. Thoa các sản phẩm dưỡng (nếu có).  \n     4. M55 – Cát tẩy tế bào chết: (da dầu/mụn 2 lần/tuần; da khô/thường/nám 1 lần/tuần). Sau khi rửa mặt, lau khô, chấm kem đều 5 điểm, massage 2 phút, rửa sạch và lau khô.\n\n   Lưu ý đặc biệt:  \n   – Thứ tự sản phẩm: tinh chất/serum – kem lỏng – kem cô đặc.  \n   – Khi dùng nhiều sản phẩm, quy trình trên giữ nguyên.  \n\n9. Link đặt hàng  \n   https://mailisa.com/san-pham/bo-c02-doctor-magic/\n\nƯu đãi kèm theo (tự động áp dụng khi thanh toán):  \n• Giảm 20% cho khách hàng mới  \n• Tích điểm: 100.000 Đ = 1 điểm (10 điểm đổi voucher 50.000 Đ)\n\nBạn có muốn đặt hàng ngay hoặc cần thêm hỗ trợ gì không ạ? Nếu có, vui lòng cho mình biết:  \n– Họ tên  \n– Số điện thoại  \n– Địa chỉ nhận hàng  \n\nMình rất vui lòng hỗ trợ bạn!"
-print(parse_and_format_message(text))
+def split_text_into_chunks(text, char_limit=2000):
+    """
+    Chia văn bản thành các phần nhỏ hơn, theo thứ tự ưu tiên:
+    1. Chia theo đoạn văn (dấu xuống dòng đôi)
+    2. Chia theo dòng (dấu xuống dòng đơn)
+    3. Chia theo câu (dấu chấm, chấm hỏi, chấm than)
+    4. Chia theo từ nếu buộc phải chia giữa câu
+
+    Args:
+        text: Văn bản cần chia
+        char_limit: Giới hạn ký tự mỗi phần (mặc định: 2000 cho Messenger)
+
+    Returns:
+        Một danh sách các dictionary, mỗi dictionary chứa một phần văn bản
+    """
+    result = []
+    if len(text) <= char_limit:
+        return [{"text": text}]
+
+    # Phân tích văn bản để tìm các điểm chia phù hợp
+    paragraphs = text.split("\n\n")  # Chia theo đoạn văn
+    current_chunk = ""
+
+    for paragraph in paragraphs:
+        # Nếu đoạn văn tự nó đã vượt quá giới hạn
+        if len(paragraph) > char_limit:
+            # Nếu chunk hiện tại không rỗng, lưu lại
+            if current_chunk:
+                result.append({"text": current_chunk.strip()})
+                current_chunk = ""
+
+            # Xử lý đoạn văn dài, ưu tiên chia theo dòng
+            lines = paragraph.split("\n")
+            line_chunk = ""
+
+            for line in lines:
+                # Kiểm tra xem dòng có phải là gạch đầu dòng không
+                is_bullet = line.strip().startswith("•") or line.strip().startswith("-")
+
+                # Nếu thêm dòng mới vào vẫn trong giới hạn
+                if (
+                    len(line_chunk) + len(line) + 1 <= char_limit
+                ):  # +1 cho ký tự xuống dòng
+                    if line_chunk:
+                        line_chunk += "\n" + line
+                    else:
+                        line_chunk = line
+                else:
+                    # Nếu dòng không phải gạch đầu dòng hoặc chunk hiện tại rỗng
+                    if not is_bullet or not line_chunk:
+                        # Lưu chunk hiện tại và bắt đầu chunk mới
+                        if line_chunk:
+                            result.append({"text": line_chunk.strip()})
+
+                        # Nếu dòng hiện tại vẫn vượt quá giới hạn, cần chia nhỏ hơn nữa
+                        if len(line) > char_limit:
+                            # Thử chia theo câu nếu dòng quá dài
+                            sentences = split_into_sentences(line)
+                            sentence_chunk = ""
+
+                            for sentence in sentences:
+                                # Nếu câu đơn lẻ cũng vượt quá giới hạn
+                                if len(sentence) > char_limit:
+                                    # Nếu có chunk câu hiện tại, lưu lại
+                                    if sentence_chunk:
+                                        result.append({"text": sentence_chunk.strip()})
+                                        sentence_chunk = ""
+
+                                    # Chia câu theo từ
+                                    parts = []
+                                    words = sentence.split()
+                                    part = ""
+                                    for word in words:
+                                        # +1 cho khoảng trắng
+                                        if len(part) + len(word) + 1 <= char_limit:
+                                            if part:
+                                                part += " " + word
+                                            else:
+                                                part = word
+                                        else:
+                                            parts.append(part)
+                                            part = word
+                                    if part:
+                                        parts.append(part)
+
+                                    # Thêm các phần đã chia vào kết quả
+                                    for part in parts:
+                                        result.append({"text": part.strip()})
+
+                                # Nếu câu vừa với giới hạn
+                                elif len(sentence_chunk) + len(sentence) <= char_limit:
+                                    sentence_chunk += sentence
+                                else:
+                                    # Lưu chunk câu hiện tại và bắt đầu chunk mới
+                                    result.append({"text": sentence_chunk.strip()})
+                                    sentence_chunk = sentence
+
+                            # Lưu phần câu còn lại nếu có
+                            if sentence_chunk:
+                                result.append({"text": sentence_chunk.strip()})
+
+                            line_chunk = ""
+                        else:
+                            line_chunk = line
+                    else:
+                        # Đối với gạch đầu dòng, giữ nguyên chunk hiện tại và thêm vào kết quả
+                        result.append({"text": line_chunk.strip()})
+                        line_chunk = line
+
+            # Thêm phần còn lại của đoạn nếu có
+            if line_chunk:
+                result.append({"text": line_chunk.strip()})
+        else:
+            # Nếu thêm paragraph vào vẫn trong giới hạn
+            if len(current_chunk) + len(paragraph) + 2 <= char_limit:  # +2 cho "\n\n"
+                if current_chunk:
+                    current_chunk += "\n\n" + paragraph
+                else:
+                    current_chunk = paragraph
+            else:
+                # Lưu chunk hiện tại và bắt đầu chunk mới
+                if current_chunk:
+                    result.append({"text": current_chunk.strip()})
+                current_chunk = paragraph
+
+    # Thêm chunk cuối cùng nếu có
+    if current_chunk:
+        result.append({"text": current_chunk.strip()})
+
+    return result
+
+
+def split_into_sentences(text):
+    """
+    Chia văn bản thành các câu, sử dụng các dấu kết thúc câu chính
+    và tránh chia các từ viết tắt hoặc số thập phân
+
+    Args:
+        text: Văn bản cần chia thành các câu
+
+    Returns:
+        Danh sách các câu
+    """
+    # Danh sách các dấu kết thúc câu
+    sentence_endings = [".", "!", "?", ":", ";"]
+
+    # Các ngoại lệ không chia (từ viết tắt, số thập phân, vv)
+    exceptions = [
+        "TS.",
+        "GS.",
+        "PGS.",
+        "ThS.",
+        "BS.",
+        "BSCK.",
+        "KS.",
+        "CN.",
+        "Dr.",
+        "Mr.",
+        "Mrs.",
+        "TP.",
+        "T.P",
+        "Q.",
+        "P.",
+        "Tr.",
+        "St.",
+        "Tp.",
+        "tp.",
+        "Khu p.",
+        "khu p.",
+    ]
+
+    sentences = []
+    current = ""
+    i = 0
+
+    while i < len(text):
+        current += text[i]
+
+        # Kiểm tra xem ký tự hiện tại có phải là dấu kết thúc câu không
+        if text[i] in sentence_endings:
+            # Kiểm tra xem đây có phải là một ngoại lệ không
+            is_exception = False
+            for ex in exceptions:
+                if current.endswith(ex) and (i + 1 >= len(text) or text[i + 1] == " "):
+                    is_exception = True
+                    break
+
+            # Kiểm tra xem đây có phải là số thập phân không
+            if (
+                i > 0
+                and i < len(text) - 1
+                and text[i] == "."
+                and text[i - 1].isdigit()
+                and text[i + 1].isdigit()
+            ):
+                is_exception = True
+
+            # Nếu không phải ngoại lệ và sau dấu câu là khoảng trắng hoặc hết chuỗi, kết thúc câu
+            if not is_exception and (
+                i + 1 >= len(text) or text[i + 1] == " " or text[i + 1] == "\n"
+            ):
+                sentences.append(current)
+                current = ""
+
+        i += 1
+
+    # Thêm phần còn lại (nếu có)
+    if current:
+        sentences.append(current)
+
+    return sentences
+
+
+# Test với văn bản có in đậm và in nghiêng
+text = "Dưới đây là một số gợi ý sản phẩm – bộ sản phẩm chuyên điều trị nám, tàn nhang của Mailisa. Mình tóm tắt nhanh về công dụng, giá và cách dùng để bạn dễ tham khảo:\n\n1. BỘ N3 – HỖ TRỢ LOẠI BỎ NÁM, TÀN NHANG, ĐỒI MỒI  \n• Giá khuyến mãi: 2.100.000₫ (giảm 17,65% từ 2.550.000₫)  \n• Công dụng chính:  \n  - Phá vỡ, nghiền nát melanin (nám đinh, nám mảng, tàn nhang)  \n  - Làm sáng đều màu da, thu nhỏ lỗ chân lông  \n  - Nuôi dưỡng sâu, giúp da căng mịn  \n• Thành phần chính: M01 (Kem loại bỏ sắc tố), M03 (Kem xóa thâm làm sáng da), M18 (Kem dưỡng ẩm sâu bên trong)  \n• Hướng dẫn dùng:  \n  – Sáng: M18 → kem chống nắng BB Nano  \n  – Tối: M18 → M03 → M01 (thoa cách 2′ giữa mỗi bước, bắt đầu dùng lượng rất ít 1–5 ngày đầu để da thích nghi)  \n• Link đặt hàng & xem chi tiết ảnh: https://mailisa.com/bo-n3-san-pham-tri-nam-tan-nhang-doi-moi/\n\n2. M10 – Kem khống chế sắc tố Melanin  \n• Giá khuyến mãi: 450.000₫ (giảm 18,18% từ 550.000₫)  \n• Công dụng:  \n  - Ức chế melanin, ngăn hình thành và phát triển nám mới  \n  - Dưỡng ẩm, làm sáng và cải thiện độ căng mịn  \n• Hướng dẫn dùng: Sáng – tối, sau khi làm sạch da, chấm hạt đậu xanh lên 5 điểm trên mặt, tản đều và massage nhẹ 2–3 phút  \n• Link đặt hàng: https://mailisa.com/san-pham/m10-kem-khong-che-sac-to/\n\n3. M05 – Kem ức chế sạm nám làm sáng da  \n• Giá khuyến mãi: 399.000₫ (giảm 18,57% từ 490.000₫)  \n• Công dụng:  \n  - Ức chế melanin, dưỡng ẩm, làm sáng da, cải thiện da xỉn màu  \n• Hướng dẫn dùng: Sáng – tối, tương tự M10 (chấm, tản và massage nhẹ)  \n• Link đặt hàng: https://mailisa.com/kem-uc-che-sam-nam-lam-sang-da/\n\n4. M01 – Kem loại bỏ sắc tố  \n• Giá khuyến mãi: 750.000₫ (giảm 17,58% từ 910.000₫)  \n• Công dụng:  \n  - Nghiền nát, phá vỡ sắc tố melanin đã hình thành (nám, thâm)  \n  - Kích thích collagen, làm da trắng sáng, căng mịn  \n• Hướng dẫn dùng: Tối, thoa hạt đậu xanh lên vùng nám/thâm, massage 2–3 phút, dùng 1 lần/ngày.  \n• Link đặt hàng: https://mailisa.com/kem-loai-bo-sac-to/\n\n—  \nLưu ý chung khi dùng các sản phẩm Doctor Magic:  \n• Thoa cách 2 phút giữa các bước.  \n• Ngày đầu dùng rất ít, theo dõi da 1–5 ngày đầu.  \n• Nếu có dấu hiệu kích ứng nặng (đỏ rát, sưng, mụn nước), ngưng ngay và liên hệ Mailisa để được hỗ trợ.  \n\nBạn cần thêm thông tin chi tiết từng bước sử dụng, ưu đãi thành viên hay muốn đặt hàng combo nào thì cho mình biết nhé! Chúc bạn sớm có làn da đều màu, sáng khỏe."
+
+# Test messenger format
+messenger_text = "Cảm ơn bạn đã chia sẻ thông tin ạ! Với tình trạng da dầu và đang gặp vấn đề về nám, mình xin tư vấn cho bạn bộ sản phẩm *NM1 – DÀNH CHO DA NÁM MỤN* của Mailisa nhé."
+
+# Kiểm tra cả hai chiều chuyển đổi
+result = parse_and_format_message(text, 500)
+print("Markdown to Messenger:", result)
+
+# Kiểm tra chuyển đổi từ Messenger sang Markdown
+markdown_result = messenger_to_markdown(messenger_text)
+print("\nMessenger to Markdown:", markdown_result)
+
+# Lưu kết quả vào file JSON để kiểm tra
+with open("format_test.json", "w", encoding="utf-8") as f:
+    json.dump(
+        {
+            "original": text,
+            "messenger_format": result,
+            "messenger_text": messenger_text,
+            "back_to_markdown": markdown_result,
+        },
+        f,
+        ensure_ascii=False,
+        indent=2,
+    )
+
+print("\nĐã lưu kết quả vào file format_test.json")

@@ -4,18 +4,6 @@ from typing import Any
 from app.models import FileMetaData
 
 
-class LocalData:
-    def __init__(
-        self,
-        drive_folder_id: str,
-        chat_wait_seconds: float,
-        sentiment_interval_chat_count: int,
-    ):
-        self.drive_folder_id = drive_folder_id
-        self.chat_wait_seconds = chat_wait_seconds
-        self.sentiment_interval_chat_count = sentiment_interval_chat_count
-
-
 class ChunkWrapper:
     def __init__(
         self, file_id: str, content: str, start_line: int, end_line: int, blob_type: str

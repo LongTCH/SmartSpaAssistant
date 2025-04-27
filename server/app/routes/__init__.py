@@ -4,6 +4,7 @@ from app.routes.route_documents import router as documents_router
 from app.routes.route_guests import router as guests_router
 from app.routes.route_interests import router as interests_router
 from app.routes.route_scripts import router as scripts_router
+from app.routes.route_setting import router as settings_router
 from app.routes.route_sheets import router as sheets_router
 from app.routes.route_webhooks import router as webhooks_router
 from app.routes.websocket import ws_router
@@ -34,3 +35,4 @@ def include_router(app: FastAPI):
     app.include_router(guests_router)
     app.include_router(interests_router)
     app.include_router(ai_router)
+    app.include_router(settings_router)

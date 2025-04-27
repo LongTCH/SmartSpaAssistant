@@ -1,5 +1,5 @@
 "use client";
-import { Avatar } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
@@ -58,12 +58,16 @@ export function UserInfoModal({
       const response = await guestService.getGuestInfo(guestId);
       setGuestInfo(response);
       setOriginalGuestInfo(response);
-      // Khởi tạo danh sách tên nhãn đã chọn từ danh sách interests
+      // Khởi tạo danh sách tên nhãn đã chọn từ danh sách interests (handle null)
       setSelectedInterestNames(
-        response.interests.map((interest) => interest.name)
+        response.interests?.map((interest) => interest.name) || []
       );
     } catch (error) {
       console.error("Error fetching guest info:", error);
+      // Set guestInfo to null or a default structure if fetching fails
+      setGuestInfo(null);
+      setOriginalGuestInfo(null);
+      setSelectedInterestNames([]);
     }
   };
 
@@ -140,23 +144,70 @@ export function UserInfoModal({
     }));
   };
 
-  const resetField = (fieldName: string) => {
+  const resetField = (fieldName: keyof typeof editableFields) => {
     if (!originalGuestInfo || !guestInfo) return;
 
-    setGuestInfo({
-      ...guestInfo,
-      [fieldName]: originalGuestInfo[fieldName as keyof Conversation],
-    });
+    // Use a temporary object to build the update for setGuestInfo
+    let update: Partial<Conversation> = {};
+
+    if (fieldName === "interests") {
+      setSelectedInterestNames(
+        originalGuestInfo.interests?.map((interest) => interest.name) || []
+      );
+      // Update guestInfo state for interests
+      update.interests = originalGuestInfo.interests || [];
+    } else if (fieldName === "gender") {
+      const originalValue = originalGuestInfo.gender;
+      // Map null back to 'unknown' for the Select component's value prop during reset
+      update.gender = originalValue === null ? "unknown" : originalValue;
+    } else if (fieldName === "birthday") {
+      const originalValue = originalGuestInfo.birthday;
+      // Reset to empty string for the date input if original was null
+      update.birthday = originalValue === null ? "" : originalValue;
+    } else if (
+      fieldName === "fullname" ||
+      fieldName === "email" ||
+      fieldName === "phone" ||
+      fieldName === "address"
+    ) {
+      // Access known string | null fields
+      const originalValue = originalGuestInfo[fieldName];
+      // Reset to empty string for Input if original was null
+      update[fieldName] = originalValue === null ? "" : originalValue;
+    }
+
+    // Apply the update to guestInfo state
+    setGuestInfo((prev) => ({
+      ...prev!,
+      ...update,
+    }));
+
     toggleEditField(fieldName);
   };
 
-  const handleInputChange = (fieldName: string, value: string) => {
+  const handleInputChange = (
+    fieldName: keyof typeof editableFields,
+    value: string | null
+  ) => {
     if (!guestInfo) return;
 
-    setGuestInfo({
-      ...guestInfo,
-      [fieldName]: value,
-    });
+    // Determine the actual value to store in the state
+    let actualValueToStore: string | null;
+
+    if (fieldName === "gender") {
+      // Map 'unknown' value from Select back to null for the state
+      actualValueToStore = value === "unknown" ? null : value;
+    } else {
+      // Map empty string input to null for other fields
+      actualValueToStore = value === "" ? null : value;
+    }
+
+    // Update the guestInfo state
+    setGuestInfo((prev) => ({
+      ...prev!,
+      // Use computed property name to update the correct field
+      [fieldName]: actualValueToStore,
+    }));
   };
 
   const handleSave = async () => {
@@ -171,13 +222,18 @@ export function UserInfoModal({
         })
         .filter((id): id is string => id !== null);
 
+      // Ensure potentially null fields are handled correctly for the API
       const updateData: GuestInfoUpdate = {
-        fullname: guestInfo.fullname,
-        email: guestInfo.email,
-        phone: guestInfo.phone,
-        address: guestInfo.address,
+        fullname: guestInfo.fullname || null,
+        email: guestInfo.email || null,
+        phone: guestInfo.phone || null,
+        address: guestInfo.address || null,
+        // Gender state is already null if "unknown" was selected
         gender: guestInfo.gender,
-        birthday: guestInfo.birthday,
+        // Ensure birthday is in ISO format or null
+        birthday: guestInfo.birthday
+          ? new Date(guestInfo.birthday).toISOString()
+          : null,
         interest_ids: interestIds,
       };
 
@@ -185,8 +241,18 @@ export function UserInfoModal({
         guestId,
         updateData
       );
-      setGuestInfo(updatedGuestInfo);
-      setOriginalGuestInfo(updatedGuestInfo);
+      // Update local state with potentially null values from API response
+      // Map null gender back to "unknown" for the Select component if needed after save
+      const displayGuestInfo = {
+        ...updatedGuestInfo,
+        // gender: updatedGuestInfo.gender === null ? 'unknown' : updatedGuestInfo.gender, // Not strictly needed if Select handles null->unknown
+      };
+      setGuestInfo(displayGuestInfo);
+      setOriginalGuestInfo(displayGuestInfo); // Store potentially modified display state as original
+      setSelectedInterestNames(
+        updatedGuestInfo.interests?.map((i) => i.name) || []
+      );
+
       // Show success toast
       toast.success("Lưu thông tin thành công");
       // reset all editable fields
@@ -196,7 +262,7 @@ export function UserInfoModal({
           {}
         )
       );
-      onOpenChange(false);
+      onOpenChange(false); // Close modal on successful save
     } catch (error) {
       console.error(error);
       toast.error("Không thể cập nhật thông tin");
@@ -205,34 +271,68 @@ export function UserInfoModal({
     }
   };
 
+  // Helper to safely get date string for input type="date"
+  const getSafeDateString = (
+    isoDateString: string | null | undefined
+  ): string => {
+    if (!isoDateString) return "";
+    try {
+      return new Date(isoDateString).toISOString().slice(0, 10);
+    } catch (e) {
+      return ""; // Return empty string for invalid dates
+    }
+  };
+
+  // Helper to safely format date for display
+  const formatSafeDate = (isoDateString: string | null | undefined): string => {
+    if (!isoDateString) return "N/A";
+    try {
+      return new Date(isoDateString).toLocaleDateString("vi-VN");
+    } catch (e) {
+      return "Invalid Date";
+    }
+  };
+
   return (
+    // Keep guestInfo !== null check or adjust based on desired behavior when loading/error
     guestInfo !== null && (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogTitle className="text-center text-lg font-bold"></DialogTitle>
-        <DialogContent className="sm:max-w-[850px] p-0 overflow-hidden">
+        <DialogContent className="sm:max-w-[850px] h-full p-0 overflow-auto">
           <div className="flex flex-col items-center pt-8 pb-6 bg-white">
             <div className="relative">
               <Avatar className="h-24 w-24 border-2 border-[#6366F1]">
-                <img
-                  src={guestInfo.avatar}
-                  alt="User avatar"
-                  className="object-cover"
-                />
+                {/* Use AvatarFallback for missing avatar */}
+                {guestInfo.avatar ? (
+                  <img
+                    src={guestInfo.avatar}
+                    alt="User avatar"
+                    className="object-cover h-full w-full" // Ensure image covers avatar area
+                  />
+                ) : (
+                  <AvatarFallback className="text-4xl">
+                    {guestInfo.account_name?.charAt(0).toUpperCase() || "?"}
+                  </AvatarFallback>
+                )}
               </Avatar>
+              {/* Online indicator can remain */}
               <div className="absolute bottom-0 right-0 h-5 w-5 rounded-full bg-[#0084FF] border-2 border-white"></div>
             </div>
 
             <h2 className="text-2xl font-bold mt-4">
-              {guestInfo.account_name}
+              {guestInfo.account_name || "Khách hàng"}{" "}
+              {/* Fallback for account_name */}
             </h2>
           </div>
 
           <div className="p-6 space-y-4">
+            {/* Fullname */}
             <div className="flex items-center justify-between">
               <div className="w-[120px] font-medium">Tên:</div>
               <div className="flex-1 flex items-center">
                 <Input
-                  value={guestInfo.fullname}
+                  value={guestInfo.fullname || ""} // Use empty string for null
+                  placeholder="Chưa có thông tin"
                   className={`flex-1 ${
                     !editableFields.fullname ? "bg-gray-50" : "bg-white"
                   }`}
@@ -241,6 +341,7 @@ export function UserInfoModal({
                     handleInputChange("fullname", e.target.value)
                   }
                 />
+                {/* Edit/Reset Button */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -260,26 +361,31 @@ export function UserInfoModal({
               </div>
             </div>
 
+            {/* Gender */}
             <div className="flex items-center justify-between">
               <div className="w-[120px] font-medium">Giới tính:</div>
               <div className="flex-1 flex items-center">
                 <Select
-                  value={guestInfo.gender}
+                  // Map null gender state to "unknown" for the Select value
+                  value={guestInfo.gender || "unknown"}
                   onValueChange={(value) => handleInputChange("gender", value)}
+                  disabled={!editableFields.gender}
                 >
                   <SelectTrigger
                     className={`flex-1 ${
                       !editableFields.gender ? "bg-gray-50" : "bg-white"
                     }`}
-                    disabled={!editableFields.gender}
                   >
                     <SelectValue placeholder="Chọn giới tính" />
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="male">Nam</SelectItem>
                     <SelectItem value="female">Nữ</SelectItem>
+                    {/* Use "unknown" instead of "" for the value */}
+                    <SelectItem value="unknown">Không xác định</SelectItem>
                   </SelectContent>
                 </Select>
+                {/* Edit/Reset Button */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -299,28 +405,33 @@ export function UserInfoModal({
               </div>
             </div>
 
+            {/* Birthday */}
             <div className="flex items-center justify-between">
               <div className="w-[120px] font-medium">Năm sinh:</div>
               <div className="flex-1 flex items-center">
                 {editableFields.birthday ? (
                   <Input
                     type="date"
-                    value={guestInfo.birthday.slice(0, 10)}
+                    value={getSafeDateString(guestInfo.birthday)} // Use helper
                     className="flex-1 bg-white"
                     onChange={(e) =>
                       handleInputChange(
+                        // Convert date string back to ISO string or null if empty
                         "birthday",
-                        new Date(e.target.value).toISOString()
+                        e.target.value
+                          ? new Date(e.target.value).toISOString()
+                          : null
                       )
                     }
                   />
                 ) : (
                   <Input
-                    value={new Date(guestInfo.birthday).toLocaleDateString()}
+                    value={formatSafeDate(guestInfo.birthday)} // Use helper for display
                     readOnly
                     className="flex-1 bg-gray-50"
                   />
                 )}
+                {/* Edit/Reset Button */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -340,17 +451,20 @@ export function UserInfoModal({
               </div>
             </div>
 
+            {/* Email */}
             <div className="flex items-center justify-between">
               <div className="w-[120px] font-medium">Email:</div>
               <div className="flex-1 flex items-center">
                 <Input
-                  value={guestInfo?.email}
+                  value={guestInfo.email || ""} // Use empty string for null
+                  placeholder="Chưa có thông tin"
                   className={`flex-1 ${
                     !editableFields.email ? "bg-gray-50" : "bg-white"
                   }`}
                   readOnly={!editableFields.email}
                   onChange={(e) => handleInputChange("email", e.target.value)}
                 />
+                {/* Edit/Reset Button */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -370,17 +484,20 @@ export function UserInfoModal({
               </div>
             </div>
 
+            {/* Phone */}
             <div className="flex items-center justify-between">
               <div className="w-[120px] font-medium">SĐT:</div>
               <div className="flex-1 flex items-center">
                 <Input
-                  value={guestInfo.phone}
+                  value={guestInfo.phone || ""} // Use empty string for null
+                  placeholder="Chưa có thông tin"
                   className={`flex-1 ${
                     !editableFields.phone ? "bg-gray-50" : "bg-white"
                   }`}
                   readOnly={!editableFields.phone}
                   onChange={(e) => handleInputChange("phone", e.target.value)}
                 />
+                {/* Edit/Reset Button */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -400,17 +517,20 @@ export function UserInfoModal({
               </div>
             </div>
 
+            {/* Address */}
             <div className="flex items-center justify-between">
               <div className="w-[120px] font-medium">Địa chỉ:</div>
               <div className="flex-1 flex items-center">
                 <Input
-                  value={guestInfo.address}
+                  value={guestInfo.address || ""} // Use empty string for null
+                  placeholder="Chưa có thông tin"
                   className={`flex-1 ${
                     !editableFields.address ? "bg-gray-50" : "bg-white"
                   }`}
                   readOnly={!editableFields.address}
                   onChange={(e) => handleInputChange("address", e.target.value)}
                 />
+                {/* Edit/Reset Button */}
                 <Button
                   variant="ghost"
                   size="icon"
@@ -430,6 +550,7 @@ export function UserInfoModal({
               </div>
             </div>
 
+            {/* Interests */}
             <div className="flex items-center justify-between">
               <div className="w-[120px] font-medium">Nhãn:</div>
               <div className="flex-1 flex items-center">
@@ -448,10 +569,11 @@ export function UserInfoModal({
                       }
                     }}
                   >
+                    {/* Check if selectedInterestNames has items */}
                     {selectedInterestNames.length > 0 ? (
                       selectedInterestNames.map((interestName) => {
                         const interest = getInterestByName(interestName);
-                        const color = interest?.color || "#6366F1";
+                        const color = interest?.color || "#6366F1"; // Default color if interest not found
 
                         return (
                           <Badge
@@ -470,7 +592,7 @@ export function UserInfoModal({
                                 size="sm"
                                 className="h-4 w-4 p-0 ml-1 hover:bg-transparent"
                                 onClick={(e) => {
-                                  e.stopPropagation();
+                                  e.stopPropagation(); // Prevent opening dropdown
                                   removeInterest(interestName);
                                 }}
                               >
@@ -482,11 +604,14 @@ export function UserInfoModal({
                       })
                     ) : (
                       <span className="text-muted-foreground text-sm">
-                        Chọn nhãn...
+                        {editableFields.interests
+                          ? "Chọn nhãn..."
+                          : "Không có nhãn"}
                       </span>
                     )}
                   </div>
 
+                  {/* Dropdown for adding interests */}
                   {isInterestsDropdownOpen && editableFields.interests && (
                     <div className="absolute z-50 w-full mt-1 bg-white border rounded-md shadow-lg max-h-60 overflow-auto">
                       {isInterestsLoading ? (
@@ -506,11 +631,13 @@ export function UserInfoModal({
                               className="px-3 py-2 hover:bg-slate-100 cursor-pointer flex items-center"
                               onClick={() => {
                                 addInterest(interest.name);
+                                // Close dropdown if it was the last available interest
                                 if (
                                   availableInterests.filter(
                                     (i) =>
-                                      !selectedInterestNames.includes(i.name)
-                                  ).length === 1
+                                      !selectedInterestNames.includes(i.name) &&
+                                      i.name !== interest.name // Exclude the one just added
+                                  ).length === 0
                                 ) {
                                   setIsInterestsDropdownOpen(false);
                                 }
@@ -525,31 +652,26 @@ export function UserInfoModal({
                           ))
                       ) : (
                         <div className="px-3 py-2 text-center text-gray-500">
-                          Không có nhãn nào
+                          Không có nhãn nào để thêm
                         </div>
                       )}
                     </div>
                   )}
                 </div>
+                {/* Edit/Reset Button */}
                 <Button
                   variant="ghost"
                   size="icon"
                   className="ml-2 h-8 w-8 text-gray-500"
-                  onClick={() =>
-                    editableFields.interests
-                      ? (() => {
-                          // Nếu đang trong chế độ sửa, reset về danh sách nhãn ban đầu
-                          if (originalGuestInfo) {
-                            setSelectedInterestNames(
-                              originalGuestInfo.interests.map(
-                                (interest) => interest.name
-                              )
-                            );
-                          }
-                          toggleEditField("interests");
-                          setIsInterestsDropdownOpen(false);
-                        })()
-                      : toggleEditField("interests")
+                  onClick={
+                    () =>
+                      editableFields.interests
+                        ? (() => {
+                            // Reset interests to original state
+                            resetField("interests"); // Use resetField logic
+                            setIsInterestsDropdownOpen(false); // Close dropdown on reset
+                          })()
+                        : toggleEditField("interests") // Enter edit mode
                   }
                 >
                   {editableFields.interests ? (
@@ -562,11 +684,21 @@ export function UserInfoModal({
             </div>
           </div>
 
+          {/* Action Buttons */}
           <div className="flex justify-center gap-4 p-6 pt-2">
             <Button
               variant="outline"
               className="w-24"
-              onClick={() => onOpenChange(false)}
+              onClick={() => {
+                // Reset all fields to original state before closing if changes were made
+                if (originalGuestInfo) {
+                  setGuestInfo(originalGuestInfo);
+                  setSelectedInterestNames(
+                    originalGuestInfo.interests?.map((i) => i.name) || []
+                  );
+                }
+                onOpenChange(false); // Close modal
+              }}
               disabled={isSaving}
             >
               Hủy
@@ -574,7 +706,9 @@ export function UserInfoModal({
             <Button
               className="w-24 bg-[#6366F1] hover:bg-[#4F46E5]"
               onClick={handleSave}
-              disabled={isSaving}
+              disabled={
+                isSaving || !Object.values(editableFields).some(Boolean)
+              } // Disable save if not saving and no fields are being edited
             >
               {isSaving ? "Đang lưu..." : "Lưu"}
             </Button>

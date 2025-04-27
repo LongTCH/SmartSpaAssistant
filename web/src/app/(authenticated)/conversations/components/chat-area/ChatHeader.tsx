@@ -24,6 +24,7 @@ interface ChatHeaderProps {
   conversationData: Conversation | null;
   setShowUserInfo: (show: boolean) => void;
   selectedConversationId: string | null;
+  onConversationUpdated?: (conversation: Conversation) => void; // Add this prop
 }
 export default function ChatHeader(props: ChatHeaderProps) {
   const [currentAssignment, setCurrentAssignment] = useState<string>("ai");
@@ -99,15 +100,23 @@ export default function ChatHeader(props: ChatHeaderProps) {
                   // Cập nhật state trước để UI phản hồi ngay lập tức
 
                   // Cập nhật trạng thái phụ trách trên server
-                  await conversationService.updateAssignment(
-                    props.selectedConversationId,
-                    value
-                  );
+                  const updatedConversation =
+                    await conversationService.updateAssignment(
+                      props.selectedConversationId,
+                      value
+                    );
                   setCurrentAssignment(value);
+
+                  // Notify parent component about the update
+                  if (props.onConversationUpdated) {
+                    props.onConversationUpdated(updatedConversation);
+                  }
 
                   // Hiển thị thông báo thành công
                   toast.success(`Đã giao cho ${value === "ai" ? "AI" : "Tôi"}`);
                 } catch (error) {
+                  // Revert state if update fails (optional, depending on desired UX)
+                  // setCurrentAssignment(props.conversationData?.assigned_to || 'ai');
                   toast.error("Lỗi khi cập nhật người phụ trách");
                 }
               }

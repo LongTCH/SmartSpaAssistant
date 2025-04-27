@@ -52,6 +52,10 @@ export const API_ROUTES = {
     GET_SENTIMENT: "/conversations/sentiments",
     UPDATE_ASSIGNMENT: (id: string) => `/conversations/${id}/assignment`,
   },
+  SETTING: {
+    GET: "/settings",
+    UPDATE: "/settings",
+  },
 };
 
 export const APP_ROUTES = {

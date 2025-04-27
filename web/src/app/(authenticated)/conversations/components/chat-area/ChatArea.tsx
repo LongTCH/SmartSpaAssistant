@@ -20,7 +20,7 @@ interface ChatAreaProps {
   selectedConversationId: string | null; // Changed from selectedConversation object to just ID
   onNewMessageAdded?: (chat: Chat) => void;
   onConversationRead?: (conversationId: string) => void;
-  onConversationUpdated?: (conversation: Conversation) => void; // Thêm prop này
+  onConversationUpdated?: (conversation: Conversation) => void; // Prop remains
 }
 
 export default function ChatArea(props: ChatAreaProps) {
@@ -129,6 +129,9 @@ export default function ChatArea(props: ChatAreaProps) {
   const handleIncomingMessage = (conversation: Conversation) => {
     // Only process if the message belongs to the current conversation
     if (props.selectedConversationId === conversation.id) {
+      // Update conversation data state to reflect potential changes (like interests)
+      setConversationData(conversation); // <--- Add this line
+
       if (conversation.last_message) {
         // Create a new Chat object from the conversation data
         const newChat: Chat = {
@@ -157,9 +160,10 @@ export default function ChatArea(props: ChatAreaProps) {
           props.onNewMessageAdded(newChat);
         }
       }
-      if (sentiment !== conversation.sentiment) {
-        setSentiment(conversation.sentiment as string);
-      }
+      // Update sentiment if it changed (already exists)
+      // if (sentiment !== conversation.sentiment) {
+      //   setSentiment(conversation.sentiment as string);
+      // }
     }
   };
 
@@ -311,6 +315,15 @@ export default function ChatArea(props: ChatAreaProps) {
     }
   }, [props.selectedConversationId]);
 
+  // Handler for when conversation data is updated (e.g., assignment change in header)
+  const handleLocalConversationUpdate = (updatedConversation: Conversation) => {
+    setConversationData(updatedConversation);
+    // Also notify the parent component if needed
+    if (props.onConversationUpdated) {
+      props.onConversationUpdated(updatedConversation);
+    }
+  };
+
   return (
     <div className="flex-1 flex flex-col bg-gray-50">
       {/* Chat Header */}
@@ -318,6 +331,7 @@ export default function ChatArea(props: ChatAreaProps) {
         conversationData={conversationData}
         setShowUserInfo={setShowUserInfo}
         selectedConversationId={props.selectedConversationId || ""}
+        onConversationUpdated={handleLocalConversationUpdate} // Pass handler
       />
       {/* Chat Messages Area */}
       <div className="h-[10vh] flex-1 flex flex-col relative">

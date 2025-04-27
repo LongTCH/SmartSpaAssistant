@@ -460,7 +460,11 @@ export function CustomerTable({
                     className="border-r"
                     style={{ width: columnWidths.gender + "px" }}
                   >
-                    {customer.gender}
+                    {customer.gender === "male"
+                      ? "Nam"
+                      : customer.gender === "female"
+                      ? "Nữ"
+                      : ""}
                   </TableCell>
                   <TableCell
                     className="border-r"

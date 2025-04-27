@@ -390,6 +390,7 @@ async def get_similar_scripts(db, input_text: str, limit: int = 5) -> list[dict]
 
     scripts = map_id_to_script.values()
     scripts_dict = [script.to_dict() for script in scripts]
+    return scripts_dict
     if len(scripts_dict) == limit:
         return scripts_dict
     scripts_text = [script.description for script in scripts]

@@ -180,7 +180,7 @@ async def update_guest_by_id(db: AsyncSession, guest_id: str, body: dict) -> Gue
             id for id in new_interest_ids if id not in current_interest_ids
         ]
         if interests_to_add:
-            await guest_repository.add_interests_to_guest(
+            await guest_repository.add_interests_to_guest_by_id(
                 db, guest_id, interests_to_add
             )
 
@@ -189,7 +189,7 @@ async def update_guest_by_id(db: AsyncSession, guest_id: str, body: dict) -> Gue
             id for id in current_interest_ids if id not in new_interest_ids
         ]
         if interests_to_remove:
-            await guest_repository.remove_interests_from_guest(
+            await guest_repository.remove_interests_from_guest_by_id(
                 db, guest_id, interests_to_remove
             )
 
@@ -274,7 +274,9 @@ async def get_pagination_guests(
 async def add_interests_to_guest(
     db: AsyncSession, guest_id: str, interest_ids: list[str]
 ) -> dict:
-    guest = await guest_repository.add_interests_to_guest(db, guest_id, interest_ids)
+    guest = await guest_repository.add_interests_to_guest_by_id(
+        db, guest_id, interest_ids
+    )
     if not guest:
         return None
     await db.commit()
@@ -285,7 +287,7 @@ async def add_interests_to_guest(
 async def remove_interests_from_guest(
     db: AsyncSession, guest_id: str, interest_ids: list[str]
 ) -> dict:
-    guest = await guest_repository.remove_interests_from_guest(
+    guest = await guest_repository.remove_interests_from_guest_by_id(
         db, guest_id, interest_ids
     )
     if not guest:

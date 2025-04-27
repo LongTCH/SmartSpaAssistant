@@ -1,11 +1,11 @@
 import { Interest } from "./interest";
 
 export interface GuestInfoUpdate {
-  fullname: string;
-  email: string;
-  phone: string;
-  address: string;
-  gender: string;
-  birthday: string;
+  fullname: string | null;
+  email: string | null;
+  phone: string | null;
+  address: string | null;
+  gender: string | null;
+  birthday: string | null;
   interest_ids: string[];
 }

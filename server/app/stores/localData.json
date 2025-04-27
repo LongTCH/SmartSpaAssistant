@@ -1,5 +1,14 @@
 {
   "DRIVE_FOLDER_ID": "17XQWoW56yLw-JnpKjzd-bAXs0Uf9nxwb",
-  "CHAT_WAIT_SECONDS": 1,
-  "SENTIMENT_INTERVAL_CHAT_COUNT": 2
+  "CHAT_WAIT_SECONDS": 10,
+  "SENTIMENT_INTERVAL_CHAT_COUNT": 2,
+  "FORM_OF_ADDRESS": {
+    "ME": "Em",
+    "OTHER": "Quý khách"
+  },
+  "REACTION_MESSAGE": "Dạ quý khách cần em hỗ trợ gì thêm không ạ",
+  "UNDEFINED_MESSAGE_HANDLER": {
+    "TYPE": "response",
+    "MESSAGE": "Xin lỗi hiện tại em không có thông tin về việc này, quý khách vui lòng liên hệ trực tiếp nhân viên qua số HOTLINE 0123456789 hoặc quý khách có muốn em báo trực tiếp cho nhân viên không ạ. Nếu báo nhân viên thì mình phải đợi nhân viên kiểm tra và phản hồi ấy ạ."
+  }
 }
