@@ -5,7 +5,6 @@ python-multipart
 qdrant_client
 asyncpg
 sqlalchemy[asyncio]
-pydantic
 google-api-python-client
 google-auth-httplib2
 google-auth-oauthlib
@@ -15,3 +14,9 @@ langchain
 openpyxl
 sentence-transformers
 cohere
+pydantic
+pydantic-ai[logfire]
+langgraph
+jinja2
+fuzzywuzzy
+python-Levenshtein

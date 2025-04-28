@@ -4,3 +4,5 @@ httpx
 autoflake
 isort
 black
+streamlit
+nest-asyncio

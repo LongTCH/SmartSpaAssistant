@@ -89,3 +89,12 @@ async def delete_multiple_sheets(db: AsyncSession, sheet_ids: list[str]) -> None
     for sheet in sheets:
         await db.delete(sheet)
     return None
+
+
+async def get_all_sheets_by_status(db: AsyncSession, status: str) -> list[Sheet]:
+    """
+    Get all sheets from the database.
+    """
+    stmt = select(Sheet).where(Sheet.status == status)
+    result = await db.execute(stmt)
+    return result.scalars().all()

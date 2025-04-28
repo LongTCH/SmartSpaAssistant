@@ -1,5 +1,5 @@
 import re
-from typing import AsyncGenerator
+from typing import AsyncGenerator, Awaitable, Callable, TypeVar
 
 import asyncpg
 from app.configs import env_config
@@ -135,3 +135,17 @@ async def process_background_with_session(func, *args, **kwargs):
         raise e
     finally:
         await session.close()
+
+
+T = TypeVar("T")
+
+
+async def with_session(func: Callable[[AsyncSession], Awaitable[T]]) -> T:
+    async with async_session() as session:
+        try:
+            result = await func(session)
+            await session.commit()
+            return result
+        except Exception:
+            await session.rollback()
+            raise
