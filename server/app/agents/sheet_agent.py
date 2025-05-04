@@ -1,23 +1,50 @@
 import json
 import re
+from dataclasses import dataclass
+from datetime import datetime
 
+import logfire
+import pytz
 from app.configs.database import async_session, with_session
 from app.repositories import sheet_repository
+from app.utils.agent_utils import (
+    is_read_only_sql,
+    is_sql_query,
+    limit_sample_rows_content,
+)
 from fuzzywuzzy import process
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import ModelRetry
 from sqlalchemy import text
 
-# @dataclass
-# class SheetDeps:
-#     db: AsyncSession = Field(description="Database session")
+logfire.configure(send_to_logfire="if-token-present")
+logger = logfire.instrument_pydantic_ai()
+
+
+@dataclass
+class SheetDeps:
+    context_memory: str
+    latest_message: str
+    timezone: str = "Asia/Ho_Chi_Minh"
 
 
 instructions = """
-You are a helpful assistant that can help customers search for information with your sheets.
-From published sheets available from database ,you need to analyze the sheets including their names, descriptions, schema, and example data.
-After analyzing the sheets, you can write sql query and use execute_query_on_sheet_rows tool to query from 'sheet_rows' table with appropriate sheet id.
-Do not return sql query in final response.
+## Character
+Your name is Nguyen Thi Phuong Thao, a customer service staff at a spa specializing in skin care called Mailisa.
+You are female, 25 years old, dynamic, polite, supportive, well-explain and soft-spoken.
+Never send a message like "I will look up information and advise you in detail. Just a little time!", don't make the customer wait, always look up data to reply.
+Always response with lookup data, never response with fake data.
+## Skills
+### Skill 1: Know to use tools effectively.
+- Think: Use this tool before answering any detail information. 
+- Strictly follow the descriptions of the tools.
+- From published sheets available from database, you need to analyze the sheets including their names, descriptions, schema, and example data. This is helpful for you to make appropriate type conversions for each property in the query.
+- After analyzing the sheets, you can write sql query and use execute_query_on_sheet_rows tool to query from 'sheet_rows' table with appropriate sheet id. Do not return sql query in final response.
+
+### Skill 2: Take time to think carefully about the answer to give the most accurate one.
+- If you can't get any information, rethink from start for 2-3 times because you could be wrong at some before steps. After that, if you still don't know, frankly say you don't know and ask the customer to contact the HOTLINE number or go directly to Mailisa's facilities for direct support.
+
+### Skill 3: Provide more and more useful information that you knows than just the customer's question in order to convince them to buy products or use services. But keep short, concise, do not mess customers with mass of data. Determine which information is necessary. You can send media file to customer by link.
 """
 
 sheet_agent = Agent(
@@ -29,9 +56,48 @@ sheet_agent = Agent(
 )
 
 
+# @sheet_agent.output_validator
+# async def validate_sheet_output(
+#     context: RunContext[None], output: str
+# ) -> str:
+#     """
+#     Validate the output of the sheet agent.
+#     """
+#     if not isinstance(output, str):
+#         raise ModelRetry("Invalid output format. Expected a string.")
+#     response: AgentRunResult = await check_wait_resp_agent.run(user_prompt=output)
+#     if "True" in response.output:
+#         raise ModelRetry(
+#             "Response indicates that the user should wait. Please retry to avoid making the user wait."
+#         )
+#     return output
+
+
+@sheet_agent.instructions
+async def get_current_local_time(context: RunContext[SheetDeps]) -> str:
+    """
+    Get the current local time.
+    """
+    tz = pytz.timezone(context.deps.timezone)
+    local_time = datetime.now(tz)
+    return f"Current local time at {context.deps.timezone} is: {str(local_time)}\n"
+
+
+@sheet_agent.instructions
+async def get_context_memory(
+    context: RunContext[SheetDeps],
+) -> str:
+    """
+    Get context memory from the database.
+    """
+    if not context.deps.context_memory:
+        return ""
+    return f"Relevant information from previous conversations:\n{context.deps.context_memory}"
+
+
 @sheet_agent.instructions
 async def get_all_published_sheets(
-    context: RunContext[None],
+    context: RunContext[SheetDeps],
 ) -> str:
     """
     Get all published sheets from the database.
@@ -49,7 +115,9 @@ async def get_all_published_sheets(
             }
             for sheet in sheets
         ]
-        return f"Here are all the published sheets: {json.dumps(sheet_list, ensure_ascii=False)}"
+        return f"""
+        Here are all the published sheets: {json.dumps(sheet_list, ensure_ascii=False)}
+        """
     except Exception as e:
         print(f"Error fetching sheets: {e}")
         return f"Error fetching sheets: {str(e)}"
@@ -63,9 +131,9 @@ async def execute_query_on_sheet_rows(
         Use this tool to query from 'sheet_rows' table when you know the ID of the sheet you are querying. The ID of the sheet is the 'sheet_id', always add 'sheet_id' in query as FROM sheet_rows WHERE sheet_id = ? AND data &@~ ?.
     You always use the 'data' field of 'sheet_rows' to select, filter..., this is a jsonb type field containing all the keys read from the 'schema' field of that sheet in 'sheets' table.
     Always use Process keywords tool before this tool if you want to filter by keywords.
-    Always use keys from 'schema' of sheet to append after 'data->>' of 'sheet_rows' table to query.
+    Always use keys from 'schema' of sheet to append after 'data->' of 'sheet_rows' table to query.
     Always name the output column for the query.
-    For example: data->>'first_property' AS first_property, data->>'second_property' AS second_property, because 'schema' in sheet contains 'first_property', 'second_property'.
+    For example: data->'first_property' AS first_property, data->'second_property' AS second_property, because 'schema' in sheet contains 'first_property', 'second_property'.
     NOTICE: The table to query FROM is 'sheet_rows'
 
     Use Pgroonga specific operators to filter on 'data' field. Below is introduction.
@@ -158,11 +226,20 @@ async def execute_query_on_sheet_rows(
     If the input keyword string is: 'tàn nhang'
     Then the SQL query should be:
     SELECT
-      data->>'product_name' AS product_name,
-      data->>'discounted_price' AS discounted_price
+      data->'product_name' AS product_name,
+      data->'discounted_price' AS discounted_price
     FROM sheet_rows
     WHERE sheet_id = 'some_sheet_id'
     AND (data &@~ 'tàn nhang')
+
+    If you want to compare text, use data->> instead of data->.
+    For example:
+    SELECT
+      data->'product_name' AS product_name,
+      data->'discounted_price' AS discounted_price
+    FROM sheet_rows
+    WHERE sheet_id = 'some_sheet_id'
+    AND (data->>'product_name' = 'tàn nhang')
     """
     try:
         async with async_session() as db:
@@ -171,6 +248,14 @@ async def execute_query_on_sheet_rows(
             match = re.search(r"sheet_id\s*=\s*'([^']+)'", query)
             if not match:
                 raise ModelRetry("Query must contains constraint with 'sheet_id'.")
+            if not is_sql_query(query):
+                raise ModelRetry(
+                    "Query must be a valid SQL query. Please check your query again."
+                )
+            if not is_read_only_sql(query):
+                raise ModelRetry(
+                    "Query must be read-only SQL. Please check your query again."
+                )
             # Lấy danh sách sheet_id từ cơ sở dữ liệu
             published_sheets = await sheet_repository.get_all_sheets_by_status(
                 db, "published"
@@ -187,78 +272,24 @@ async def execute_query_on_sheet_rows(
         raise model_retry
     except Exception as e:
         print(f"Error executing query: {e}")
-        return {"error": f"Query execution failed: {str(e)}"}
+        raise ModelRetry(
+            f"Error executing query: {str(e)}. Please check your query again."
+        )
 
 
-def limit_text_words(text, max_words=100):
-    """Limit text to a maximum number of words and add '...' if truncated.
-    Handles text with various separators commonly found in user editor content.
+def get_sheet_id_from_query(query: str) -> str:
     """
-    if not text or not isinstance(text, str):
-        return text
-
-    # Split text by multiple separators: spaces, newlines, tabs, commas, periods, etc.
-    # This regex will treat any sequence of whitespace or common punctuation as a word separator
-    words = re.split(r'[\s\t\n\r.,;:!?\(\)\[\]{}"\'\-_<>=/\\|]+', text)
-
-    # Filter out empty strings that might result from the split
-    words = [word for word in words if word.strip()]
-
-    if len(words) <= max_words:
-        return text
-
-    # Rebuild the text with original formatting up to max_words
-    # Find position where max_words ends
-    count = 0
-    position = 0
-
-    for match in re.finditer(r"[\S]+", text):
-        count += 1
-        if count > max_words:
-            position = match.start()
-            break
-
-    if position > 0:
-        return text[:position].rstrip() + "..."
-    else:
-        # Fallback if regex approach doesn't work
-        return " ".join(words[:max_words]) + "..."
-
-
-def limit_sample_rows_content(sample_rows):
-    """Limit the length of text fields in sample_rows JSON content."""
-    if not sample_rows:
-        return sample_rows
-
-    if isinstance(sample_rows, str):
-        try:
-            data = json.loads(sample_rows)
-        except json.JSONDecodeError:
-            # If it's not valid JSON, just limit the whole string
-            return limit_text_words(sample_rows)
-    else:
-        data = sample_rows
-
-    if isinstance(data, dict):
-        for key, value in data.items():
-            if isinstance(value, str):
-                data[key] = limit_text_words(value)
-            elif isinstance(value, (dict, list)):
-                data[key] = limit_sample_rows_content(value)
-    elif isinstance(data, list):
-        for i, item in enumerate(data):
-            data[i] = limit_sample_rows_content(item)
-
-    return data
+    Trích xuất sheet_id từ câu truy vấn SQL.
+    """
+    match = re.search(r"sheet_id\s*=\s*'([^']+)'", query)
+    if match:
+        return match.group(1)
+    raise ModelRetry("Không tìm thấy sheet_id trong câu truy vấn.")
 
 
 def replace_sheet_id_if_needed(query: str, available_sheet_ids: list[str]) -> str:
     # Bước 1: Trích xuất sheet_id từ query
-    match = re.search(r"sheet_id\s*=\s*'([^']+)'", query)
-    if not match:
-        raise ValueError("Không tìm thấy sheet_id trong query.")
-
-    sheet_id_in_query = match.group(1)
+    sheet_id_in_query = get_sheet_id_from_query(query)
 
     # Bước 2: Kiểm tra xem sheet_id có nằm trong danh sách không
     if sheet_id_in_query in available_sheet_ids:
@@ -289,20 +320,3 @@ def normalize_postgres_query(query: str) -> str:
     # Cách làm an toàn: chỉ thay thế \'
     # 1. Tìm các đoạn có dạng ->>\'...\' hoặc các chuỗi \'...\'
     return re.sub(r"\\'", "'", query)
-
-
-def contains_sql_query(text: str) -> bool:
-    # Các mẫu phổ biến của câu truy vấn SQL
-    sql_patterns = [
-        r"\bSELECT\b\s+.*?\bFROM\b",  # SELECT ... FROM ...
-        r"\bINSERT\b\s+INTO\b",  # INSERT INTO ...
-        r"\bUPDATE\b\s+\w+\s+\bSET\b",  # UPDATE ... SET ...
-        r"\bDELETE\b\s+FROM\b",  # DELETE FROM ...
-        r"\bCREATE\b\s+(TABLE|DATABASE)\b",  # CREATE TABLE / DATABASE
-        r"\bDROP\b\s+(TABLE|DATABASE)\b",  # DROP TABLE / DATABASE
-    ]
-
-    for pattern in sql_patterns:
-        if re.search(pattern, text, re.IGNORECASE | re.DOTALL):
-            return True
-    return False

@@ -76,11 +76,4 @@ export const scriptService = {
       },
     });
   },
-
-  async getAllPublishedScripts(): Promise<Script[]> {
-    const response = await apiClient.instance.get(
-      API_ROUTES.SCRIPT.GET_ALL_PUBLISHED
-    );
-    return response.data as Script[];
-  },
 };

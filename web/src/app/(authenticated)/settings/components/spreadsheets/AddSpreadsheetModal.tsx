@@ -215,26 +215,28 @@ export function AddSpreadsheetModal({
           className="space-y-6 py-4 overflow-y-auto pr-1"
           onScroll={handleScroll}
         >
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Trạng thái:</label>
-            <Select value={status} onValueChange={setStatus}>
-              <SelectTrigger>
-                <SelectValue placeholder="Xuất bản" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="published">Xuất bản</SelectItem>
-                <SelectItem value="draft">Bản nháp</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
+          <div className="flex flex-col md:flex-row gap-4 items-start">
+            <div className="space-y-2 flex-1">
+              <label className="text-sm font-medium">Tên:</label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Tên bảng tính"
+              />
+            </div>
 
-          <div className="space-y-2">
-            <label className="text-sm font-medium">Tên:</label>
-            <Input
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              placeholder="Tên bảng tính"
-            />
+            <div className="space-y-2 md:w-[200px]">
+              <label className="text-sm font-medium">Trạng thái:</label>
+              <Select value={status} onValueChange={setStatus}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Xuất bản" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="published">Xuất bản</SelectItem>
+                  <SelectItem value="draft">Bản nháp</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">

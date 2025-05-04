@@ -24,6 +24,14 @@ script_attachments = Table(
     Column("attached_script_id", String, ForeignKey("scripts.id", ondelete="CASCADE")),
 )
 
+# Association table for Script-Sheet many-to-many relationship
+script_sheets = Table(
+    "script_sheets",
+    Base.metadata,
+    Column("script_id", String, ForeignKey("scripts.id", ondelete="CASCADE")),
+    Column("sheet_id", String, ForeignKey("sheets.id", ondelete="CASCADE")),
+)
+
 
 class FileMetaData(Base):
     __tablename__ = "file_metadata"
@@ -235,6 +243,11 @@ class Script(Base):
         backref="attached_scripts",
     )
 
+    # Relationship to Sheet
+    related_sheets = relationship(
+        "Sheet", secondary=script_sheets, backref="related_scripts", lazy="select"
+    )
+
     def to_dict(self, include=None):
         """
         Convert object to dictionary representation
@@ -258,6 +271,12 @@ class Script(Base):
         if "related_scripts" in include and hasattr(self, "related_scripts"):
             result["related_scripts"] = [
                 script.to_dict(include=[]) for script in self.related_scripts
+            ]
+
+        # Include related sheets if specified
+        if "related_sheets" in include and hasattr(self, "related_sheets"):
+            result["related_sheets"] = [
+                sheet.to_dict() for sheet in self.related_sheets
             ]
 
         return result

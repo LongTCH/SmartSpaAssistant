@@ -270,47 +270,23 @@ async def get_point_struct_for_embedding(
 
 
 async def insert_script(db: AsyncSession, script_id: str) -> None:
-    points = []
     script = await script_repository.get_script_by_id(db, script_id)
-    attach_scripts = await script_repository.get_attached_to_scripts(db, script_id)
-    description = get_description_for_embedding([script].extend(attach_scripts))
-    point = await get_point_struct_for_embedding(script_id, script.name, description)
-    points.append(point)
+    point = await get_point_struct_for_embedding(
+        script_id, script.name, script.description
+    )
 
-    related_scripts = script.related_scripts
-    for s in related_scripts:
-        attach_scripts = await script_repository.get_attached_to_scripts(db, s.id)
-        if not attach_scripts:
-            attach_scripts = []
-        description = get_description_for_embedding([s].extend(attach_scripts))
-        point = await get_point_struct_for_embedding(s.id, s.name, description)
-        points.append(point)
-    # Chèn hoặc cập nhật các điểm vào Qdrant
     qdrant_client.upsert(
         collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
-        points=points,
+        points=[point],
     )
 
 
 async def insert_scripts(db: AsyncSession, script_ids: list[str]) -> None:
-    # convert script_ids list to set
-    script_ids_set = set(script_ids)
-    for script_id in script_ids:
-        related_scripts = await script_repository.get_related_scripts(db, script_id)
-        related_script_ids = [s.id for s in related_scripts]
-        script_ids_set.update(related_script_ids)
-
-    script_ids = list(script_ids_set)
     points = []  # Danh sách lưu trữ các điểm cần chèn hoặc cập nhật
     for script_id in script_ids:
         script = await script_repository.get_script_by_id(db, script_id)
-        attach_scripts = await script_repository.get_attached_to_scripts(db, script_id)
-        if not attach_scripts:
-            attach_scripts = []
-        combined_scripts = [script] + attach_scripts
-        description = get_description_for_embedding(combined_scripts)
         point = await get_point_struct_for_embedding(
-            script_id, script.name, description
+            script_id, script.name, script.description
         )
         points.append(point)
     if points:

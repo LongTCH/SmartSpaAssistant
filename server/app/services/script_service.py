@@ -48,7 +48,13 @@ async def get_script_by_id(db: AsyncSession, script_id: str) -> dict:
     Get a script by its ID from the database.
     """
     script = await script_repository.get_script_by_id(db, script_id)
-    return script.to_dict(include="related_scripts") if script else None
+
+    # Load related sheets as well
+    if script:
+        # Include both related_scripts and related_sheets
+        return script.to_dict(include=["related_scripts", "related_sheets"])
+
+    return None
 
 
 async def insert_script(db: AsyncSession, script: dict) -> dict:
@@ -63,17 +69,30 @@ async def insert_script(db: AsyncSession, script: dict) -> dict:
             status=script["status"],
         )
         script_obj = await script_repository.insert_script(db, script_obj)
-        related_script_ids = script["related_script_ids"]
+
+        # Xử lý các script liên quan
+        related_script_ids = script.get("related_script_ids", [])
         if related_script_ids:
             await script_repository.insert_related_scripts(
                 db, script_obj.id, related_script_ids
             )
+
+        # Xử lý các sheet liên quan
+        related_sheet_ids = script.get("related_sheet_ids", [])
+        if related_sheet_ids:
+            await script_repository.insert_related_sheets(
+                db, script_obj.id, related_sheet_ids
+            )
+
         await db.commit()
         await db.refresh(script_obj)
-        script_dict = script_obj.to_dict()
+
+        # Lấy script với đầy đủ thông tin related
+        script_dict = script_obj.to_dict(include=["related_scripts", "related_sheets"])
+
         asyncio.create_task(
             process_background_with_session(
-                vectordb_service.insert_script, script_obj.i
+                vectordb_service.insert_script, script_obj.id
             )
         )
 
@@ -89,7 +108,6 @@ async def update_script(db: AsyncSession, script_id: str, script: dict) -> dict:
     Update an existing script in the database.
     """
     try:
-
         existing_script = await script_repository.get_script_by_id(db, script_id)
         if not existing_script:
             return None
@@ -104,29 +122,62 @@ async def update_script(db: AsyncSession, script_id: str, script: dict) -> dict:
         updated_script = await script_repository.update_script(db, existing_script)
 
         # Xử lý các script liên quan
-        new_related_script_ids = set(script.get("related_script_ids", []))
+        if "related_script_ids" in script:
+            new_related_script_ids = set(script.get("related_script_ids", []))
 
-        # Lấy danh sách ID của các script đã liên kết hiện tại
-        current_related_script_ids = set()
-        if (
-            hasattr(existing_script, "related_scripts")
-            and existing_script.related_scripts
-        ):
-            current_related_script_ids = {s.id for s in existing_script.related_scripts}
+            # Lấy danh sách ID của các script đã liên kết hiện tại
+            current_related_script_ids = set()
+            if (
+                hasattr(existing_script, "related_scripts")
+                and existing_script.related_scripts
+            ):
+                current_related_script_ids = {
+                    s.id for s in existing_script.related_scripts
+                }
 
-        # Tìm các mối quan hệ cần xóa (có trong hiện tại nhưng không có trong danh sách mới)
-        relations_to_delete = current_related_script_ids - new_related_script_ids
-        if relations_to_delete:
-            await script_repository.delete_related_scripts(
-                db, script_id, list(relations_to_delete)
+            # Tìm các mối quan hệ cần xóa (có trong hiện tại nhưng không có trong danh sách mới)
+            relations_to_delete = current_related_script_ids - new_related_script_ids
+            if relations_to_delete:
+                await script_repository.delete_related_scripts(
+                    db, script_id, list(relations_to_delete)
+                )
+
+            # Tìm các mối quan hệ cần thêm (có trong danh sách mới nhưng không có trong hiện tại)
+            relations_to_add = new_related_script_ids - current_related_script_ids
+            if relations_to_add:
+                await script_repository.insert_related_scripts(
+                    db, script_id, list(relations_to_add)
+                )
+
+        # Xử lý các sheet liên quan
+        if "related_sheet_ids" in script:
+            new_related_sheet_ids = set(script.get("related_sheet_ids", []))
+
+            # Lấy danh sách ID của các sheet đã liên kết hiện tại
+            current_related_sheet_ids = set()
+            if (
+                hasattr(existing_script, "related_sheets")
+                and existing_script.related_sheets
+            ):
+                current_related_sheet_ids = {
+                    s.id for s in existing_script.related_sheets
+                }
+
+            # Tìm các mối quan hệ cần xóa (có trong hiện tại nhưng không có trong danh sách mới)
+            sheet_relations_to_delete = (
+                current_related_sheet_ids - new_related_sheet_ids
             )
+            if sheet_relations_to_delete:
+                await script_repository.delete_related_sheets(
+                    db, script_id, list(sheet_relations_to_delete)
+                )
 
-        # Tìm các mối quan hệ cần thêm (có trong danh sách mới nhưng không có trong hiện tại)
-        relations_to_add = new_related_script_ids - current_related_script_ids
-        if relations_to_add:
-            await script_repository.insert_related_scripts(
-                db, script_id, list(relations_to_add)
-            )
+            # Tìm các mối quan hệ cần thêm (có trong danh sách mới nhưng không có trong hiện tại)
+            sheet_relations_to_add = new_related_sheet_ids - current_related_sheet_ids
+            if sheet_relations_to_add:
+                await script_repository.insert_related_sheets(
+                    db, script_id, list(sheet_relations_to_add)
+                )
 
         await db.commit()
         await db.refresh(updated_script)
@@ -137,7 +188,8 @@ async def update_script(db: AsyncSession, script_id: str, script: dict) -> dict:
             )
         )
 
-        return updated_script.to_dict()
+        # Trả về script với đầy đủ thông tin related
+        return updated_script.to_dict(include=["related_scripts", "related_sheets"])
     except Exception as e:
         print(f"Error updating script: {e}")
         await db.rollback()

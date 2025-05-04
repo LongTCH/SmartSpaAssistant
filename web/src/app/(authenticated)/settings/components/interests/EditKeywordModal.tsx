@@ -125,33 +125,35 @@ export function EditKeywordModal({
           </div>
         ) : (
           <div className="space-y-6 py-4 overflow-y-auto pr-1">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Trạng thái:</label>
-              <Select
-                value={interestData.status}
-                onValueChange={(value: "published" | "draft") =>
-                  handleChange("status", value)
-                }
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Xuất bản" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="published">Xuất bản</SelectItem>
-                  <SelectItem value="draft">Bản nháp</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            <div className="flex flex-col md:flex-row gap-4 items-start">
+              <div className="space-y-2 flex-1">
+                <label className="text-sm font-medium">
+                  Nhãn: <span className="text-red-500">*</span>
+                </label>
+                <Input
+                  placeholder="nám"
+                  value={interestData.name}
+                  onChange={(e) => handleChange("name", e.target.value)}
+                />
+              </div>
 
-            <div className="space-y-2">
-              <label className="text-sm font-medium">
-                Nhãn: <span className="text-red-500">*</span>
-              </label>
-              <Input
-                placeholder="nám"
-                value={interestData.name}
-                onChange={(e) => handleChange("name", e.target.value)}
-              />
+              <div className="space-y-2 md:w-[200px]">
+                <label className="text-sm font-medium">Trạng thái:</label>
+                <Select
+                  value={interestData.status}
+                  onValueChange={(value: "published" | "draft") =>
+                    handleChange("status", value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Xuất bản" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="published">Xuất bản</SelectItem>
+                    <SelectItem value="draft">Bản nháp</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
 
             <div className="space-y-2">
