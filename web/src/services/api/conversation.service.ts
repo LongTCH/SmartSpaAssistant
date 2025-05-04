@@ -24,7 +24,7 @@ export const conversationService = {
   async getPagingConversation(
     skip: number,
     limit: number,
-    assigned_to: string
+    assigned_to: string = "all"
   ): Promise<ConversationsPagingResponse> {
     const response = await apiClient.instance.get(API_ROUTES.CONVERSATION.GET, {
       params: { skip, limit, assigned_to },

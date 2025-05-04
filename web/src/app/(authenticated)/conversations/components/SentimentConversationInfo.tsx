@@ -1,5 +1,8 @@
+"use client";
+
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Conversation } from "@/types";
+import { useRouter } from "next/navigation";
 
 interface SentimentConversationInfoProps {
   conversation: Conversation;
@@ -11,6 +14,8 @@ interface SentimentConversationInfoProps {
 export default function SentimentConversationInfo(
   props: SentimentConversationInfoProps
 ) {
+  const router = useRouter();
+
   const getTimeDifference = (date: string) => {
     const now = new Date();
     const messageDate = new Date(date);
@@ -31,10 +36,18 @@ export default function SentimentConversationInfo(
     return "just now";
   };
 
+  const handleClick = () => {
+    // Call the original onClick handler to update state
+    props.onClick();
+
+    // Update URL without triggering a full page reload
+    window.history.pushState({}, "", `/conversations/${props.conversation.id}`);
+  };
+
   return (
     <div
       key={props.conversation.id}
-      onClick={props.onClick}
+      onClick={handleClick}
       className={`border rounded-md p-2 flex hover:bg-indigo-50 items-center space-x-2 cursor-pointer justify-between ${
         props.isSelected ? "bg-indigo-100 border-indigo-500" : ""
       } ${props.isUnread ? "bg-yellow-50" : ""}`}

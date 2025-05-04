@@ -5,27 +5,39 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Info } from "lucide-react";
-import { Conversation, SentimentType, ChatAssignmentType } from "@/types";
+import { Info, Frown, Smile } from "lucide-react";
+import { Conversation, ProviderType } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { conversationService } from "@/services/api/conversation.service";
 import { toast } from "sonner";
-import { getBadge } from "../ConversationInfo";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { useState, useEffect } from "react";
-import { Frown, Smile } from "lucide-react";
+import Image from "next/image";
 
 interface ChatHeaderProps {
   conversationData: Conversation | null;
   setShowUserInfo: (show: boolean) => void;
   selectedConversationId: string | null;
-  onConversationUpdated?: (conversation: Conversation) => void; // Add this prop
+  onConversationUpdated?: (conversation: Conversation) => void;
 }
+
+// Function to get the provider icon path
+const getProviderIcon = (provider: ProviderType | undefined) => {
+  switch (provider) {
+    case "messenger":
+      return "/messenger.svg";
+    case "web":
+      return "/web.svg";
+    default:
+      return null;
+  }
+};
+
 export default function ChatHeader(props: ChatHeaderProps) {
   const [currentAssignment, setCurrentAssignment] = useState<string>("ai");
 
@@ -74,18 +86,36 @@ export default function ChatHeader(props: ChatHeaderProps) {
       </Popover>
     );
   };
+
   return (
     <div className="p-3 border-b bg-white flex items-center gap-2">
       <div className="flex items-center justify-between flex-1">
         <div className="flex items-center space-x-2">
-          <Avatar className="w-10 h-10">
-            <AvatarImage src="/placeholder.svg?height=40&width=40" />
-            <AvatarFallback>?</AvatarFallback>
-          </Avatar>
+          <div className="relative">
+            <Avatar className="w-10 h-10">
+              <AvatarImage src="/placeholder.svg?height=40&width=40" />
+              <AvatarFallback>?</AvatarFallback>
+            </Avatar>
+            {/* Provider icon indicator positioned in bottom right of avatar */}
+            {props.conversationData?.provider &&
+              getProviderIcon(props.conversationData?.provider) && (
+                <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white p-0.5 shadow-sm">
+                  <Image
+                    src={
+                      getProviderIcon(props.conversationData?.provider) || ""
+                    }
+                    alt={props.conversationData?.provider || ""}
+                    width={16}
+                    height={16}
+                    className="w-full h-full object-contain"
+                    title={props.conversationData?.provider || ""}
+                  />
+                </div>
+              )}
+          </div>
           <span className="text-sm font-medium text-gray-800">
             {props.conversationData?.account_name || "Khách hàng"}
           </span>
-          {getBadge(props.conversationData?.provider)}
           {props.conversationData?.sentiment &&
             getSentimentPopover(props.conversationData?.sentiment as string)}
         </div>

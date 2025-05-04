@@ -1,32 +1,10 @@
 "use client";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Badge } from "@/components/ui/badge";
 import { ChatContent, Conversation, ProviderType } from "@/types";
-export const getBadge = (provider: ProviderType | undefined) => {
-  switch (provider) {
-    case "messenger":
-      return (
-        <Badge
-          variant="outline"
-          className="bg-[#0084FF]/10 text-[#0084FF] border-[#0084FF]/20 text-[10px] px-1.5 py-0 h-4 rounded-sm flex items-center"
-        >
-          Messenger
-        </Badge>
-      );
-    case "web":
-      return (
-        <Badge
-          variant="outline"
-          className="bg-[#22C55E]/10 text-[#22C55E] border-[#22C55E]/20 text-[10px] px-1.5 py-0 h-4 rounded-sm flex items-center"
-        >
-          Web
-        </Badge>
-      );
-    default:
-      return null;
-  }
-};
+import { useRouter } from "next/navigation";
+import Image from "next/image";
+
 export default function ConversationInfo({
   item,
   isSelected,
@@ -38,6 +16,8 @@ export default function ConversationInfo({
   isUnread?: boolean;
   onClick: () => void;
 }) {
+  const router = useRouter();
+
   const getTimeDifference = (date: string) => {
     const now = new Date();
     const messageDate = new Date(date);
@@ -70,9 +50,29 @@ export default function ConversationInfo({
     return message;
   };
 
+  const handleClick = () => {
+    // Call the original onClick handler to update state
+    onClick();
+
+    // Update URL without triggering a full page reload
+    window.history.pushState({}, "", `/conversations/${item.id}`);
+  };
+
+  // Function to get the provider icon path
+  const getProviderIcon = (provider: ProviderType | undefined) => {
+    switch (provider) {
+      case "messenger":
+        return "/messenger.svg";
+      case "web":
+        return "/web.svg";
+      default:
+        return null;
+    }
+  };
+
   return (
     <div
-      onClick={onClick}
+      onClick={handleClick}
       className={`p-3 border-b hover:bg-indigo-50 cursor-pointer ${
         isSelected ? "bg-indigo-50" : ""
       } ${
@@ -84,10 +84,25 @@ export default function ConversationInfo({
       } ${isUnread ? "bg-blue-50/60" : ""}`}
     >
       <div className="flex items-start space-x-3">
-        <Avatar>
-          <AvatarImage src={item.avatar} />
-          <AvatarFallback>?</AvatarFallback>
-        </Avatar>
+        <div className="relative">
+          <Avatar>
+            <AvatarImage src={item.avatar} />
+            <AvatarFallback>?</AvatarFallback>
+          </Avatar>
+          {/* Provider icon indicator positioned in bottom right of avatar */}
+          {item.provider && getProviderIcon(item.provider) && (
+            <div className="absolute -bottom-1 -right-1 w-5 h-5 rounded-full bg-white p-0.5 shadow-sm">
+              <Image
+                src={getProviderIcon(item.provider) || ""}
+                alt={item.provider || ""}
+                width={16}
+                height={16}
+                className="w-full h-full object-contain"
+                title={item.provider || ""}
+              />
+            </div>
+          )}
+        </div>
         <div className="flex-1 min-w-0">
           <div className="flex justify-between">
             <div className="flex items-center space-x-2">
@@ -103,7 +118,6 @@ export default function ConversationInfo({
                   <div className="ml-2 w-2 h-2 bg-blue-500 rounded-full"></div>
                 )}
               </div>
-              {getBadge(item.provider)}
             </div>
             <span className="text-[10px] text-gray-500">
               {getTimeDifference(item.last_message_at)}

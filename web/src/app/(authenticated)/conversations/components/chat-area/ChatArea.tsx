@@ -23,6 +23,7 @@ interface ChatAreaProps {
   onConversationUpdated?: (conversation: Conversation) => void; // Prop remains
 }
 
+const messageLimit = 20; // Limit the number of messages loaded each time
 export default function ChatArea(props: ChatAreaProps) {
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [chatList, setChatList] = useState<Chat[]>([]);
@@ -32,7 +33,6 @@ export default function ChatArea(props: ChatAreaProps) {
   ); // Add state for full conversation data
   const [isLoadingConversation, setIsLoadingConversation] =
     useState<boolean>(false); // Add loading state for conversation
-  const messageLimit = 20; // Limit the number of messages loaded each time
   const [showUserInfo, setShowUserInfo] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeight = useRef<number>(0);

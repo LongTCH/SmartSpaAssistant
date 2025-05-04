@@ -11,6 +11,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { useApp } from "@/context/app-context";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 
 export function Navbar() {
   const {
@@ -51,6 +52,22 @@ export function Navbar() {
     }
   };
 
+  // Helper function to get URL from tab value
+  const getTabUrl = (tab: string) => {
+    switch (tab) {
+      case "messages":
+        return "/conversations";
+      case "settings":
+        return "/settings";
+      case "analysis":
+        return "/analysis";
+      case "customers":
+        return "/customers";
+      default:
+        return "#";
+    }
+  };
+
   return (
     <header className="flex items-center justify-between px-6 py-3 bg-indigo-600 text-white">
       <div className="flex items-center space-x-4">
@@ -81,7 +98,13 @@ export function Navbar() {
                   : "text-white/90"
               }`}
             >
-              Tin nhắn
+              <Link
+                href={getTabUrl("messages")}
+                className="w-full h-full block"
+                onClick={(e) => e.preventDefault()}
+              >
+                Tin nhắn
+              </Link>
             </TabsTrigger>
             <TabsTrigger
               value="settings"
@@ -92,7 +115,13 @@ export function Navbar() {
                   : "text-white/90"
               }`}
             >
-              Cài đặt
+              <Link
+                href={getTabUrl("settings")}
+                className="w-full h-full block"
+                onClick={(e) => e.preventDefault()}
+              >
+                Cài đặt
+              </Link>
             </TabsTrigger>
             <TabsTrigger
               value="customers"
@@ -103,7 +132,13 @@ export function Navbar() {
                   : "text-white/90"
               }`}
             >
-              QL Khách hàng
+              <Link
+                href={getTabUrl("customers")}
+                className="w-full h-full block"
+                onClick={(e) => e.preventDefault()}
+              >
+                QL Khách hàng
+              </Link>
             </TabsTrigger>
             <TabsTrigger
               value="analysis"
@@ -114,7 +149,13 @@ export function Navbar() {
                   : "text-white/90"
               }`}
             >
-              Phân tích bài đăng
+              <Link
+                href={getTabUrl("analysis")}
+                className="w-full h-full block"
+                onClick={(e) => e.preventDefault()}
+              >
+                Phân tích bài đăng
+              </Link>
             </TabsTrigger>
           </TabsList>
         </Tabs>

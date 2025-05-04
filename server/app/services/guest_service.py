@@ -124,7 +124,7 @@ async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -
     guest = await guest_repository.update_assignment(db, guest_id, assigned_to)
     await db.commit()
     await db.refresh(guest)
-    return guest.to_dict()
+    return guest.to_dict(include=["interests"])
 
 
 async def get_guest_by_id(db: AsyncSession, guest_id: str) -> Guest:

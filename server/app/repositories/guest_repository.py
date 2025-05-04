@@ -175,7 +175,11 @@ async def get_guests_by_sentiment(
 
 
 async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -> Guest:
-    stmt = select(Guest).options(joinedload(Guest.info)).where(Guest.id == guest_id)
+    stmt = (
+        select(Guest)
+        .options(joinedload(Guest.info), selectinload(Guest.interests))
+        .where(Guest.id == guest_id)
+    )
     result = await db.execute(stmt)
     guest = result.scalars().first()
     if guest:

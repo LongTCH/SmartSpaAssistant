@@ -90,10 +90,8 @@ export function CustomerTable({
 
   // Function to navigate to conversations tab and select a specific guest
   const handleOpenChat = (guestId: string) => {
-    // Navigate to conversations page and set the selected guest ID
-    router.push("/conversations");
-    // We store the guest ID in sessionStorage to communicate with the conversations page
-    sessionStorage.setItem("selectedConversationId", guestId);
+    // Sử dụng định dạng slug thay vì query parameter
+    router.push(`/conversations/${guestId}`);
   };
 
   // Hàm để toggle hiển thị đầy đủ/thu gọn nhãn
