@@ -9,6 +9,7 @@ from app.dtos import PaginationDto
 from app.models import Script
 from app.repositories import script_repository
 from app.services.integrations import vectordb_service
+from fastapi import HTTPException
 from openpyxl.styles import Alignment
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -57,7 +58,7 @@ async def get_script_by_id(db: AsyncSession, script_id: str) -> dict:
     return None
 
 
-async def insert_script(db: AsyncSession, script: dict) -> dict:
+async def insert_script(db: AsyncSession, script: dict) -> None:
     """
     Insert a new script into the database.
     """
@@ -85,10 +86,6 @@ async def insert_script(db: AsyncSession, script: dict) -> dict:
             )
 
         await db.commit()
-        await db.refresh(script_obj)
-
-        # Lấy script với đầy đủ thông tin related
-        script_dict = script_obj.to_dict(include=["related_scripts", "related_sheets"])
 
         asyncio.create_task(
             process_background_with_session(
@@ -96,21 +93,20 @@ async def insert_script(db: AsyncSession, script: dict) -> dict:
             )
         )
 
-        return script_dict
+        return None
     except Exception as e:
-        print(f"Error inserting script: {e}")
         await db.rollback()
         raise e
 
 
-async def update_script(db: AsyncSession, script_id: str, script: dict) -> dict:
+async def update_script(db: AsyncSession, script_id: str, script: dict) -> None:
     """
     Update an existing script in the database.
     """
     try:
         existing_script = await script_repository.get_script_by_id(db, script_id)
         if not existing_script:
-            return None
+            raise HTTPException(status_code=404, detail="Script not found")
 
         # Cập nhật thông tin cơ bản
         existing_script.name = script["name"]
@@ -155,10 +151,7 @@ async def update_script(db: AsyncSession, script_id: str, script: dict) -> dict:
 
             # Lấy danh sách ID của các sheet đã liên kết hiện tại
             current_related_sheet_ids = set()
-            if (
-                hasattr(existing_script, "related_sheets")
-                and existing_script.related_sheets
-            ):
+            if hasattr(existing_script, "related_sheets"):
                 current_related_sheet_ids = {
                     s.id for s in existing_script.related_sheets
                 }
@@ -180,7 +173,6 @@ async def update_script(db: AsyncSession, script_id: str, script: dict) -> dict:
                 )
 
         await db.commit()
-        await db.refresh(updated_script)
 
         asyncio.create_task(
             process_background_with_session(
@@ -189,9 +181,8 @@ async def update_script(db: AsyncSession, script_id: str, script: dict) -> dict:
         )
 
         # Trả về script với đầy đủ thông tin related
-        return updated_script.to_dict(include=["related_scripts", "related_sheets"])
+        return None
     except Exception as e:
-        print(f"Error updating script: {e}")
         await db.rollback()
         raise e
 
@@ -202,10 +193,9 @@ async def delete_script(db: AsyncSession, script_id: str) -> None:
     """
     try:
         await script_repository.delete_script(db, script_id)
-        asyncio.create_task(vectordb_service.delete_script(script_id))
         await db.commit()
+        asyncio.create_task(vectordb_service.delete_script(script_id))
     except Exception as e:
-        print(f"Error deleting script: {e}")
         await db.rollback()
         raise e
 
@@ -216,10 +206,9 @@ async def delete_multiple_scripts(db: AsyncSession, script_ids: list) -> None:
     """
     try:
         await script_repository.delete_multiple_scripts(db, script_ids)
-        asyncio.create_task(vectordb_service.delete_scripts(script_ids))
         await db.commit()
+        asyncio.create_task(vectordb_service.delete_scripts(script_ids))
     except Exception as e:
-        print(f"Error deleting multiple scripts: {e}")
         await db.rollback()
         raise e
 
@@ -391,7 +380,6 @@ async def insert_scripts_from_excel(db: AsyncSession, sheet_file) -> None:
 
         return None
     except Exception as e:
-        print(f"Error inserting scripts from Excel: {e}")
         await db.rollback()
         raise e
 

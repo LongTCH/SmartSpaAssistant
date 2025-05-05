@@ -6,6 +6,7 @@ import pandas as pd
 from app.dtos import PaginationDto
 from app.models import Interest
 from app.repositories import interest_repository
+from fastapi import HTTPException
 from openpyxl.styles import Alignment
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,7 +51,7 @@ async def get_interest_by_id(db: AsyncSession, interest_id: str) -> dict:
     return interest.to_dict() if interest else None
 
 
-async def insert_interest(db: AsyncSession, interest: dict) -> dict:
+async def insert_interest(db: AsyncSession, interest: dict) -> None:
     """
     Insert a new interest into the database.
     """
@@ -63,15 +64,13 @@ async def insert_interest(db: AsyncSession, interest: dict) -> dict:
         )
         interest_obj = await interest_repository.insert_interest(db, interest_obj)
         await db.commit()
-        await db.refresh(interest_obj)
-        return interest_obj.to_dict()
+        return None
     except Exception as e:
-        print(f"Error inserting interest: {e}")
         await db.rollback()
         raise e
 
 
-async def update_interest(db: AsyncSession, interest_id: str, interest: dict) -> dict:
+async def update_interest(db: AsyncSession, interest_id: str, interest: dict) -> None:
     """
     Update an existing interest in the database.
     """
@@ -80,7 +79,7 @@ async def update_interest(db: AsyncSession, interest_id: str, interest: dict) ->
             db, interest_id
         )
         if not existing_interest:
-            return None
+            raise HTTPException(status_code=404, detail="Interest not found")
         existing_interest.name = interest["name"]
         existing_interest.related_terms = interest["related_terms"]
         existing_interest.status = interest["status"]
@@ -89,11 +88,9 @@ async def update_interest(db: AsyncSession, interest_id: str, interest: dict) ->
             db, existing_interest
         )
         await db.commit()
-        await db.refresh(updated_interest)
 
-        return updated_interest.to_dict()
+        return None
     except Exception as e:
-        print(f"Error updating interest: {e}")
         await db.rollback()
         raise e
 
@@ -106,7 +103,6 @@ async def delete_interest(db: AsyncSession, interest_id: str) -> None:
         await interest_repository.delete_interest(db, interest_id)
         await db.commit()
     except Exception as e:
-        print(f"Error deleting interest: {e}")
         await db.rollback()
         raise e
 
@@ -119,7 +115,6 @@ async def delete_multiple_interests(db: AsyncSession, interest_ids: list) -> Non
         await interest_repository.delete_multiple_interests(db, interest_ids)
         await db.commit()
     except Exception as e:
-        print(f"Error deleting multiple interests: {e}")
         await db.rollback()
         raise e
 
@@ -196,7 +191,6 @@ async def insert_interests_from_excel(db: AsyncSession, sheet_file) -> None:
         await db.commit()
         return None
     except Exception as e:
-        print(f"Error inserting interests from Excel: {e}")
         await db.rollback()
         raise e
 

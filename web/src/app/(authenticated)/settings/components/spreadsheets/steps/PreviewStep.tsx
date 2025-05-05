@@ -132,7 +132,7 @@ const formatExcelValue = (value: any, type: string): string => {
       return String(value);
 
     case "Boolean":
-      return value ? "✓" : "✗";
+      return value ? "TRUE" : "FALSE";
 
     case "Integer":
     case "Numeric":
@@ -219,7 +219,7 @@ export function PreviewStep({
                 <TableHeader>
                   <TableRow>
                     <TableHead className="w-16 border-r sticky top-0 left-0 bg-slate-100 z-20">
-                      STT
+                      id
                     </TableHead>
                     {columnConfigs.map((col, i) => (
                       <TableHead

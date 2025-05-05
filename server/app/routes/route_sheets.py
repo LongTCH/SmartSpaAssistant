@@ -107,11 +107,8 @@ async def update_sheet(
     Update an existing sheet in the database.
     """
     body = await request.json()
-    sheet = await sheet_service.update_sheet(db, sheet_id, body)
-    if not sheet:
-        raise HTTPException(status_code=404, detail="Sheet not found")
-
-    return sheet
+    await sheet_service.update_sheet(db, sheet_id, body)
+    return HttpResponse(status_code=204)
 
 
 @router.delete("/{sheet_id}")

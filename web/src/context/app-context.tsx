@@ -53,7 +53,7 @@ interface AppContextType {
 const AppContext = createContext<AppContextType | undefined>(undefined);
 
 export function AppProvider({ children }: { children: ReactNode }) {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
+  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(true);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isPageLoading, setPageLoading] = useState<boolean>(false);
   const [contentHeight, setContentHeight] = useState<string>("100vh");
@@ -69,7 +69,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // WebSocket connection setup
   useEffect(() => {
-    // if (!isLoggedIn) return;
+    if (!isLoggedIn) return;
 
     const connectWebSocket = () => {
       const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
@@ -117,7 +117,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
         webSocketRef.current = null;
       }
     };
-  }, []);
+  }, [isLoggedIn]);
 
   const registerMessageHandler = useCallback(
     (messageType: string, handler: MessageHandler) => {

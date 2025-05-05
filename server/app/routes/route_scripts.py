@@ -126,8 +126,8 @@ async def insert_script(request: Request, db: AsyncSession = Depends(get_session
     Insert a new script into the database.
     """
     body = await request.json()
-    script = await script_service.insert_script(db, body)
-    return script
+    await script_service.insert_script(db, body)
+    return HttpResponse(status_code=201)
 
 
 @router.put("/{script_id}")
@@ -138,10 +138,8 @@ async def update_script(
     Update an existing script in the database.
     """
     body = await request.json()
-    script = await script_service.update_script(db, script_id, body)
-    if not script:
-        raise HTTPException(status_code=404, detail="Script not found")
-    return script
+    await script_service.update_script(db, script_id, body)
+    return HttpResponse(status_code=204)
 
 
 @router.delete("/{script_id}")

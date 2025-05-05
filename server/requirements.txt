@@ -10,10 +10,9 @@ google-auth-httplib2
 google-auth-oauthlib
 tqdm
 aiohttp
-langchain
 openpyxl
-sentence-transformers
-cohere
+# sentence-transformers
+# cohere
 pydantic
 pydantic-ai[logfire]
 langgraph

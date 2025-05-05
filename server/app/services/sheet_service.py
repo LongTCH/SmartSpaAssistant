@@ -11,6 +11,7 @@ from app.models import Sheet
 from app.repositories import sheet_repository
 from openpyxl.styles import Alignment
 from sqlalchemy import Boolean, Column, DateTime, Integer, Numeric, String, Text, text
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -118,6 +119,9 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
         sqlalchemy_columns.append(
             Column("id", Integer, primary_key=True, autoincrement=True)
         )
+        sqlalchemy_columns.append(
+            Column("data_fts", JSONB, nullable=True)  # For PGroonga FTS
+        )
 
         # Create a mapping of column names to their types for later use
         column_type_map = {}
@@ -155,18 +159,14 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
             lambda sync_conn: DynamicTable.__table__.create(sync_conn, checkfirst=True)
         )
 
-        # Create PGroonga indexes for each String and Text column
-        for col in columns:
-            # Only create PGroonga indexes for text-based columns
-            if col.column_type in ["String", "Text"]:
-                index_name = f"pgroonga_{sanitized_table_name}_{col.column_name}_idx"
-                index_sql = text(
-                    f"""
-                    CREATE INDEX "{index_name}" ON "{sanitized_table_name}" 
-                    USING pgroonga ("{col.column_name}")
-                """
-                )
-                await db.execute(index_sql)
+        index_name = f"pgroonga_{sanitized_table_name}_idx"
+        index_sql = text(
+            f"""
+            CREATE INDEX "{index_name}" ON "{sanitized_table_name}" 
+            USING pgroonga (data_fts)
+        """
+        )
+        await db.execute(index_sql)
 
         # 7. Read Excel file contents
         sheet_file = sheet["file"]
@@ -247,6 +247,13 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
                     # If column is not in our mapping, just use the raw value
                     row_dict[col] = value
 
+            row_dict_copy = row_dict.copy()
+            for key, value in row_dict_copy.items():
+                if isinstance(value, (datetime, pd.Timestamp)):
+                    row_dict_copy[key] = value.isoformat()
+            row_dict["data_fts"] = json.dumps(
+                row_dict_copy, ensure_ascii=False
+            )  # For PGroonga FTS
             rows.append(row_dict)
 
         # 9. Insert rows into the dynamically created table
@@ -265,69 +272,60 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
         raise e
 
 
-async def update_sheet(db: AsyncSession, sheet_id: str, sheet: dict) -> dict:
-    """
-    Update an existing sheet in the database.
-    Only name, description, status, and column descriptions in column_config can be updated.
+async def update_sheet(db: AsyncSession, sheet_id: str, sheet: dict) -> None:
+    try:
+        # Check if sheet exists
+        existing_sheet = await sheet_repository.get_sheet_by_id(db, sheet_id)
+        if not existing_sheet:
+            raise Exception(f"Sheet with ID {sheet_id} not found")
 
-    Args:
-        db: Database session
-        sheet_id: ID of the sheet to update
-        sheet: Dictionary containing fields to update
+        # Prepare update data with only allowed fields
+        update_data = {}
 
-    Returns:
-        Updated sheet as a dictionary
-    """
-    # Check if sheet exists
-    existing_sheet = await sheet_repository.get_sheet_by_id(db, sheet_id)
-    if not existing_sheet:
-        raise Exception(f"Sheet with ID {sheet_id} not found")
+        # Allow updating name if provided
+        if "name" in sheet:
+            update_data["name"] = sheet["name"]
 
-    # Prepare update data with only allowed fields
-    update_data = {}
+        # Allow updating description if provided
+        if "description" in sheet:
+            update_data["description"] = sheet["description"]
 
-    # Allow updating name if provided
-    if "name" in sheet:
-        update_data["name"] = sheet["name"]
+        # Allow updating status if provided
+        if "status" in sheet:
+            update_data["status"] = sheet["status"]
 
-    # Allow updating description if provided
-    if "description" in sheet:
-        update_data["description"] = sheet["description"]
+        # Handle column_config updates (only descriptions)
+        if "column_config" in sheet and isinstance(sheet["column_config"], list):
+            # Create a mapping of column names to descriptions from the update data
+            column_descriptions = {
+                col.get("column_name"): col.get("description")
+                for col in sheet["column_config"]
+                if col.get("column_name") and col.get("description")
+            }
 
-    # Allow updating status if provided
-    if "status" in sheet:
-        update_data["status"] = sheet["status"]
+            # Only update if we have valid descriptions to update
+            if column_descriptions:
+                # Create a deep copy of the existing column config to modify
+                updated_column_config = existing_sheet.column_config.copy()
 
-    # Handle column_config updates (only descriptions)
-    if "column_config" in sheet and isinstance(sheet["column_config"], list):
-        # Create a mapping of column names to descriptions from the update data
-        column_descriptions = {
-            col.get("column_name"): col.get("description")
-            for col in sheet["column_config"]
-            if col.get("column_name") and col.get("description")
-        }
+                # Update descriptions for matching columns
+                for col in updated_column_config:
+                    if col["column_name"] in column_descriptions:
+                        col["description"] = column_descriptions[col["column_name"]]
 
-        # Only update if we have valid descriptions to update
-        if column_descriptions:
-            # Create a deep copy of the existing column config to modify
-            updated_column_config = existing_sheet.column_config.copy()
+                # Set the updated config in update_data
+                update_data["column_config"] = updated_column_config
 
-            # Update descriptions for matching columns
-            for col in updated_column_config:
-                if col["column_name"] in column_descriptions:
-                    col["description"] = column_descriptions[col["column_name"]]
+        # Update the sheet using repository function
+        await sheet_repository.update_sheet(db, sheet_id, update_data)
 
-            # Set the updated config in update_data
-            update_data["column_config"] = updated_column_config
+        # Commit the changes
+        await db.commit()
 
-    # Update the sheet using repository function
-    updated_sheet = await sheet_repository.update_sheet(db, sheet_id, update_data)
-
-    # Commit the changes
-    await db.commit()
-    await db.refresh(updated_sheet)
-
-    return updated_sheet.to_dict()
+        return None
+    except Exception as e:
+        await db.rollback()
+        raise e
 
 
 async def delete_sheet(db: AsyncSession, sheet_id: str) -> None:
@@ -335,47 +333,42 @@ async def delete_sheet(db: AsyncSession, sheet_id: str) -> None:
     Delete a sheet from the database by its ID.
     This function also drops the dynamic table associated with the sheet.
     """
-    # Lấy thông tin sheet trước khi xóa
-    sheet = await sheet_repository.get_sheet_by_id(db, sheet_id)
-
-    if sheet:
-        # 1. Xóa bảng động - sử dụng table_name
-        table_name = sheet.table_name
-        drop_table_sql = text(f'DROP TABLE IF EXISTS "{table_name}" CASCADE')
-
-        # Thực hiện xóa bảng
-        try:
-            await db.execute(drop_table_sql)
-            await db.commit()
-        except Exception as e:
-            await db.rollback()
-            print(f"Error dropping table {table_name}: {e}")
-
-    # 2. Xóa bản ghi sheet từ bảng sheets
-    await sheet_repository.delete_sheet(db, sheet_id)
-    await db.commit()
-    return None
-
-
-async def delete_multiple_sheets(db: AsyncSession, sheet_ids: list[str]) -> None:
-    for sheet_id in sheet_ids:
-        # Get the sheet to access its table_name
+    try:
         sheet = await sheet_repository.get_sheet_by_id(db, sheet_id)
+
         if sheet:
+            # 1. Xóa bảng động - sử dụng table_name
             table_name = sheet.table_name
             drop_table_sql = text(f'DROP TABLE IF EXISTS "{table_name}" CASCADE')
 
-            # Thực hiện xóa bảng
-            try:
-                await db.execute(drop_table_sql)
-                await db.commit()
-            except Exception as e:
-                await db.rollback()
-                print(f"Error dropping table {table_name}: {e}")
+            await db.execute(drop_table_sql)
 
-    await sheet_repository.delete_multiple_sheets(db, sheet_ids)
-    await db.commit()
-    return None
+        # 2. Xóa bản ghi sheet từ bảng sheets
+        await sheet_repository.delete_sheet(db, sheet_id)
+        await db.commit()
+        return None
+    except Exception as e:
+        await db.rollback()
+        raise e
+
+
+async def delete_multiple_sheets(db: AsyncSession, sheet_ids: list[str]) -> None:
+    try:
+        for sheet_id in sheet_ids:
+            # Get the sheet to access its table_name
+            sheet = await sheet_repository.get_sheet_by_id(db, sheet_id)
+            if sheet:
+                table_name = sheet.table_name
+                drop_table_sql = text(f'DROP TABLE IF EXISTS "{table_name}" CASCADE')
+
+                await db.execute(drop_table_sql)
+
+        await sheet_repository.delete_multiple_sheets(db, sheet_ids)
+        await db.commit()
+        return None
+    except Exception as e:
+        await db.rollback()
+        raise e
 
 
 async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
@@ -414,8 +407,9 @@ async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
     # Get the table name from the sheet record
     table_name = sheet.table_name
 
-    # Dynamically query all rows from the table
-    query = text(f'SELECT * FROM "{table_name}" ORDER BY id')
+    # Dynamically query only the columns specified in the sheet's column_config
+    selected_columns = ", ".join([f'"{col}"' for col in columns])
+    query = text(f'SELECT {selected_columns} FROM "{table_name}" ORDER BY id')
     result = await db.execute(query)
     rows = result.mappings().all()
 
@@ -476,8 +470,13 @@ async def get_sheet_rows_by_sheet_id(
     if skip >= count:
         return PagingDto(skip=skip, limit=limit, total=count, data=[])
 
-    # Query rows with pagination
-    query = text(f'SELECT * FROM "{table_name}" LIMIT {limit} OFFSET {skip}')
+    # Extract column names from sheet.column_config
+    columns = ["id"]
+    columns.extend([item.get("column_name") for item in sheet.column_config])
+    selected_columns = ", ".join([f'"{col}"' for col in columns])
+    query = text(
+        f'SELECT {selected_columns} FROM "{table_name}" LIMIT {limit} OFFSET {skip}'
+    )
     result = await db.execute(query)
     rows = result.mappings().all()
 

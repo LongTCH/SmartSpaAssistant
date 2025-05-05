@@ -186,8 +186,7 @@ export function PreviewSheetModal({
       try {
         // Trích xuất tên cột từ column_config
         return sheet.column_config.map((col) => col.column_name);
-      } catch (e) {
-      }
+      } catch (e) {}
     } else if (rows.length > 0 && typeof rows[0] === "object") {
       // Backup: lấy tên cột từ dữ liệu nếu không có column_config
       return Object.keys(rows[0]).filter(
@@ -216,10 +215,7 @@ export function PreviewSheetModal({
     // Xử lý các kiểu dữ liệu cụ thể theo column_config
     if (columnType === "DateTime") {
       return formatExcelValue(value);
-    } else if (
-      columnType === "Integer" ||
-      columnType === "Numeric"
-    ) {
+    } else if (columnType === "Integer" || columnType === "Numeric") {
       return value !== null && value !== undefined ? String(value) : "";
     } else {
       return value !== null && value !== undefined ? String(value) : "";
@@ -263,27 +259,12 @@ export function PreviewSheetModal({
                           <TableHead className="w-12 border-r sticky top-0 left-0 bg-background z-10">
                             id
                           </TableHead>
-                          {columnHeaders
-                            .filter(
-                              (header) =>
-                                !(
-                                  header.toLowerCase() === "id" ||
-                                  header.toLowerCase() === "_id"
-                                )
-                            )
-                            .map((header: string, index: number) => (
+                          {columnHeaders.map(
+                            (header: string, index: number) => (
                               <TableHead
                                 key={index}
                                 className={`${
-                                  index <
-                                  columnHeaders.filter(
-                                    (h) =>
-                                      !(
-                                        h.toLowerCase() === "id" ||
-                                        h.toLowerCase() === "_id"
-                                      )
-                                  ).length -
-                                    1
+                                  index < columnHeaders.length - 1
                                     ? "border-r"
                                     : ""
                                 } sticky top-0 bg-background z-10`}
@@ -291,7 +272,8 @@ export function PreviewSheetModal({
                               >
                                 {header}
                               </TableHead>
-                            ))}
+                            )
+                          )}
                         </TableRow>
                       </TableHeader>
                       <TableBody>

@@ -53,6 +53,15 @@ class Sheet(Base):
     status = Column(String(50), default="published")
     created_at = Column(DateTime, default=datetime.datetime.now)
 
+    # Relationship to Script với cấu hình back_populates rõ ràng
+    related_scripts = relationship(
+        "Script",
+        secondary=script_sheets,
+        lazy="select",
+        cascade="save-update, merge, expunge",
+        back_populates="related_sheets",
+    )
+
     def to_dict(self):
         return {
             "id": self.id,
@@ -215,18 +224,22 @@ class Script(Base):
     status = Column(String(50), default="published")
     created_at = Column(DateTime, default=datetime.datetime.now)
 
-    # Relationship to self for related scripts
+    # Relationship to self for related scripts with cascade delete-orphan
     related_scripts = relationship(
         "Script",
         secondary=script_attachments,
         primaryjoin=id == script_attachments.c.parent_script_id,
         secondaryjoin=id == script_attachments.c.attached_script_id,
         backref="attached_scripts",
+        cascade="save-update, merge, expunge",
     )
 
-    # Relationship to Sheet
+    # Relationship to Sheet với back_populates rõ ràng
     related_sheets = relationship(
-        "Sheet", secondary=script_sheets, backref="related_scripts", lazy="select"
+        "Sheet",
+        secondary=script_sheets,
+        lazy="select",
+        back_populates="related_scripts",
     )
 
     def to_dict(self, include=None):

@@ -125,8 +125,8 @@ async def insert_interest(request: Request, db: AsyncSession = Depends(get_sessi
     Insert a new interest into the database.
     """
     body = await request.json()
-    interest = await interest_service.insert_interest(db, body)
-    return interest
+    await interest_service.insert_interest(db, body)
+    return HttpResponse(status_code=201)
 
 
 @router.put("/{interest_id}")
@@ -137,10 +137,8 @@ async def update_interest(
     Update an existing interest in the database.
     """
     body = await request.json()
-    interest = await interest_service.update_interest(db, interest_id, body)
-    if not interest:
-        raise HTTPException(status_code=404, detail="Interest not found")
-    return interest
+    await interest_service.update_interest(db, interest_id, body)
+    return HttpResponse(status_code=204)
 
 
 @router.delete("/{interest_id}")
