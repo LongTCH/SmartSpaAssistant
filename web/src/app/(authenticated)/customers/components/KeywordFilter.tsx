@@ -29,7 +29,6 @@ export function KeywordFilter({
         const response = await interestService.getAllPublishedInterests();
         setInterests(response);
       } catch (error) {
-        console.error("Error fetching interests:", error);
       } finally {
         setIsLoading(false);
       }

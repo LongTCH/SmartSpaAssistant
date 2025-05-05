@@ -43,7 +43,6 @@ export function OverviewTab() {
         setSettings(settingsData);
       } catch (error) {
         toast.error("Không thể tải cài đặt. Vui lòng thử lại sau!");
-        console.error("Error loading settings:", error);
       } finally {
         setIsLoading(false);
       }
@@ -60,7 +59,6 @@ export function OverviewTab() {
       toast.success("Đã lưu thay đổi thành công!");
     } catch (error) {
       toast.error("Có lỗi xảy ra khi lưu thay đổi!");
-      console.error("Error saving settings:", error);
     } finally {
       setIsSaving(false);
     }

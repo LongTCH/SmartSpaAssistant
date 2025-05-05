@@ -110,7 +110,6 @@ export default function CustomerManagement() {
         total: response.total,
       });
     } catch (error) {
-      console.error("Error fetching customers:", error);
       toast.error("Không thể tải danh sách khách hàng");
     } finally {
       setLoading(false);
@@ -136,7 +135,6 @@ export default function CustomerManagement() {
 
         setInterestIds(filteredIds);
       } catch (error) {
-        console.error("Error fetching interests:", error);
         toast.error("Không thể lấy danh sách từ khóa");
       }
     };
@@ -204,7 +202,6 @@ export default function CustomerManagement() {
       setDeleteConfirmOpen(false);
       setCustomerToDelete(null);
     } catch (error) {
-      console.error("Error deleting customer:", error);
       toast.error("Không thể xóa khách hàng");
     } finally {
       setIsDeleting(false);
@@ -341,7 +338,6 @@ export default function CustomerManagement() {
                     total: response.total,
                   });
                 } catch (error) {
-                  console.error("Error fetching customers:", error);
                   toast.error("Không thể tải danh sách khách hàng");
                 } finally {
                   setLoading(false);

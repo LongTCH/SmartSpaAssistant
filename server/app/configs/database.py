@@ -105,18 +105,18 @@ async def init_models():
         await conn.run_sync(Base.metadata.create_all)
 
     # Convert SQLAlchemy URL to asyncpg compatible URL
-    # asyncpg_url = env_config.DATABASE_URL.replace(
-    #     "postgresql+asyncpg://", "postgresql://"
-    # )
+    asyncpg_url = env_config.DATABASE_URL.replace(
+        "postgresql+asyncpg://", "postgresql://"
+    )
 
-    # # Connect để tạo các functions, triggers, và set up PGroonga
-    # conn = await asyncpg.connect(asyncpg_url)
-    # try:
-    #     print("Thiết lập PGroonga và các triggers...")
-    #     await create_custom_functions_and_triggers(conn)
-    #     print("Thiết lập PGroonga và các triggers hoàn tất")
-    # finally:
-    #     await conn.close()
+    # Connect để tạo các functions, triggers, và set up PGroonga
+    conn = await asyncpg.connect(asyncpg_url)
+    try:
+        print("Thiết lập PGroonga và các triggers...")
+        # await create_custom_functions_and_triggers(conn)
+        print("Thiết lập PGroonga và các triggers hoàn tất")
+    finally:
+        await conn.close()
 
 
 async def shutdown_models():

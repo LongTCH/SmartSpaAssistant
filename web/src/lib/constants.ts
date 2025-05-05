@@ -36,6 +36,7 @@ export const API_ROUTES = {
     DELETE: (id: string) => `/sheets/${id}`,
     DELETE_MULTIPLE: "/sheets/delete-multiple",
     CREATE: "/sheets",
+    PREVIEW: "/sheets/preview",
     GET_ROWS: (sheetId: string) => `/sheets/${sheetId}/rows`,
     DOWNLOAD: (sheetId: string) => `/sheets/${sheetId}/download`,
   },

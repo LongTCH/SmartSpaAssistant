@@ -50,7 +50,6 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
     async (isInitialLoad = false) => {
       // Double check to prevent duplicate API calls
       if (isFetchingRef.current) {
-        console.log("Prevented duplicate API call - already fetching");
         return;
       }
 
@@ -63,19 +62,12 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
 
         // Prevent duplicate API calls with the same skip value
         if (skip === prevSkipRef.current && !isInitialLoad) {
-          console.log(
-            `Prevented duplicate API call with same skip value: ${skip}`
-          );
           return;
         }
 
         prevSkipRef.current = skip;
         isFetchingRef.current = true;
         setIsLoading(true);
-
-        console.log(
-          `Fetching conversations with skip=${skip}, limit=${conversationLimit}, assigned_to=${assignedTo}`
-        );
 
         const response = await conversationService.getPagingConversation(
           skip,
@@ -86,7 +78,6 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         if (response.data.length !== 0) {
           if (isInitialLoad) {
             // First page, replace data
-            console.log(`Loaded initial ${response.data.length} conversations`);
             // Đảm bảo không có ID trùng lặp ngay cả khi tải trang đầu tiên
             const uniqueConversations = Array.from(
               new Map(response.data.map((item) => [item.id, item])).values()
@@ -99,9 +90,6 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
             }
           } else {
             // Next page, append data but avoid duplicates
-            console.log(
-              `Loaded additional ${response.data.length} conversations`
-            );
             setConversations((prevConversations) => {
               // Tạo Map với key là ID để loại bỏ trùng lặp
               const conversationsMap = new Map();
@@ -123,15 +111,6 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
                 conversationsMap.values()
               );
 
-              console.log(
-                `Total conversations after filtering duplicates: ${combinedConversations.length}`
-              );
-              console.log(
-                `Added ${
-                  combinedConversations.length - prevConversations.length
-                } new unique conversations`
-              );
-
               return combinedConversations;
             });
           }
@@ -141,10 +120,8 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
             setConversations([]);
           }
           setHasNext(false);
-          console.log("No conversations returned from API");
         }
       } catch (error) {
-        console.error("Error fetching conversations:", error);
       } finally {
         setIsLoading(false);
         isFetchingRef.current = false;
@@ -186,12 +163,9 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         if (hasNext && !isLoading && !isFetchingRef.current) {
           // Chỉ xử lý nếu đã qua đủ thời gian từ lần cuối
           if (now - lastScrollTimeRef.current > scrollThrottleTimeMs) {
-            console.log("Scroll reached bottom, loading more conversations");
             lastScrollTimeRef.current = now;
             debouncedFetchMore();
-          } else {
-            console.log("Scroll event throttled");
-          }
+          } 
         }
       }
     },
@@ -208,9 +182,6 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
     if (!hasInitialFetch.current || filterChanged) {
       // Nếu là thay đổi filter và không phải lần đầu, reset danh sách
       if (filterChanged) {
-        console.log(
-          `Filter changed from ${prevAssignedToRef.current} to ${assignedTo}`
-        );
         setConversations([]);
         setHasNext(false);
         prevSkipRef.current = -1;
@@ -223,15 +194,11 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         setIsLoading(true);
 
         // Gọi API trực tiếp thay vì qua fetchConversations để tránh vòng lặp
-        console.log(`Fetching conversations with filter: ${assignedTo}`);
         conversationService
           .getPagingConversation(0, conversationLimit, assignedTo)
           .then((response) => {
             if (response.data.length !== 0) {
               // First page, replace data
-              console.log(
-                `Loaded initial ${response.data.length} conversations with filter ${assignedTo}`
-              );
               // Đảm bảo không có ID trùng lặp
               const uniqueConversations = Array.from(
                 new Map(response.data.map((item) => [item.id, item])).values()
@@ -253,7 +220,6 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
             }
           })
           .catch((error) => {
-            console.error("Error fetching conversations with filter:", error);
           })
           .finally(() => {
             setIsLoading(false);

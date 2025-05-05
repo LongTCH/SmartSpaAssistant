@@ -57,6 +57,7 @@ async def create_sheet(request: Request, db: AsyncSession = Depends(get_session)
         name = form.get("name")
         description = form.get("description")
         status = form.get("status", "published")
+        column_config = form.get("column_config")
 
         # Get the uploaded file
         file = form.get("file")
@@ -83,6 +84,7 @@ async def create_sheet(request: Request, db: AsyncSession = Depends(get_session)
             "name": name,
             "description": description,
             "status": status,
+            "column_config": column_config,
             "file": file_contents,
         }
 

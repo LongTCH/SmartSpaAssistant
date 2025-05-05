@@ -63,7 +63,6 @@ export function UserInfoModal({
         response.interests?.map((interest) => interest.name) || []
       );
     } catch (error) {
-      console.error("Error fetching guest info:", error);
       // Set guestInfo to null or a default structure if fetching fails
       setGuestInfo(null);
       setOriginalGuestInfo(null);
@@ -78,7 +77,6 @@ export function UserInfoModal({
       const response = await interestService.getAllPublishedInterests();
       setAvailableInterests(response);
     } catch (error) {
-      console.error("Error fetching interests:", error);
     } finally {
       setIsInterestsLoading(false);
     }
@@ -264,7 +262,6 @@ export function UserInfoModal({
       );
       onOpenChange(false); // Close modal on successful save
     } catch (error) {
-      console.error(error);
       toast.error("Không thể cập nhật thông tin");
     } finally {
       setIsSaving(false);

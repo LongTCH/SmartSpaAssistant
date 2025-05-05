@@ -1,6 +1,6 @@
 import apiClient from "@/lib/axios";
 import { API_ROUTES } from "@/lib/constants";
-import { Sheet, SheetRow } from "@/types";
+import { Sheet, SheetRow, ExcelData } from "@/types";
 
 export interface SheetsPaginationResponse {
   data: Sheet[];
@@ -23,18 +23,31 @@ export interface SheetRowsPagingResponse {
   has_prev: boolean;
 }
 
+export interface ColumnConfig {
+  column_name: string;
+  column_type: string;
+  description?: string;
+  is_index: boolean;
+}
+
 export const sheetService = {
   async uploadSheet(
     name: string,
     description: string,
     status: string,
-    file: File
+    file: File,
+    columnConfigs?: ColumnConfig[]
   ): Promise<Sheet> {
     const formData = new FormData();
     formData.append("name", name);
     formData.append("description", description);
     formData.append("status", status);
     formData.append("file", file);
+
+    // Add column configurations if provided
+    if (columnConfigs && columnConfigs.length > 0) {
+      formData.append("column_config", JSON.stringify(columnConfigs));
+    }
 
     const response = await apiClient.instance.post(
       API_ROUTES.SHEET.CREATE,
@@ -47,6 +60,20 @@ export const sheetService = {
       }
     );
     return response.data as Sheet;
+  },
+
+  async previewExcel(formData: FormData): Promise<{ data: ExcelData }> {
+    const response = await apiClient.instance.post(
+      API_ROUTES.SHEET.PREVIEW,
+      formData,
+      {
+        headers: {
+          "Content-Type": "multipart/form-data",
+          Accept: "application/json",
+        },
+      }
+    );
+    return response.data;
   },
 
   async getPaginationSheet(
@@ -85,15 +112,23 @@ export const sheetService = {
     sheetId: string,
     name: string,
     description: string,
-    status: string
+    status: string,
+    columnConfigs?: ColumnConfig[]
   ): Promise<Sheet> {
+    const payload: any = {
+      name,
+      description,
+      status,
+    };
+
+    // Add column configurations if provided
+    if (columnConfigs && columnConfigs.length > 0) {
+      payload.column_config = columnConfigs;
+    }
+
     const response = await apiClient.instance.put(
       API_ROUTES.SHEET.UPDATE(sheetId),
-      {
-        name,
-        description,
-        status,
-      }
+      payload
     );
     return response.data as Sheet;
   },

@@ -36,9 +36,11 @@ import {
   ChevronRight,
   Filter,
   AlertTriangle,
+  Eye,
 } from "lucide-react";
-import { AddSpreadsheetModal } from "./AddSpreadsheetModal";
-import { EditSpreadsheetModal } from "./EditSpreadsheetModal";
+import { MultiStepAddSpreadsheetModal } from "./MultiStepAddSpreadsheetModal";
+import { MultiStepEditSpreadsheetModal } from "./MultiStepEditSpreadsheetModal";
+import { PreviewSheetModal } from "./PreviewSheetModal";
 import { toast } from "sonner";
 import { Sheet } from "@/types";
 import { sheetService } from "@/services/api/sheet.service";
@@ -50,8 +52,6 @@ let oldStatus = "all";
 
 export function SpreadsheetsTab() {
   const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // New state variables
   const [selectedSheetIds, setSelectedSheetIds] = useState<Set<string>>(
@@ -70,44 +70,18 @@ export function SpreadsheetsTab() {
     useState(false);
   const [editingSheet, setEditingSheet] = useState<Sheet | null>(null);
 
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    // Check if the file is Excel
-    const validExcelTypes = [
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
-      "application/vnd.ms-excel", // .xls
-    ];
-
-    if (!validExcelTypes.includes(file.type)) {
-      toast.error("Chỉ chấp nhận file Excel (.xlsx, .xls)");
-      event.target.value = "";
-      return;
-    }
-
-    setSelectedFile(file);
-    setShowSpreadsheetModal(true);
-  };
+  // State cho modal xem trước bảng tính
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
+  const [previewingSheet, setPreviewingSheet] = useState<Sheet | null>(null);
 
   const handleAddSpreadsheetClick = () => {
-    // Trigger file input click
-    fileInputRef.current?.click();
+    // Directly open the multi-step modal
+    setShowSpreadsheetModal(true);
   };
 
   // Handle modal close
   const handleModalClose = (open: boolean) => {
     setShowSpreadsheetModal(open);
-    if (!open) {
-      // Reset selected file on close
-      setSelectedFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
   };
 
   // Sử dụng useRef để theo dõi trạng thái đã tải
@@ -220,6 +194,7 @@ export function SpreadsheetsTab() {
         setSelectedSheetIds(new Set());
 
         // Refetch sheets to update the list
+
         await fetchSheets();
 
         toast.success(`Đã xóa ${count} bảng tính`);
@@ -313,21 +288,18 @@ export function SpreadsheetsTab() {
     setShowEditSpreadsheetModal(true);
   };
 
+  // Handle sheet preview
+  const handlePreviewSheet = (sheet: Sheet) => {
+    setPreviewingSheet(sheet);
+    setShowPreviewModal(true);
+  };
+
   // Get selected sheet count
   const selectedCount = selectedSheetIds.size;
 
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">BẢNG TÍNH</h1>
-
-      {/* Hidden file input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept=".xlsx,.xls"
-        className="hidden"
-      />
 
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
@@ -445,6 +417,14 @@ export function SpreadsheetsTab() {
                   </TableCell>
                   <TableCell className="text-right">
                     <div className="flex justify-end space-x-2">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        title="Xem trước"
+                        onClick={() => handlePreviewSheet(sheet)}
+                      >
+                        <Eye className="h-4 w-4 text-green-500" />
+                      </Button>
                       <Button
                         variant="ghost"
                         size="icon"
@@ -627,19 +607,26 @@ export function SpreadsheetsTab() {
         </DialogContent>
       </Dialog>
 
-      {/* Edit Spreadsheet Modal */}
-      <EditSpreadsheetModal
+      {/* Multi-step Add Spreadsheet Modal */}
+      <MultiStepAddSpreadsheetModal
+        open={showSpreadsheetModal}
+        onOpenChange={handleModalClose}
+        onSuccess={fetchSheets}
+      />
+
+      {/* Multi-step Edit Spreadsheet Modal */}
+      <MultiStepEditSpreadsheetModal
         open={showEditSpreadsheetModal}
         onOpenChange={setShowEditSpreadsheetModal}
         sheet={editingSheet}
         onSuccess={fetchSheets}
       />
 
-      <AddSpreadsheetModal
-        open={showSpreadsheetModal}
-        onOpenChange={handleModalClose}
-        selectedFile={selectedFile}
-        onSuccess={fetchSheets}
+      {/* Preview Sheet Modal */}
+      <PreviewSheetModal
+        open={showPreviewModal}
+        onOpenChange={setShowPreviewModal}
+        sheet={previewingSheet}
       />
     </div>
   );

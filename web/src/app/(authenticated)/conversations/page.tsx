@@ -19,11 +19,9 @@ export default function ConversationsPage() {
         } else {
           // Handle case when no conversations exist
           // You might want to show a different screen or create a new conversation
-          console.log("No conversations found");
         }
       })
       .catch((error) => {
-        console.error("Error fetching conversations:", error);
       });
   }, [router]);
 

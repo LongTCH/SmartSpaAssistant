@@ -47,11 +47,9 @@ export default function ConversationDetail() {
             return newSet;
           });
         } else {
-          console.error("Conversation not found");
         }
       })
       .catch((error) => {
-        console.error("Error fetching conversation:", error);
       })
       .finally(() => {
         setIsLoading(false);

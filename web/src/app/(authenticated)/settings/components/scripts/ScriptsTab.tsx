@@ -107,7 +107,6 @@ export function ScriptsTab() {
       fetchScripts();
       hasInitialFetch.current = true;
     }
-    console.log({ oldPage, currentPage, oldStatus, status });
   }, [currentPage, status]);
 
   // Check if all scripts on current page are selected

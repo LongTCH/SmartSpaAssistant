@@ -104,7 +104,6 @@ export default function ChatArea(props: ChatAreaProps) {
       setSentiment(response.sentiment as string);
       return response;
     } catch (error) {
-      console.error("Error fetching conversation data:", error);
       setConversationData(null);
       return null;
     } finally {
@@ -521,10 +520,6 @@ export default function ChatArea(props: ChatAreaProps) {
                 }
               })
               .catch((error) => {
-                console.error(
-                  "Lỗi khi cập nhật lại dữ liệu cuộc trò chuyện:",
-                  error
-                );
               });
           }
         }}

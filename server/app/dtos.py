@@ -104,3 +104,25 @@ class PaginationDto:
         self.next_page = page + 1 if self.has_next else None
         self.prev_page = page - 1 if self.has_prev else None
         self.total_pages = (total + limit - 1) // limit
+
+
+class SheetColumnConfigDto:
+    def __init__(
+        self,
+        column_name: str,
+        column_type: str,
+        description: str = None,
+        is_index: bool = False,
+    ):
+        self.column_name = column_name
+        self.column_type = column_type
+        self.description = description
+        self.is_index = is_index
+
+    def to_dict(self):
+        return {
+            "column_name": self.column_name,
+            "column_type": self.column_type,
+            "description": self.description,
+            "is_index": self.is_index,
+        }

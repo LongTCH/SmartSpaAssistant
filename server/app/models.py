@@ -1,5 +1,4 @@
 import datetime
-import json
 import uuid
 
 from app.configs.constants import CHAT_ASSIGNMENT, SENTIMENTS
@@ -49,38 +48,20 @@ class Sheet(Base):
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
     name = Column(String, nullable=False)
     description = Column(Text, nullable=False)
-    schema = Column(String, nullable=True)
+    column_config = Column(JSONB, nullable=False)
+    table_name = Column(String, nullable=True)
     status = Column(String(50), default="published")
     created_at = Column(DateTime, default=datetime.datetime.now)
-    sample_rows = Column(JSONB, nullable=True)
 
     def to_dict(self):
         return {
             "id": self.id,
             "name": self.name,
             "description": self.description,
-            "schema": json.loads(self.schema),
+            "column_config": self.column_config,
+            "table_name": self.table_name,
             "status": self.status,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-        }
-
-
-class SheetRow(Base):
-    __tablename__ = "sheet_rows"
-
-    id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
-    sheet_id = Column(
-        String, ForeignKey("sheets.id", ondelete="CASCADE"), nullable=False
-    )
-    order = Column(Integer, nullable=False)
-    data = Column(JSONB, nullable=False)
-
-    def to_dict(self):
-        return {
-            "id": self.id,
-            "sheet_id": self.sheet_id,
-            "order": self.order,
-            "data": self.data,
         }
 
 
@@ -321,6 +302,3 @@ class Interest(Base):
             result["guests"] = [guest.to_dict(include=[]) for guest in self.guests]
 
         return result
-
-
-# Đã chuyển tất cả các trigger và function definition sang app/configs/init_sql.py
