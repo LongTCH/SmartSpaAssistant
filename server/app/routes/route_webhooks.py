@@ -1,10 +1,7 @@
-import asyncio
-
 from app.configs import env_config
-from app.configs.database import get_session, process_background_with_session
 from app.services import messenger_service
-from fastapi import APIRouter, Depends, HTTPException, Request
-from sqlalchemy.ext.asyncio import AsyncSession
+from app.utils import asyncio_utils
+from fastapi import APIRouter, HTTPException, Request
 from starlette.responses import Response as HttpResponse
 
 router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
@@ -38,7 +35,7 @@ async def get_webhook(request: Request):
 
 
 @router.post("/messenger")
-async def post_webhook(request: Request, db: AsyncSession = Depends(get_session)):
+async def post_webhook(request: Request):
     """
     Handle POST request for Facebook Messenger webhook.
     """
@@ -57,14 +54,12 @@ async def post_webhook(request: Request, db: AsyncSession = Depends(get_session)
             timestamp = webhook_event.get("timestamp")
 
             # Chuyển xử lý message sang task riêng - create a copy of the db session
-            asyncio.create_task(
-                process_background_with_session(
-                    messenger_service.process_message,
-                    sender_psid,
-                    receipient_psid,
-                    timestamp,
-                    webhook_event,
-                )
+            asyncio_utils.run_background(
+                messenger_service.process_message,
+                sender_psid,
+                receipient_psid,
+                timestamp,
+                webhook_event,
             )
 
         # Returns a '200 OK' response to all requests

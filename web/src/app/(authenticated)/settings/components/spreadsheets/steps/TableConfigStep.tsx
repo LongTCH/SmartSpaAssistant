@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -154,13 +155,14 @@ export function TableConfigStep({
       <div>
         <div className="border rounded-md overflow-hidden">
           <Table>
+            {" "}
             <TableHeader>
               <TableRow className="bg-slate-50">
                 <TableHead className="w-10">#</TableHead>
-                <TableHead className="w-1/4">Tên cột</TableHead>
-                <TableHead className="w-1/4">Kiểu dữ liệu</TableHead>
-                <TableHead className="w-1/3">Mô tả</TableHead>
-                <TableHead className="w-24 text-center">Index</TableHead>
+                <TableHead className="w-[20%]">Tên cột</TableHead>
+                <TableHead className="w-[20%]">Kiểu dữ liệu</TableHead>
+                <TableHead className="w-[50%]">Mô tả</TableHead>
+                <TableHead className="w-[10%] text-center">Index</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -188,10 +190,10 @@ export function TableConfigStep({
                         ))}
                       </SelectContent>
                     </Select>
-                  </TableCell>
+                  </TableCell>{" "}
                   <TableCell className="align-middle">
                     <div>
-                      <Input
+                      <Textarea
                         value={column.description || ""}
                         onChange={(e) =>
                           updateColumnConfig(
@@ -201,6 +203,7 @@ export function TableConfigStep({
                           )
                         }
                         placeholder="Mô tả về cột dữ liệu này"
+                        className="min-h-[38px] max-h-[150px] resize-y"
                       />
                     </div>
                   </TableCell>

@@ -55,7 +55,7 @@ async def get_sheet_by_id(db: AsyncSession, sheet_id: str) -> dict:
     return sheet.to_dict() if sheet else None
 
 
-async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
+async def insert_sheet(db: AsyncSession, sheet: dict) -> str:
     try:
         # 1. Parse column configuration
         column_config = json.loads(sheet.get("column_config"))
@@ -265,7 +265,7 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> dict:
         await db.commit()
         await db.refresh(new_sheet)
 
-        return new_sheet.to_dict()
+        return new_sheet.id
 
     except Exception as e:
         await db.rollback()
@@ -408,10 +408,9 @@ async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
     table_name = sheet.table_name
 
     # Dynamically query only the columns specified in the sheet's column_config
-    selected_columns = ", ".join([f'"{col}"' for col in columns])
-    query = text(f'SELECT {selected_columns} FROM "{table_name}" ORDER BY id')
-    result = await db.execute(query)
-    rows = result.mappings().all()
+    rows = await sheet_repository.get_all_rows_with_sheet_and_columns(
+        db, table_name, columns
+    )
 
     # Convert to list of dictionaries
     data_list = [dict(row) for row in rows]
@@ -460,9 +459,7 @@ async def get_sheet_rows_by_sheet_id(
     table_name = sheet.table_name
 
     # First count total rows in the table
-    count_query = text(f'SELECT COUNT(*) FROM "{table_name}"')
-    result = await db.execute(count_query)
-    count = result.scalar()
+    count = await sheet_repository.count_rows_of_sheet(db, table_name)
 
     if count == 0:
         return PagingDto(skip=skip, limit=limit, total=0, data=[])
@@ -473,12 +470,9 @@ async def get_sheet_rows_by_sheet_id(
     # Extract column names from sheet.column_config
     columns = ["id"]
     columns.extend([item.get("column_name") for item in sheet.column_config])
-    selected_columns = ", ".join([f'"{col}"' for col in columns])
-    query = text(
-        f'SELECT {selected_columns} FROM "{table_name}" LIMIT {limit} OFFSET {skip}'
+    rows = await sheet_repository.get_rows_with_columns(
+        db, table_name, columns, skip, limit
     )
-    result = await db.execute(query)
-    rows = result.mappings().all()
 
     # Convert rows to list of dictionaries
     data_list = [dict(row) for row in rows]

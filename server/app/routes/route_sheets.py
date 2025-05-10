@@ -2,6 +2,8 @@ import os
 
 from app.configs.database import get_session
 from app.services import sheet_service
+from app.services.integrations import sheet_rag_service
+from app.utils import asyncio_utils
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -89,10 +91,10 @@ async def create_sheet(request: Request, db: AsyncSession = Depends(get_session)
         }
 
         # Create new Sheet record using the service
-        new_sheet = await sheet_service.insert_sheet(db, sheet_data)
+        new_sheet_id = await sheet_service.insert_sheet(db, sheet_data)
 
-        # Return the created sheet
-        return new_sheet
+        asyncio_utils.run_background(sheet_rag_service.insert_sheet, new_sheet_id)
+        return new_sheet_id
 
     except Exception as e:
         print(f"Error creating sheet: {e}")
@@ -120,6 +122,7 @@ async def delete_sheet(
     """
     try:
         await sheet_service.delete_sheet(db, sheet_id)
+        asyncio_utils.run_background(sheet_rag_service.delete_sheet, sheet_id)
         return HttpResponse(status_code=204)
     except Exception as e:
         print(f"Error deleting sheet: {e}")
@@ -135,21 +138,13 @@ async def delete_multiple_sheets(
     """
     Delete multiple sheets from the database by their IDs.
     """
-    try:
-        body = await request.json()
-        sheet_ids = body.get("sheet_ids", [])
-        if not sheet_ids:
-            raise HTTPException(status_code=400, detail="sheet_ids is required")
-        await sheet_service.delete_multiple_sheets(db, sheet_ids)
-        return HttpResponse(status_code=204)
-    except HTTPException:
-        # Đây là ngoại lệ đã được xử lý bên trên (sheet_ids is required)
-        raise
-    except Exception as e:
-        print(f"Error deleting multiple sheets: {e}")
-        # Vẫn trả về 204 vì việc xóa không tìm thấy sheet cũng được coi là thành công
-        # Điều này phù hợp với nguyên tắc thiết kế API idempotent
-        return HttpResponse(status_code=204)
+    body = await request.json()
+    sheet_ids = body.get("sheet_ids", [])
+    if not sheet_ids:
+        raise HTTPException(status_code=400, detail="sheet_ids is required")
+    await sheet_service.delete_multiple_sheets(db, sheet_ids)
+    asyncio_utils.run_background(sheet_rag_service.delete_sheets, sheet_ids)
+    return HttpResponse(status_code=204)
 
 
 @router.get("/{sheet_id}/rows")

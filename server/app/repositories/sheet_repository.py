@@ -1,7 +1,10 @@
-from app.models import Sheet
+import json
+
+from app.models import Sheet, script_sheets
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm.attributes import flag_modified
+from sqlalchemy.sql import text
 
 
 async def count_sheets(db: AsyncSession) -> int:
@@ -142,3 +145,60 @@ async def get_sheets_by_ids(db: AsyncSession, sheet_ids: list[str]) -> list[Shee
     stmt = select(Sheet).where(Sheet.id.in_(sheet_ids))
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def get_example_rows_by_sheet_id(db: AsyncSession, sheet_id: str) -> list[dict]:
+    """
+    Get the first two rows of a sheet by its table name from the database.
+    """
+    sheet = await get_sheet_by_id(db, sheet_id)
+    if not sheet:
+        return None
+    table_name = sheet.table_name
+    stmt = text(f'SELECT data_fts::text FROM "{table_name}" LIMIT 2')
+    result = await db.execute(stmt)
+    rows = result.mappings().all()
+    return [json.loads(row["data_fts"]) for row in rows]
+
+
+async def get_sheet_ids_by_script_ids(
+    db: AsyncSession, script_ids: list[str]
+) -> list[str]:
+    """
+    Get the sheet IDs by script IDs from the database.
+    """
+    stmt = select(script_sheets).where(script_sheets.c.script_id.in_(script_ids))
+    result = await db.execute(stmt)
+    return [row[1] for row in result.fetchall()]
+
+
+async def get_all_rows_with_sheet_and_columns(
+    db: AsyncSession, table_name: str, columns: list[str]
+) -> list[dict]:
+    selected_columns = ", ".join([f'"{col}"' for col in columns])
+    query = text(f'SELECT {selected_columns} FROM "{table_name}" ORDER BY id')
+    result = await db.execute(query)
+    return result.mappings().all()
+
+
+async def count_rows_of_sheet(db: AsyncSession, table_name: str) -> int:
+    query = text(f'SELECT COUNT(*) FROM "{table_name}"')
+    result = await db.execute(query)
+    return result.scalar()
+
+
+async def get_rows_with_columns(
+    db: AsyncSession, table_name: str, columns: list[str], skip: int, limit: int
+) -> list[dict]:
+    selected_columns = ", ".join([f'"{col}"' for col in columns])
+    query = text(
+        f'SELECT {selected_columns} FROM "{table_name}" ORDER BY id LIMIT {limit} OFFSET {skip}'
+    )
+    result = await db.execute(query)
+    return result.mappings().all()
+
+
+async def get_data_fts_of_row(db: AsyncSession, table_name: str, row_id: int) -> dict:
+    query = text(f'SELECT data_fts::text FROM "{table_name}" WHERE id = :row_id')
+    result = await db.execute(query, {"row_id": row_id})
+    return json.loads(result.mappings().first()["data_fts"])

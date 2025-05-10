@@ -1,4 +1,4 @@
-import requests
+import aiohttp
 from app.configs import env_config
 from app.configs.constants import WS_MESSAGES
 from app.dtos import WsMessageDto
@@ -46,10 +46,14 @@ async def analyze_sentiment(db: AsyncSession, guest: Guest) -> tuple[str, bool]:
         headers = {
             "Content-Type": "application/json",
         }
-
-        response = requests.post(url, json=payload, headers=headers)
-
-        if response.status_code == 200:
-            sentiment = response.json().get("sentiment", "neutral")
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, headers=headers) as response:
+                if response.status == 200:
+                    json_response = await response.json()
+                    sentiment = json_response.get("sentiment", "neutral")
+                else:
+                    # Handle error response
+                    print(f"Error: {response.status}")
+                    sentiment = "neutral"
 
     return sentiment, should_reset

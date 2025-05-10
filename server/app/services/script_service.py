@@ -1,14 +1,11 @@
-import asyncio
 import os
 from datetime import datetime
 from io import BytesIO
 
 import pandas as pd
-from app.configs.database import process_background_with_session
 from app.dtos import PaginationDto
 from app.models import Script
 from app.repositories import script_repository
-from app.services.integrations import vectordb_service
 from fastapi import HTTPException
 from openpyxl.styles import Alignment
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -58,7 +55,7 @@ async def get_script_by_id(db: AsyncSession, script_id: str) -> dict:
     return None
 
 
-async def insert_script(db: AsyncSession, script: dict) -> None:
+async def insert_script(db: AsyncSession, script: dict) -> str:
     """
     Insert a new script into the database.
     """
@@ -87,13 +84,7 @@ async def insert_script(db: AsyncSession, script: dict) -> None:
 
         await db.commit()
 
-        asyncio.create_task(
-            process_background_with_session(
-                vectordb_service.insert_script, script_obj.id
-            )
-        )
-
-        return None
+        return script_obj.id
     except Exception as e:
         await db.rollback()
         raise e
@@ -174,14 +165,7 @@ async def update_script(db: AsyncSession, script_id: str, script: dict) -> None:
 
         await db.commit()
 
-        asyncio.create_task(
-            process_background_with_session(
-                vectordb_service.update_script, updated_script.id
-            )
-        )
-
-        # Trả về script với đầy đủ thông tin related
-        return None
+        return updated_script.id
     except Exception as e:
         await db.rollback()
         raise e
@@ -194,7 +178,6 @@ async def delete_script(db: AsyncSession, script_id: str) -> None:
     try:
         await script_repository.delete_script(db, script_id)
         await db.commit()
-        asyncio.create_task(vectordb_service.delete_script(script_id))
     except Exception as e:
         await db.rollback()
         raise e
@@ -207,7 +190,6 @@ async def delete_multiple_scripts(db: AsyncSession, script_ids: list) -> None:
     try:
         await script_repository.delete_multiple_scripts(db, script_ids)
         await db.commit()
-        asyncio.create_task(vectordb_service.delete_scripts(script_ids))
     except Exception as e:
         await db.rollback()
         raise e
@@ -282,7 +264,7 @@ async def download_scripts_as_excel(db: AsyncSession) -> str:
     return file_path
 
 
-async def insert_scripts_from_excel(db: AsyncSession, sheet_file) -> None:
+async def insert_scripts_from_excel(db: AsyncSession, sheet_file) -> list[str]:
     """
     Insert scripts from an Excel file into the database.
     - Sheet Excel phải có các cột: "ID", "Tên kịch bản", "ID các kịch bản liên quan", "Trạng thái", "Mô tả", "Hướng dẫn trả lời"
@@ -329,7 +311,6 @@ async def insert_scripts_from_excel(db: AsyncSession, sheet_file) -> None:
                 solution=row[headers[5]],
             )
             scripts.append(script)
-            # Cột "ID các kịch bản liên quan" bây giờ ở vị trí thứ 3 trong headers (index 2)
             excel_related_ids_at_index.append(
                 str(row[headers[2]])
                 if headers[2] in row and not pd.isna(row[headers[2]])
@@ -374,11 +355,7 @@ async def insert_scripts_from_excel(db: AsyncSession, sheet_file) -> None:
 
         script_ids = [script.id for script in scripts]
 
-        asyncio.create_task(
-            process_background_with_session(vectordb_service.insert_scripts, script_ids)
-        )
-
-        return None
+        return script_ids
     except Exception as e:
         await db.rollback()
         raise e

@@ -1,11 +1,21 @@
 import datetime
 import uuid
+from typing import List
 
 from app.configs.constants import CHAT_ASSIGNMENT, SENTIMENTS
 from app.configs.database import Base
-from sqlalchemy import Column, DateTime, ForeignKey, Integer, String, Table, Text
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Table,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import Mapped, relationship
 
 # Association table for Guest-Interest many-to-many relationship
 guest_interest = Table(
@@ -225,17 +235,27 @@ class Script(Base):
     created_at = Column(DateTime, default=datetime.datetime.now)
 
     # Relationship to self for related scripts with cascade delete-orphan
-    related_scripts = relationship(
+    related_scripts: Mapped[List["Script"]] = relationship(
         "Script",
         secondary=script_attachments,
         primaryjoin=id == script_attachments.c.parent_script_id,
         secondaryjoin=id == script_attachments.c.attached_script_id,
-        backref="attached_scripts",
+        back_populates="attached_scripts",
+        cascade="save-update, merge, expunge",
+    )
+
+    # Relationship to access scripts that are attached to this script
+    attached_scripts: Mapped[List["Script"]] = relationship(
+        "Script",
+        secondary=script_attachments,
+        primaryjoin=id == script_attachments.c.attached_script_id,
+        secondaryjoin=id == script_attachments.c.parent_script_id,
+        back_populates="related_scripts",
         cascade="save-update, merge, expunge",
     )
 
     # Relationship to Sheet với back_populates rõ ràng
-    related_sheets = relationship(
+    related_sheets: Mapped[List[Sheet]] = relationship(
         "Sheet",
         secondary=script_sheets,
         lazy="select",
@@ -271,6 +291,11 @@ class Script(Base):
         if "related_sheets" in include and hasattr(self, "related_sheets"):
             result["related_sheets"] = [
                 sheet.to_dict() for sheet in self.related_sheets
+            ]
+
+        if "attached_scripts" in include and hasattr(self, "attached_scripts"):
+            result["attached_scripts"] = [
+                script.to_dict(include=[]) for script in self.attached_scripts
             ]
 
         return result
@@ -315,3 +340,13 @@ class Interest(Base):
             result["guests"] = [guest.to_dict(include=[]) for guest in self.guests]
 
         return result
+
+
+class ChatHistory(Base):
+    __tablename__ = "chat_histories"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    guest_id = Column(String, nullable=False)
+    content = Column(LargeBinary, nullable=False)
+    summary = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.now)

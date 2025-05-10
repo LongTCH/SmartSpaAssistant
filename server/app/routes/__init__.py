@@ -5,6 +5,7 @@ from app.routes.route_interests import router as interests_router
 from app.routes.route_scripts import router as scripts_router
 from app.routes.route_setting import router as settings_router
 from app.routes.route_sheets import router as sheets_router
+from app.routes.route_test_chat import router as test_chat_router
 from app.routes.route_webhooks import router as webhooks_router
 from app.routes.websocket import ws_router
 from fastapi import APIRouter, FastAPI
@@ -34,3 +35,4 @@ def include_router(app: FastAPI):
     app.include_router(interests_router)
     app.include_router(ai_router)
     app.include_router(settings_router)
+    app.include_router(test_chat_router)

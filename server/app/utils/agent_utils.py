@@ -4,36 +4,6 @@ import re
 import sqlparse
 
 
-def is_sql_query(text: str) -> bool:
-    """
-    Kiểm tra xem text có phải là một câu lệnh SQL hợp lệ cơ bản hay không.
-    Trả về True nếu text chứa ít nhất một câu lệnh SQL (SELECT, INSERT, UPDATE, DELETE, ...).
-    """
-    if not isinstance(text, str):
-        return False
-
-    # 1. Loại bỏ comment và whitespace đầu/cuối
-    cleaned = sqlparse.format(text, strip_comments=True).strip()
-    if not cleaned:
-        return False
-
-    # 2. Dùng regex đơn giản kiểm tra từ khóa đầu (case-insensitive)
-    #    Chỉ quan tâm token đầu, không dùng get_type() vì có thể trả về UNKNOWN với SQL phức tạp
-    pattern = r"(?i)^(SELECT|INSERT|UPDATE|DELETE|CREATE|ALTER|DROP|WITH)\b"
-    if not re.match(pattern, cleaned):
-        return False
-
-    # 3. Thử parse với sqlparse để chắc chắn không hoàn toàn vô nghĩa
-    try:
-        stmts = sqlparse.parse(cleaned)
-    except Exception:
-        return False
-    if not stmts:
-        return False
-
-    return True
-
-
 def is_read_only_sql(sql_text: str) -> bool:
     """
     Trả về True nếu sql_text chỉ chứa các câu lệnh read-only:
@@ -41,9 +11,6 @@ def is_read_only_sql(sql_text: str) -> bool:
     - Metadata: SHOW, DESCRIBE, EXPLAIN
     Ngược lại trả về False (INSERT, UPDATE, DELETE, DDL, hoặc không phải SQL).
     """
-    if not isinstance(sql_text, str):
-        return False
-
     # 1. Loại bỏ comment và whitespace dư thừa
     cleaned = sqlparse.format(sql_text, strip_comments=True).strip()
     if not cleaned:
@@ -93,7 +60,7 @@ def limit_text_words(text, max_words=100):
         return " ".join(words[:max_words]) + "..."
 
 
-def limit_sample_rows_content(sample_rows):
+def limit_sample_rows_content(sample_rows, limit_words=500):
     """Limit the length of text fields in sample_rows JSON content."""
     if not sample_rows:
         return sample_rows
@@ -110,11 +77,11 @@ def limit_sample_rows_content(sample_rows):
     if isinstance(data, dict):
         for key, value in data.items():
             if isinstance(value, str):
-                data[key] = limit_text_words(value)
+                data[key] = limit_text_words(value, limit_words)
             elif isinstance(value, (dict, list)):
-                data[key] = limit_sample_rows_content(value)
+                data[key] = limit_sample_rows_content(value, limit_words)
     elif isinstance(data, list):
         for i, item in enumerate(data):
-            data[i] = limit_sample_rows_content(item)
+            data[i] = limit_sample_rows_content(item, limit_words)
 
     return data

@@ -37,7 +37,7 @@ x-n8n: &service-n8n
     - N8N_ENFORCE_SETTINGS_FILE_PERMISSIONS=true
 
 x-ollama: &service-ollama
-  image: ollama/ollama:latest
+  image: ollama/ollama:0.3.10
   container_name: ollama
   networks: [ 'ssa' ]
   restart: unless-stopped
@@ -118,6 +118,7 @@ services:
     restart: unless-stopped
     ports:
       - 6333:6333
+      - 6334:6334
     volumes:
       - qdrant_storage:/qdrant/storage
 

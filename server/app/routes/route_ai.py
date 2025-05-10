@@ -1,5 +1,5 @@
 from app.configs.database import get_session
-from app.services.integrations import vectordb_service
+from app.services.integrations import script_rag_service
 from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -16,5 +16,5 @@ async def get_embeddings(request: Request, db: AsyncSession = Depends(get_sessio
     limit: int = int(body.get("limit", 5))
     if not inputs:
         raise HTTPException(status_code=400, detail="inputs is required")
-    scripts = await vectordb_service.get_similar_scripts(db, inputs, limit)
+    scripts = await script_rag_service.get_similar_scripts(db, inputs, limit)
     return scripts

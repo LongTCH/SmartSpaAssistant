@@ -149,7 +149,9 @@ async def get_scripts_by_ids(db: AsyncSession, script_ids: list[str]) -> list[Sc
     """
     stmt = (
         select(Script)
-        .options(selectinload(Script.related_scripts))
+        .options(
+            selectinload(Script.related_scripts), selectinload(Script.related_sheets)
+        )
         .where(Script.id.in_(script_ids))
     )
     result = await db.execute(stmt)

@@ -1,123 +1,72 @@
 import json
 from typing import Any
 
-from app.models import FileMetaData
+from pydantic import BaseModel
 
 
-class ChunkWrapper:
-    def __init__(
-        self, file_id: str, content: str, start_line: int, end_line: int, blob_type: str
-    ):
-        """Khởi tạo thông tin đoạn văn bản và số dòng bắt đầu, kết thúc."""
-        self.file_id = file_id
-        self.content = content
-        self.start_line = start_line
-        self.end_line = end_line
-        self.blob_type = blob_type
-
-    def get_content(self):
-        """Trả về nội dung đoạn văn bản."""
-        return self.content
-
-    def get_metadata(self):
-        """Trả về thông tin số dòng bắt đầu và kết thúc."""
-        return {
-            "source": "blob",
-            "blobType": self.blob_type,
-            "loc": {"lines": {"from": self.start_line, "to": self.end_line}},
-            "file_id": self.file_id,
-        }
+class ScriptChunkDto(BaseModel):
+    script_id: str
+    script_name: str
+    chunk: str
 
 
-class ProcessedFileData:
-    def __init__(self, data: str, metadata: FileMetaData):
-        """Khởi tạo thông tin tệp đã được xử lý."""
-        self.data = data
-        self.metadata = metadata
-
-    def get_text_for_embedding(self) -> str:
-        if self.metadata.mime_type == "application/pdf":
-            return self.data
-        elif self.metadata.mime_type == "application/vnd.google-apps.document":
-            return self.data
-        elif (
-            self.metadata.mime_type == "text/csv"
-            or self.metadata.mime_type == "application/vnd.google-apps.spreadsheet"
-        ):
-            # Chuyển object thành chuỗi JSON
-            return json.dumps(self.data, ensure_ascii=False)
+class SheetChunkDto(BaseModel):
+    sheet_id: str
+    sheet_name: str
+    chunk: str
+    id: int
 
 
-class ProcessedSheetData(ProcessedFileData):
-    def __init__(self, id: str, data: str, metadata: FileMetaData):
-        super().__init__(id, data, metadata)
+class PagingDto(BaseModel):
+    skip: int
+    limit: int
+    data: list
+    total: int
+    has_next: bool = None
+    has_prev: bool = None
 
-    def __init__(self, file_data: ProcessedFileData):
-        self.data = file_data.data
-        self.metadata = file_data.metadata
-
-    def get_sheet_schema(self) -> str:
-        """Trả về schema của tệp."""
-        return json.dumps(list(self.data[0].keys()), ensure_ascii=False)
-
-    def get_list_for_embedding(self) -> list:
-        # self.data is a list of dicts, convert to list string
-        result = []
-        for row in self.data:
-            # Chuyển object thành chuỗi JSON
-            json_str = json.dumps(row, ensure_ascii=False)
-            # escaped_str = json_str.replace("'", "''")  # Escape dấu nháy đơn
-            result.append(json_str)
-        return result
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.has_next = self.skip + self.limit < self.total
+        self.has_prev = self.skip > 0
 
 
-class PagingDto:
-    def __init__(self, skip: int, limit: int, data: list, total: int):
-        self.skip = skip
-        self.limit = limit
-        self.data = data
-        self.total = total
-        self.has_next = skip + limit < total
-        self.has_prev = skip > 0
-
-
-class WsMessageDto:
-    def __init__(self, message: str, data: Any = None):
-        self.message = message
-        self.data = data
+class WsMessageDto(BaseModel):
+    message: str
+    data: Any = None
 
     def __str__(self):
-        return json.dumps(self.__dict__(), ensure_ascii=False)
+        return json.dumps(self.to_json(), ensure_ascii=False)
 
     def to_json(self):
-        return self.__dict__
+        return self.model_dump_json()
 
 
-class PaginationDto:
-    def __init__(self, page: int, limit: int, total: int, data: list):
-        self.page = page
-        self.limit = limit
-        self.total = total
-        self.data = data
-        self.has_next = page * limit < total
-        self.has_prev = page > 1
-        self.next_page = page + 1 if self.has_next else None
-        self.prev_page = page - 1 if self.has_prev else None
-        self.total_pages = (total + limit - 1) // limit
+class PaginationDto(BaseModel):
+    page: int
+    limit: int
+    total: int
+    data: list
+    has_next: bool = None
+    has_prev: bool = None
+    next_page: int = None
+    prev_page: int = None
+    total_pages: int = None
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        self.has_next = self.page * self.limit < self.total
+        self.has_prev = self.page > 1
+        self.next_page = self.page + 1 if self.has_next else None
+        self.prev_page = self.page - 1 if self.has_prev else None
+        self.total_pages = (self.total + self.limit - 1) // self.limit
 
 
-class SheetColumnConfigDto:
-    def __init__(
-        self,
-        column_name: str,
-        column_type: str,
-        description: str = None,
-        is_index: bool = False,
-    ):
-        self.column_name = column_name
-        self.column_type = column_type
-        self.description = description
-        self.is_index = is_index
+class SheetColumnConfigDto(BaseModel):
+    column_name: str
+    column_type: str
+    description: str = None
+    is_index: bool = False
 
     def to_dict(self):
         return {

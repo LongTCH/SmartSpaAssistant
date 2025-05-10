@@ -2,7 +2,8 @@ import os
 
 from app.configs.database import get_session
 from app.services import interest_service
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from app.utils import asyncio_utils
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 from starlette.responses import Response as HttpResponse
@@ -37,9 +38,7 @@ async def get_all_published_interests(
 
 
 @router.get("/download")
-async def download_interests(
-    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
-):
+async def download_interests(db: AsyncSession = Depends(get_session)):
     """
     Download all interests as an Excel file.
 
@@ -52,7 +51,7 @@ async def download_interests(
         if not file_path:
             raise HTTPException(status_code=404, detail="No interests found")
 
-        background_tasks.add_task(os.remove, file_path)
+        asyncio_utils.run_background(os.remove, file_path)
         return FileResponse(
             path=file_path,
             filename="Xu hướng Khách hàng.xlsx",

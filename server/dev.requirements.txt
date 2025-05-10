@@ -1,8 +1,7 @@
 pytest 
 pytest-asyncio 
-httpx
 autoflake
 isort
 black
-streamlit
-nest-asyncio
+Faker
+pre-commit

@@ -2,6 +2,8 @@ import os
 
 from app.configs.database import get_session
 from app.services import script_service
+from app.services.integrations import script_rag_service
+from app.utils import asyncio_utils
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -110,8 +112,8 @@ async def upload_script(request: Request, db: AsyncSession = Depends(get_session
         file_contents = await file.read()
 
         # Create new Sheet record using the service
-        await script_service.insert_scripts_from_excel(db, file_contents)
-
+        script_ids = await script_service.insert_scripts_from_excel(db, file_contents)
+        asyncio_utils.run_background(script_rag_service.insert_scripts, script_ids)
         # Return the created sheet
         return HttpResponse(status_code=201)
 
@@ -126,7 +128,8 @@ async def insert_script(request: Request, db: AsyncSession = Depends(get_session
     Insert a new script into the database.
     """
     body = await request.json()
-    await script_service.insert_script(db, body)
+    new_script_id = await script_service.insert_script(db, body)
+    asyncio_utils.run_background(script_rag_service.insert_script, new_script_id)
     return HttpResponse(status_code=201)
 
 
@@ -139,6 +142,7 @@ async def update_script(
     """
     body = await request.json()
     await script_service.update_script(db, script_id, body)
+    asyncio_utils.run_background(script_rag_service.update_script, script_id)
     return HttpResponse(status_code=204)
 
 
@@ -150,6 +154,7 @@ async def delete_script(
     Delete a script from the database by its ID.
     """
     await script_service.delete_script(db, script_id)
+    asyncio_utils.run_background(script_rag_service.delete_script, script_id)
     return HttpResponse(status_code=204)
 
 
@@ -165,4 +170,5 @@ async def delete_multiple_scripts(
     if not script_ids:
         raise HTTPException(status_code=400, detail="script_ids is required")
     await script_service.delete_multiple_scripts(db, script_ids)
+    asyncio_utils.run_background(script_rag_service.delete_scripts, script_ids)
     return HttpResponse(status_code=204)

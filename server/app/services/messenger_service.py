@@ -6,10 +6,9 @@ from datetime import datetime
 from typing import Any, Dict
 
 import aiohttp
-import requests
 from app.configs import env_config
 from app.configs.constants import CHAT_ASSIGNMENT, CHAT_SIDES, PROVIDERS, WS_MESSAGES
-from app.configs.database import process_background_with_session
+from app.configs.database import async_session
 from app.dtos import WsMessageDto
 from app.models import Chat, Guest, GuestInfo
 from app.repositories import chat_repository, guest_info_repository, guest_repository
@@ -84,9 +83,11 @@ async def insert_guest(db: AsyncSession, sender_id):
                 account_name = data.get("name")
                 gender = data.get("gender")
                 # Tải ảnh từ URL
-                image_response = requests.get(image_url, params=image_params)
-                if image_response.status_code != 200:
-                    return {"error": "Không thể tải ảnh từ URL."}
+                async with session.get(
+                    image_url, params=image_params
+                ) as image_response:
+                    if image_response.status != 200:
+                        return {"error": "Không thể tải ảnh từ URL."}
 
                 fullname = data.get("last_name") + " " + data.get("first_name")
 
@@ -134,124 +135,125 @@ async def send_message_to_ws(guest: Guest):
 # Replace process_message with this fixed version:
 
 
-async def process_message(
-    db: AsyncSession, sender_psid, receipient_psid, timestamp, webhook_event
-):
+async def process_message(sender_psid, receipient_psid, timestamp, webhook_event):
     """
     Process incoming messages and implements waiting logic
     """
-    try:
-        message = webhook_event.get("message")
-        if message:
-            text = message.get("text")
-            if text:
-                text = messenger_to_markdown(text)
-            attachments = message.get("attachments")
-            created_at = datetime.fromtimestamp(timestamp / 1000)
+    async with async_session() as db:
+        try:
+            message = webhook_event.get("message")
+            if message:
+                text = message.get("text")
+                if text:
+                    text = messenger_to_markdown(text)
+                attachments = message.get("attachments")
+                created_at = datetime.fromtimestamp(timestamp / 1000)
 
-            if message.get("is_echo", False):
-                guest = await get_conversation(db, receipient_psid)
-                if guest:
-                    # Convert millisecond timestamp to seconds for proper datetime handling
-                    guest = await save_message(
-                        db, guest.id, CHAT_SIDES.STAFF, text, attachments, created_at
-                    )
-                    await send_message_to_ws(guest)
-                return
-
-            # Ensure we explicitly handle the case when guest is None
-            guest = await get_conversation(db, sender_psid)
-            if not guest:
-                guest = await insert_guest(db, sender_psid)
-                if not guest:
-                    print(f"Failed to create guest for sender_psid: {sender_psid}")
+                if message.get("is_echo", False):
+                    guest = await get_conversation(db, receipient_psid)
+                    if guest:
+                        # Convert millisecond timestamp to seconds for proper datetime handling
+                        guest = await save_message(
+                            db,
+                            guest.id,
+                            CHAT_SIDES.STAFF,
+                            text,
+                            attachments,
+                            created_at,
+                        )
+                        await send_message_to_ws(guest)
                     return
 
-            await save_message(
-                db, guest.id, CHAT_SIDES.CLIENT, text, attachments, created_at
-            )
-            guest = await guest_repository.get_guest_by_id(db, guest.id)
-            await send_message_to_ws(guest)
+                # Ensure we explicitly handle the case when guest is None
+                guest = await get_conversation(db, sender_psid)
+                if not guest:
+                    guest = await insert_guest(db, sender_psid)
+                    if not guest:
+                        print(f"Failed to create guest for sender_psid: {sender_psid}")
+                        return
 
-            # Khởi tạo hoặc cập nhật thông tin tin nhắn cho người dùng
-            if sender_psid not in map_message:
-                map_message[sender_psid] = {
-                    "timer": None,
-                    "texts": [],
-                    "attachments": [],
-                }
-
-            # Lưu tin nhắn mới
-            if text:
-                map_message[sender_psid]["texts"].append(text)
-            if attachments:
-                map_message[sender_psid]["attachments"].extend(attachments)
-
-            # Hủy timer cũ nếu có
-            if map_message[sender_psid]["timer"]:
-                map_message[sender_psid]["timer"].cancel()
-                map_message[sender_psid]["timer"] = None
-
-            # Tạo timer mới với db session được truyền vào
-            map_message[sender_psid]["timer"] = asyncio.create_task(
-                process_background_with_session(
-                    process_after_wait, sender_psid, LOCAL_DATA.chat_wait_seconds, guest
+                await save_message(
+                    db, guest.id, CHAT_SIDES.CLIENT, text, attachments, created_at
                 )
-            )
-    except Exception as e:
-        print(f"Error in process_message: {e}")
-        # Don't close the session here, it's managed by the caller
+                guest = await guest_repository.get_guest_by_id(db, guest.id)
+                await send_message_to_ws(guest)
+
+                # Khởi tạo hoặc cập nhật thông tin tin nhắn cho người dùng
+                if sender_psid not in map_message:
+                    map_message[sender_psid] = {
+                        "timer": None,
+                        "texts": [],
+                        "attachments": [],
+                    }
+
+                # Lưu tin nhắn mới
+                if text:
+                    map_message[sender_psid]["texts"].append(text)
+                if attachments:
+                    map_message[sender_psid]["attachments"].extend(attachments)
+
+                # Hủy timer cũ nếu có
+                if map_message[sender_psid]["timer"]:
+                    map_message[sender_psid]["timer"].cancel()
+                    map_message[sender_psid]["timer"] = None
+
+                # Tạo timer mới với db session được truyền vào
+                map_message[sender_psid]["timer"] = asyncio.create_task(
+                    process_after_wait(sender_psid, LOCAL_DATA.chat_wait_seconds, guest)
+                )
+        except Exception as e:
+            print(f"Error in process_message: {e}")
 
 
-async def process_after_wait(
-    db: AsyncSession, sender_psid, wait_seconds: float, guest: Guest
-):
+async def process_after_wait(sender_psid, wait_seconds: float, guest: Guest):
     """
     Đợi một khoảng thời gian rồi xử lý tin nhắn tích lũy
     """
-    try:
-        await asyncio.sleep(wait_seconds)
+    async with async_session() as db:
+        try:
+            await asyncio.sleep(wait_seconds)
 
-        # Lấy dữ liệu người dùng
-        if sender_psid in map_message:
-            user_data = map_message[sender_psid]
+            # Lấy dữ liệu người dùng
+            if sender_psid in map_message:
+                user_data = map_message[sender_psid]
 
-            # Lấy tin nhắn đã tích lũy
-            texts = user_data["texts"]
-            attachments = user_data["attachments"]
+                # Lấy tin nhắn đã tích lũy
+                texts = user_data["texts"]
+                attachments = user_data["attachments"]
 
-            # Xóa dữ liệu người dùng
-            del map_message[sender_psid]
+                # Xóa dữ liệu người dùng
+                del map_message[sender_psid]
 
-            # Gộp tin nhắn
-            combined_message = combine_messages(texts, attachments)
+                # Gộp tin nhắn
+                combined_message = combine_messages(texts, attachments)
 
-            # Xử lý tin nhắn
-            if combined_message:
-                sentiment, should_reset = await sentiment_service.analyze_sentiment(
-                    db, guest
-                )
-                if sentiment != guest.sentiment:
-                    guest.sentiment = sentiment
-                    await sentiment_service.update_sentiment_to_websocket(guest)
-                    await guest_repository.update_sentiment(db, guest.id, sentiment)
-                if should_reset:
-                    await guest_repository.reset_message_count(db, guest.id)
-                # Process interests
-                interest_ids = await interest_service.get_interest_ids_from_text(
-                    db, combined_message
-                )
-                await guest_repository.add_interests_to_guest_by_id(
-                    db, guest.id, interest_ids
-                )
-                # Handle the chat message
-                await handle_chat(sender_psid, combined_message, guest)
-
-    except asyncio.CancelledError as ex:
-        # Timer đã bị hủy do có tin nhắn mới
-        raise ex
-    except Exception as e:
-        print(f"Error in process_after_wait: {e}")
+                # Xử lý tin nhắn
+                if combined_message:
+                    sentiment, should_reset = await sentiment_service.analyze_sentiment(
+                        db, guest
+                    )
+                    if sentiment != guest.sentiment:
+                        guest.sentiment = sentiment
+                        await sentiment_service.update_sentiment_to_websocket(guest)
+                        await guest_repository.update_sentiment(db, guest.id, sentiment)
+                    if should_reset:
+                        await guest_repository.reset_message_count(db, guest.id)
+                    # Process interests
+                    interest_ids = await interest_service.get_interest_ids_from_text(
+                        db, combined_message
+                    )
+                    await guest_repository.add_interests_to_guest_by_id(
+                        db, guest.id, interest_ids
+                    )
+                    # Handle the chat message
+                    await handle_chat(sender_psid, combined_message, guest)
+                    db.commit()
+        except asyncio.CancelledError as ex:
+            db.rollback()
+            raise ex
+        except Exception as e:
+            db.rollback()
+            print(f"Error in process_after_wait: {e}")
 
 
 async def handle_chat(sender_psid, message, guest: Guest):
@@ -506,17 +508,16 @@ async def send_to_n8n(sender_psid, message):
     payload = {"sender_psid": sender_psid, "message": message}
 
     async with aiohttp.ClientSession() as session:
-        try:
-            async with session.post(
-                env_config.N8N_MESSAGE_WEBHOOK_URL, json=payload
-            ) as response:
-                if response.status == 200:
-                    response_data = await response.text()
-                    return response_data
-                else:
-                    return "Hiện tại em chưa thể trả lời được ạ. Em sẽ cố gắng trả lời sớm nhất có thể."
-        except Exception as e:
-            return "Hiện tại em chưa thể trả lời được ạ. Em sẽ cố gắng trả lời sớm nhất có thể."
+        # Send the message to n8n webhook
+        async with session.post(
+            env_config.N8N_MESSAGE_WEBHOOK_URL, json=payload
+        ) as response:
+            if response.status == 200:
+                response_data = await response.text()
+                return response_data
+            else:
+                print(f"Error: {response.status}")
+                return "Hiện tại em chưa thể trả lời được ạ. Em sẽ cố gắng trả lời sớm nhất có thể."
 
 
 def markdown_to_messenger(text):
