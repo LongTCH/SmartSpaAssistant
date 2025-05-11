@@ -11,7 +11,6 @@ from app.models import Sheet
 from app.repositories import sheet_repository
 from openpyxl.styles import Alignment
 from sqlalchemy import Boolean, Column, DateTime, Integer, Numeric, String, Text, text
-from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.ext.asyncio import AsyncSession
 
 
@@ -57,8 +56,9 @@ async def get_sheet_by_id(db: AsyncSession, sheet_id: str) -> dict:
 
 async def insert_sheet(db: AsyncSession, sheet: dict) -> str:
     try:
-        # 1. Parse column configuration
+        # Parse column configuration
         column_config = json.loads(sheet.get("column_config"))
+
         columns = [
             SheetColumnConfigDto(
                 column_name=item.get("column_name"),
@@ -68,42 +68,35 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> str:
             )
             for item in column_config
         ]
+        sheet_file = sheet["file"]
 
-        # 2. Create new Sheet record (assuming Sheet is a defined ORM model)
-        new_sheet = Sheet(
-            name=sheet["name"],
-            description=sheet["description"],
-            status=sheet["status"],
-            column_config=column_config,
+        # If user requested information about available sheets, return that instead
+        if sheet.get("get_sheet_names", False):
+            # Read all sheet names from the Excel file
+            xls = pd.ExcelFile(BytesIO(sheet_file))
+            return {"sheet_names": xls.sheet_names}
+
+        # Check available sheets in the Excel file
+        xls = pd.ExcelFile(BytesIO(sheet_file))
+        available_sheets = xls.sheet_names
+
+        # Priority order for reading sheets:
+        # 1. Use sheet_name from request if provided
+        # 2. Use 'data' sheet if it exists
+        # 3. Fall back to the first sheet (index 0)
+        if sheet.get("sheet_name"):
+            sheet_name = sheet.get("sheet_name")
+        elif "data" in available_sheets:
+            sheet_name = "data"
+        else:
+            sheet_name = 0  # Default to first sheet
+
+        # Read the Excel file with the selected sheet
+        excel_data = pd.read_excel(
+            BytesIO(sheet_file), engine="openpyxl", sheet_name=sheet_name
         )
 
-        # Insert sheet to get ID
-        new_sheet = await sheet_repository.insert_sheet(db, new_sheet)
-
-        # Replace hyphens with underscores in table name for SQL compatibility
-        sanitized_table_name = new_sheet.id.replace("-", "_")
-
-        # Set the table_name field
-        new_sheet.table_name = sanitized_table_name
-
-        # Kiểm tra xem bảng đã tồn tại chưa
-        check_table_sql = text(
-            f"""
-            SELECT EXISTS (
-                SELECT 1 FROM information_schema.tables 
-                WHERE table_name = '{sanitized_table_name}'
-            )
-        """
-        )
-        result = await db.execute(check_table_sql)
-        table_exists = result.scalar()
-
-        if table_exists:
-            raise Exception(
-                f"Bảng có tên '{sanitized_table_name}' đã tồn tại trong cơ sở dữ liệu"
-            )
-
-        # 3. Define SQLAlchemy column types mapping
+        # Define SQLAlchemy column types mapping
         type_mapping = {
             "String": String,
             "Text": Text,
@@ -112,17 +105,9 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> str:
             "Numeric": Numeric,
             "DateTime": DateTime,
         }
-
-        # 4. Create list of SQLAlchemy columns
+        # Create list of SQLAlchemy columns
         sqlalchemy_columns = []
-        # Add primary key column first - configured as auto-increment
-        sqlalchemy_columns.append(
-            Column("id", Integer, primary_key=True, autoincrement=True)
-        )
-        sqlalchemy_columns.append(
-            Column("data_fts", JSONB, nullable=True)  # For PGroonga FTS
-        )
-
+        sqlalchemy_columns.append(Column("id", Integer, primary_key=True))
         # Create a mapping of column names to their types for later use
         column_type_map = {}
 
@@ -131,6 +116,8 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> str:
                 raise ValueError(
                     f"Unsupported column type: {col.column_type}. Supported types are: {', '.join(type_mapping.keys())}"
                 )
+            if col.column_name == "id":
+                continue  # Skip 'id' column as it's already added
             col_type = type_mapping[col.column_type]
             column = Column(
                 col.column_name, col_type, index=col.is_index, nullable=True
@@ -138,53 +125,11 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> str:
             sqlalchemy_columns.append(column)
             # Store column type for data conversion
             column_type_map[col.column_name] = col.column_type
-
-        # 5. Dynamically define table class
-        DynamicTable = type(
-            sanitized_table_name,
-            (Base,),
-            {
-                "__tablename__": sanitized_table_name,
-                "__table_args__": {"extend_existing": True},
-                **{col.name: col for col in sqlalchemy_columns},
-            },
-        )
-
-        # 6. Create table in the database using SQLAlchemy properly
-        # Use a connection obtained from the session to create the table
-        connection = await db.connection()
-
-        # Create the table using run_sync with the connection
-        await connection.run_sync(
-            lambda sync_conn: DynamicTable.__table__.create(sync_conn, checkfirst=True)
-        )
-
-        index_name = f"pgroonga_{sanitized_table_name}_idx"
-        index_sql = text(
-            f"""
-            CREATE INDEX "{index_name}" ON "{sanitized_table_name}" 
-            USING pgroonga (data_fts)
-        """
-        )
-        await db.execute(index_sql)
-
-        # 7. Read Excel file contents
-        sheet_file = sheet["file"]
-        excel_data = pd.read_excel(BytesIO(sheet_file), engine="openpyxl")
-
-        # Remove 'id' column if it exists in the Excel file
-        if "id" in excel_data.columns:
-            excel_data = excel_data.drop(columns=["id"])
-
-        # 8. Convert Excel data to list of dictionaries with proper type handling
+        # Convert Excel data to list of dictionaries with proper type handling
         rows = []
         for _, row in excel_data.iterrows():
             row_dict = {}
             for col in excel_data.columns:
-                # Skip 'id' column (additional check to ensure it's not processed)
-                if col.lower() == "id":
-                    continue
-
                 value = row[col]
 
                 # Handle missing values
@@ -247,21 +192,97 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> str:
                     # If column is not in our mapping, just use the raw value
                     row_dict[col] = value
 
-            row_dict_copy = row_dict.copy()
-            for key, value in row_dict_copy.items():
-                if isinstance(value, (datetime, pd.Timestamp)):
-                    row_dict_copy[key] = value.isoformat()
-            row_dict["data_fts"] = json.dumps(
-                row_dict_copy, ensure_ascii=False
-            )  # For PGroonga FTS
             rows.append(row_dict)
 
-        # 9. Insert rows into the dynamically created table
+        # Validate that we have 'id' column with type Integer in column_config
+        if not any(
+            col.column_name == "id" and col.column_type == "Integer" for col in columns
+        ):
+            raise ValueError(
+                "Column 'id' with type Integer is required in column_config"
+            )
+        # Validate that data of 'id' column is unique
+        id_values = [row["id"] for row in rows if "id" in row]
+        if len(id_values) != len(set(id_values)):
+            raise ValueError("Duplicate values found in 'id' column")
+        # Validate that 'id' column is not null or empty
+        if any(row["id"] is None or row["id"] == "" for row in rows):
+            raise ValueError("Null or empty values found in 'id' column")
+
+        # Create new Sheet record (assuming Sheet is a defined ORM model)
+        new_sheet = Sheet(
+            name=sheet["name"],
+            description=sheet["description"],
+            status=sheet["status"],
+            column_config=column_config,
+        )
+
+        # Insert sheet to get ID
+        new_sheet = await sheet_repository.insert_sheet(db, new_sheet)
+
+        # Replace hyphens with underscores in table name for SQL compatibility
+        sanitized_table_name = new_sheet.id.replace("-", "_")
+
+        # Set the table_name field
+        new_sheet.table_name = sanitized_table_name
+
+        # Kiểm tra xem bảng đã tồn tại chưa
+        check_table_sql = text(
+            f"""
+            SELECT EXISTS (
+                SELECT 1 FROM information_schema.tables 
+                WHERE table_name = '{sanitized_table_name}'
+            )
+        """
+        )
+        result = await db.execute(check_table_sql)
+        table_exists = result.scalar()
+
+        if table_exists:
+            raise Exception(
+                f"Bảng có tên '{sanitized_table_name}' đã tồn tại trong cơ sở dữ liệu"
+            )
+
+        # Dynamically define table class
+        DynamicTable = type(
+            sanitized_table_name,
+            (Base,),
+            {
+                "__tablename__": sanitized_table_name,
+                "__table_args__": {"extend_existing": True},
+                **{col.name: col for col in sqlalchemy_columns},
+            },
+        )
+
+        # Create table in the database using SQLAlchemy properly
+        # Use a connection obtained from the session to create the table
+        connection = await db.connection()
+
+        # Create the table using run_sync with the connection
+        await connection.run_sync(
+            lambda sync_conn: DynamicTable.__table__.create(sync_conn, checkfirst=True)
+        )
+
+        # Create PGroonga indexes on all String and Text columns for better text search performance
+        for col in columns:
+            if col.column_type in ["String", "Text"]:
+                col_index_name = (
+                    f"pgroonga_{sanitized_table_name}_{col.column_name}_idx"
+                )
+                col_index_sql = text(
+                    f"""
+                    CREATE INDEX "{col_index_name}" ON "{sanitized_table_name}" 
+                    USING pgroonga ("{col.column_name}")
+                """
+                )
+                await db.execute(col_index_sql)
+
+        # Insert rows into the dynamically created table
         # Note: id will be automatically assigned by the database
         if rows:
             db.add_all([DynamicTable(**row) for row in rows])
 
-        # 10. Commit the transaction and refresh the new_sheet instance
+        # Commit the transaction and refresh the new_sheet instance
         await db.commit()
         await db.refresh(new_sheet)
 
@@ -373,64 +394,129 @@ async def delete_multiple_sheets(db: AsyncSession, sheet_ids: list[str]) -> None
 
 async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
     """
-    Download a sheet as an Excel file using the dynamic table approach.
+    Download a sheet as an Excel file.
+    The Excel file will contain three sheets:
+    1. 'data': Contains the main table data.
+    2. 'sheet_info': Contains the table name and description.
+    3. 'column_config': Contains the configuration for each column.
 
     Args:
         db: Database session
         sheet_id: ID of the sheet to download
 
     Returns:
-        str: Đường dẫn đến file Excel đã lưu trên ổ đĩa
+        str: Path to the saved Excel file.
     """
     # Get the sheet with its schema
     sheet = await sheet_repository.get_sheet_by_id(db, sheet_id)
     if not sheet:
         raise Exception(f"Sheet with ID {sheet_id} not found")
 
-    # Parse the schema from the column config
-    columns = [item.get("column_name") for item in sheet.column_config]
-
-    # Ensure columns is a list and not empty
-    if not isinstance(columns, list) or len(columns) == 0:
-        raise Exception(f"Invalid column configuration for sheet {sheet_id}")
-
-    # Tạo thư mục temp nếu chưa tồn tại
+    # Create temp directory if it doesn't exist
     temp_dir = os.path.join(os.getcwd(), "temp")
     if not os.path.exists(temp_dir):
         os.makedirs(temp_dir)
 
-    # Tạo tên file với timestamp và tên sheet
+    # Create filename with timestamp and a sanitized sheet name
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"{sheet.id}_{timestamp}.xlsx"
+    sane_sheet_name = "".join(c if c.isalnum() else "_" for c in sheet.name)
+    filename = f"{sane_sheet_name}_{sheet.id}_{timestamp}.xlsx"
     file_path = os.path.join(temp_dir, filename)
 
-    # Get the table name from the sheet record
+    # --- Prepare 'data' sheet ---
+    data_columns = [item.get("column_name") for item in sheet.column_config]
+    if not isinstance(data_columns, list) or not data_columns:
+        raise Exception(f"Invalid or empty column configuration for sheet {sheet_id}")
+
     table_name = sheet.table_name
-
-    # Dynamically query only the columns specified in the sheet's column_config
     rows = await sheet_repository.get_all_rows_with_sheet_and_columns(
-        db, table_name, columns
+        db, table_name, data_columns
     )
-
-    # Convert to list of dictionaries
     data_list = [dict(row) for row in rows]
+    df_data = pd.DataFrame(data_list)
+    # Ensure columns in DataFrame match data_columns, even if data_list is empty
+    if df_data.empty and data_columns:
+        df_data = pd.DataFrame(columns=data_columns)
 
-    # Create DataFrame
-    df = pd.DataFrame(data_list)
+    # --- Prepare 'sheet_info' sheet ---
+    sheet_info_data = {
+        "field": ["table", "description"],
+        "value": [sheet.name, sheet.description],
+    }
+    df_sheet_info = pd.DataFrame(sheet_info_data)
 
-    # Lưu DataFrame thành file Excel
+    # --- Prepare 'column_config' sheet ---
+    column_config_list = []
+    for config_item in sheet.column_config:
+        column_config_list.append(
+            {
+                "column_name": config_item.get("column_name"),
+                "column_type": config_item.get("column_type"),
+                "description": config_item.get("description"),
+                "is_index": config_item.get("is_index", False),
+            }
+        )
+    df_column_config = pd.DataFrame(column_config_list)
+    # Ensure the correct columns and order
+    if not df_column_config.empty:
+        df_column_config = df_column_config[
+            ["column_name", "column_type", "description", "is_index"]
+        ]
+    else:  # Handle empty column_config case
+        df_column_config = pd.DataFrame(
+            columns=["column_name", "column_type", "description", "is_index"]
+        )
+
+    # Helper function to adjust column widths
+
+    def adjust_column_widths_in_worksheet(worksheet, dataframe):
+        for idx, col_name_str in enumerate(dataframe.columns):
+            column_letter = chr(65 + idx)
+            header_len = len(str(col_name_str))
+
+            if not dataframe[col_name_str].empty:
+                try:
+                    data_max_len = dataframe[col_name_str].astype(str).map(len).max()
+                # Handle potential errors if astype(str) fails for some complex types
+                except TypeError:
+                    data_max_len = header_len
+            else:
+                data_max_len = 0
+
+            if pd.isna(data_max_len):
+                data_max_len = 0
+
+            data_max_len = int(data_max_len)
+            max_len = max(header_len, data_max_len)
+            # Min width 10, Max width 50
+            adjusted_width = min(max(max_len + 2, header_len + 2, 10), 50)
+            worksheet.column_dimensions[column_letter].width = adjusted_width
+
+    # Write DataFrames to Excel file
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name=sheet.name)
-
-        # Điều chỉnh chiều rộng cột
-        worksheet = writer.sheets[sheet.name]
-        # Set headers alignment to left
-        for cell in worksheet[1]:
+        # Write 'data' sheet
+        df_data.to_excel(writer, index=False, sheet_name="data")
+        worksheet_data = writer.sheets["data"]
+        for cell in worksheet_data[1]:  # Header row
             cell.alignment = Alignment(horizontal="left")
-        # Adjust column widths
-        for idx, col in enumerate(df.columns):
-            max_len = max(df[col].astype(str).map(len).max(), len(str(col)))
-            worksheet.column_dimensions[chr(65 + idx)].width = max_len
+        if not df_data.empty:
+            adjust_column_widths_in_worksheet(worksheet_data, df_data)
+
+        # Write 'sheet_info' sheet
+        df_sheet_info.to_excel(writer, index=False, sheet_name="sheet_info")
+        worksheet_sheet_info = writer.sheets["sheet_info"]
+        if not df_sheet_info.empty:
+            adjust_column_widths_in_worksheet(worksheet_sheet_info, df_sheet_info)
+            for cell in worksheet_sheet_info[1]:  # Header row
+                cell.alignment = Alignment(horizontal="left")
+
+        # Write 'column_config' sheet
+        df_column_config.to_excel(writer, index=False, sheet_name="column_config")
+        worksheet_column_config = writer.sheets["column_config"]
+        if not df_column_config.empty:
+            adjust_column_widths_in_worksheet(worksheet_column_config, df_column_config)
+            for cell in worksheet_column_config[1]:  # Header row
+                cell.alignment = Alignment(horizontal="left")
 
     return file_path
 
@@ -467,9 +553,7 @@ async def get_sheet_rows_by_sheet_id(
     if skip >= count:
         return PagingDto(skip=skip, limit=limit, total=count, data=[])
 
-    # Extract column names from sheet.column_config
-    columns = ["id"]
-    columns.extend([item.get("column_name") for item in sheet.column_config])
+    columns = [item.get("column_name") for item in sheet.column_config]
     rows = await sheet_repository.get_rows_with_columns(
         db, table_name, columns, skip, limit
     )

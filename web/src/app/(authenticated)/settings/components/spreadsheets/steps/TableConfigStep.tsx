@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -20,23 +19,46 @@ import {
 } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { AlertCircle } from "lucide-react";
-import { ColumnConfig } from "@/types";
+import { ColumnConfig, ColumnType } from "@/types";
+import { toast } from "sonner";
 
 interface TableConfigStepProps {
   columnConfigs: ColumnConfig[];
   updateColumnConfig: (index: number, field: string, value: any) => void;
   excelData: any; // Add excelData prop
+  allRows: any[][]; // All rows from 'data' sheet for more accurate type prediction
+  setNextEnabled: (enabled: boolean) => void; // Add a prop to control the Next button state
 }
 
 // Cập nhật hàm predictColumnType để xử lý tốt hơn các trường ngày tháng
-function predictColumnType(data: any[], columnName: string = ""): string {
+function predictColumnType(data: any[], columnName: string = ""): ColumnType {
+  // ID column validation is now handled in UploadStep.
+  // Here, we just hint it as Integer if the name is 'id'.
+  // The actual strict validation (uniqueness, non-empty) happens before this step.
+  if (columnName.toLowerCase() === "id") {
+    // Basic check if data looks like integers, but not as strict as UploadStep
+    const looksLikeInteger = data.every((value) => {
+      if (value === null || value === undefined || String(value).trim() === "")
+        return true; // Allow empty for type prediction, UploadStep handles non-empty rule
+      if (typeof value === "number" && Number.isInteger(value)) return true;
+      if (typeof value === "string" && /^-?\d+$/.test(String(value).trim()))
+        return true;
+      return false;
+    });
+    if (looksLikeInteger) {
+      return "Integer" as ColumnType;
+    }
+    // If it doesn't look like an integer here, let it fall through to other type checks
+    // or default to String. The critical validation is already done.
+  }
+
   // Kiểm tra kiểu Boolean
   const booleanPattern = data.every(
     (value) =>
       value === true || value === false || value === "TRUE" || value === "FALSE"
   );
   if (booleanPattern) {
-    return "Boolean";
+    return "Boolean" as ColumnType;
   }
 
   // Nếu tên cột chứa date/time thì cũng dự đoán là DateTime
@@ -45,7 +67,7 @@ function predictColumnType(data: any[], columnName: string = ""): string {
     columnName &&
     dateKeywords.some((keyword) => columnName.toLowerCase().includes(keyword))
   ) {
-    return "DateTime";
+    return "DateTime" as ColumnType;
   }
 
   // Kiểm tra kiểu Integer
@@ -61,7 +83,7 @@ function predictColumnType(data: any[], columnName: string = ""): string {
   });
 
   if (integerPattern) {
-    return "Integer";
+    return "Integer" as ColumnType;
   }
 
   // Kiểm tra kiểu Numeric
@@ -77,7 +99,7 @@ function predictColumnType(data: any[], columnName: string = ""): string {
   });
 
   if (numericPattern) {
-    return "Numeric";
+    return "Numeric" as ColumnType;
   }
 
   // Kiểm tra kiểu Text (văn bản dài)
@@ -86,19 +108,21 @@ function predictColumnType(data: any[], columnName: string = ""): string {
   );
 
   if (textPattern) {
-    return "Text";
+    return "Text" as ColumnType;
   }
 
   // Mặc định là String cho các giá trị chuỗi khác
-  return "String";
+  return "String" as ColumnType;
 }
 
 export function TableConfigStep({
   columnConfigs,
   updateColumnConfig,
   excelData,
-}: TableConfigStepProps) {
-  const validColumnTypes = [
+  allRows, // Destructure allRows
+  setNextEnabled, // Add a prop to control the Next button state
+}: TableConfigStepProps & { setNextEnabled: (enabled: boolean) => void }) {
+  const validColumnTypes: { value: ColumnType; label: string }[] = [
     { value: "String", label: "String (Văn bản ngắn)" },
     { value: "Text", label: "Text (Văn bản dài)" },
     { value: "Integer", label: "Integer (Số nguyên)" },
@@ -108,32 +132,108 @@ export function TableConfigStep({
   ];
 
   useEffect(() => {
-    if (excelData) {
-      // Adjust the sampleRows to exclude the header row
-      const sampleRows = excelData.rows.slice(1, 11); // Skip the header row and use the first 10 data rows
+    let initialTypesWereMissing = false;
+    columnConfigs.forEach((config) => {
+      if (!config.column_type) {
+        initialTypesWereMissing = true;
+      }
+    });
 
-      // Update the columnData extraction to exclude the header
+    if (
+      excelData &&
+      excelData.rows &&
+      excelData.headers &&
+      allRows &&
+      allRows.length > 0
+    ) {
+      const dataRowsForPrediction = allRows.slice(1);
+      let hasError = false;
+
       const predictedConfigs = columnConfigs.map((config, index) => {
-        const columnData: Array<any> = sampleRows.map(
-          (row: Record<number, any>) => row[index]
+        let currentConfigType = config.column_type;
+        // If the type was initially undefined/falsy, treat it as "String" for prediction logic below
+        if (!currentConfigType) {
+          currentConfigType = "String" as ColumnType;
+        }
+
+        if (index >= excelData.headers.length) {
+          hasError = true;
+          return { ...config, column_type: currentConfigType }; // Use current (possibly defaulted String)
+        }
+
+        const columnData: Array<any> = dataRowsForPrediction.map(
+          (row: any[]) => row[index]
         );
-        const predictedType = predictColumnType(columnData, config.column_name);
+
+        let predictedType = currentConfigType;
+        const isIdColumn = config.column_name.toLowerCase() === "id";
+
+        // Only predict if current type is "String" (either originally or defaulted)
+        if (predictedType === "String") {
+          if (isIdColumn) {
+            // For 'id' column, if UploadStep set it as Integer, it won't be "String" here.
+            // If it is "String" (e.g. defaulted from undefined, or column_config had it as String),
+            // try to predict it as Integer.
+            const idSpecificPrediction = predictColumnType(
+              columnData,
+              config.column_name
+            );
+            if (idSpecificPrediction === "Integer") {
+              predictedType = "Integer" as ColumnType;
+            } // else it remains "String"
+          } else {
+            predictedType = predictColumnType(columnData, config.column_name);
+          }
+        } else if (
+          isIdColumn &&
+          config.column_type !== "Integer" &&
+          predictedType !== "Integer"
+        ) {
+          // This case handles if 'id' came from column_config as non-Integer, or was undefined.
+          // We want to ensure it becomes Integer if data allows.
+          const idSpecificPrediction = predictColumnType(
+            columnData,
+            config.column_name
+          );
+          if (idSpecificPrediction === "Integer") {
+            predictedType = "Integer" as ColumnType;
+          }
+        }
+
         return { ...config, column_type: predictedType };
       });
 
-      // Only update column configs if there are changes
-      predictedConfigs.forEach((config, index) => {
-        if (config.column_type !== columnConfigs[index].column_type) {
-          updateColumnConfig(index, "column_type", config.column_type);
+      predictedConfigs.forEach((pConfig, index) => {
+        // Update if the new type is different from the original prop's type
+        if (pConfig.column_type !== columnConfigs[index].column_type) {
+          updateColumnConfig(index, "column_type", pConfig.column_type);
         }
       });
+
+      setNextEnabled(!hasError);
+
+      if (hasError) {
+        toast.dismiss();
+        toast.error("Có lỗi trong cấu hình cột. Vui lòng kiểm tra lại.");
+      }
+    } else {
+      // Prediction data (excelData, allRows) is NOT available.
+      // If any types were initially missing, update them to "String".
+      if (initialTypesWereMissing) {
+        columnConfigs.forEach((config, index) => {
+          if (!config.column_type) {
+            updateColumnConfig(index, "column_type", "String" as ColumnType);
+          }
+        });
+      }
+      // Enable Next if columnConfigs exist, otherwise disable.
+      setNextEnabled(columnConfigs && columnConfigs.length > 0);
     }
-  }, [excelData]); // Remove columnConfigs and updateColumnConfig from dependencies
+  }, [excelData, allRows, columnConfigs, updateColumnConfig, setNextEnabled]);
 
   return (
     <div className="space-y-6 p-4">
       <p className="font-medium text-yellow-800">Cấu hình cột dữ liệu</p>
-
       {/* Warning message */}
       <div className="bg-red-50 border border-red-200 rounded p-4 mb-4 text-sm flex items-start space-x-2">
         <AlertCircle className="h-5 w-5 text-red-500 mt-0.5 flex-shrink-0" />
@@ -151,36 +251,44 @@ export function TableConfigStep({
           </ul>
         </div>
       </div>
-
       <div>
-        <div className="border rounded-md overflow-hidden">
-          <Table>
-            {" "}
+        <div className="border rounded-md overflow-y-auto max-h-[400px]">
+          {/* Ensure this div enables scrolling */}
+          <Table className="w-full table-fixed">
             <TableHeader>
               <TableRow className="bg-slate-50">
-                <TableHead className="w-10">#</TableHead>
-                <TableHead className="w-[20%]">Tên cột</TableHead>
-                <TableHead className="w-[20%]">Kiểu dữ liệu</TableHead>
-                <TableHead className="w-[50%]">Mô tả</TableHead>
+                <TableHead className="w-10 border-r">#</TableHead>
+                <TableHead className="w-[15%] border-r">Tên cột</TableHead>
+                <TableHead className="w-[20%] border-r">Kiểu dữ liệu</TableHead>
+                <TableHead className="border-r">Mô tả</TableHead>
                 <TableHead className="w-[10%] text-center">Index</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {columnConfigs.map((column, index) => (
                 <TableRow key={index}>
-                  <TableCell className="align-middle">{index + 1}</TableCell>
-                  <TableCell className="align-middle font-medium">
+                  <TableCell className="align-middle border-r">
+                    {index + 1}
+                  </TableCell>
+                  <TableCell className="align-middle font-medium border-r">
                     {column.column_name}
                   </TableCell>
-                  <TableCell className="align-middle">
+                  <TableCell className="align-middle border-r">
                     <Select
                       value={column.column_type}
                       onValueChange={(value) =>
                         updateColumnConfig(index, "column_type", value)
                       }
+                      disabled={column.column_name.toLowerCase() === "id"}
                     >
                       <SelectTrigger className="w-full">
-                        <SelectValue placeholder="Chọn kiểu dữ liệu" />
+                        <SelectValue placeholder="Chọn kiểu dữ liệu">
+                          {column.column_type
+                            ? validColumnTypes.find(
+                                (type) => type.value === column.column_type
+                              )?.label
+                            : "Chọn kiểu dữ liệu"}
+                        </SelectValue>
                       </SelectTrigger>
                       <SelectContent>
                         {validColumnTypes.map((option) => (
@@ -190,32 +298,29 @@ export function TableConfigStep({
                         ))}
                       </SelectContent>
                     </Select>
-                  </TableCell>{" "}
-                  <TableCell className="align-middle">
-                    <div>
-                      <Textarea
-                        value={column.description || ""}
-                        onChange={(e) =>
-                          updateColumnConfig(
-                            index,
-                            "description",
-                            e.target.value
-                          )
-                        }
-                        placeholder="Mô tả về cột dữ liệu này"
-                        className="min-h-[38px] max-h-[150px] resize-y"
-                      />
-                    </div>
+                  </TableCell>
+                  <TableCell className="align-middle border-r">
+                    <Textarea
+                      value={column.description || ""}
+                      onChange={(e) =>
+                        updateColumnConfig(index, "description", e.target.value)
+                      }
+                      placeholder="Mô tả về cột dữ liệu này"
+                      className="min-h-[38px] max-h-[150px] resize-y w-full"
+                    />
                   </TableCell>
                   <TableCell className="text-center align-middle">
-                    <div className="flex justify-center">
-                      <Checkbox
-                        checked={column.is_index || false}
-                        onCheckedChange={(checked) =>
-                          updateColumnConfig(index, "is_index", !!checked)
-                        }
-                      />
-                    </div>
+                    <Checkbox
+                      checked={
+                        column.column_name.toLowerCase() === "id"
+                          ? true
+                          : column.is_index || false
+                      }
+                      onCheckedChange={(checked) =>
+                        updateColumnConfig(index, "is_index", !!checked)
+                      }
+                      disabled={column.column_name.toLowerCase() === "id"}
+                    />
                   </TableCell>
                 </TableRow>
               ))}
@@ -223,7 +328,6 @@ export function TableConfigStep({
           </Table>
         </div>
       </div>
-
       {/* Additional help information */}
       <div className="bg-blue-50 border border-blue-200 rounded p-4 text-sm">
         <p className="font-medium text-blue-800 mb-1">

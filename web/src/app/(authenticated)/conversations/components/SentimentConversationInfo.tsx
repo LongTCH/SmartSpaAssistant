@@ -2,7 +2,6 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Conversation } from "@/types";
-import { useRouter } from "next/navigation";
 
 interface SentimentConversationInfoProps {
   conversation: Conversation;
@@ -14,8 +13,6 @@ interface SentimentConversationInfoProps {
 export default function SentimentConversationInfo(
   props: SentimentConversationInfoProps
 ) {
-  const router = useRouter();
-
   const getTimeDifference = (date: string) => {
     const now = new Date();
     const messageDate = new Date(date);

@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { X } from "lucide-react";
 import { interestService } from "@/services/api/interest.service";
 import { Interest } from "@/types";
+import { toast } from "sonner";
 
 interface KeywordFilterProps {
   selectedKeywords: string[];
@@ -28,7 +29,9 @@ export function KeywordFilter({
         setIsLoading(true);
         const response = await interestService.getAllPublishedInterests();
         setInterests(response);
-      } catch (error) {
+      } catch {
+        // console.error("Error fetching keywords:", error);
+        toast.error("Không thể tải từ khóa.");
       } finally {
         setIsLoading(false);
       }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -78,7 +78,7 @@ export function InterestsTab() {
   const hasInitialFetch = useRef(false);
 
   // Fetch interests data from API
-  const fetchInterests = async () => {
+  const fetchInterests = useCallback(async () => {
     // Nếu đang tải, không fetch thêm
     if (isLoading) return;
     setIsLoading(true);
@@ -92,12 +92,12 @@ export function InterestsTab() {
       setInterests(response.data);
       setTotalPages(response.total_pages);
       setTotalItems(response.total);
-    } catch (error) {
+    } catch {
       toast.error("Không thể tải danh sách nhãn");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentPage, status, isLoading]);
 
   // Fetch data when page or status changes
   useEffect(() => {
@@ -109,8 +109,11 @@ export function InterestsTab() {
     ) {
       fetchInterests();
       hasInitialFetch.current = true;
+      // Update old values after fetch
+      oldPage = currentPage;
+      oldStatus = status;
     }
-  }, [currentPage, status]);
+  }, [currentPage, status, fetchInterests]);
 
   // Check if all interests on current page are selected
   const allCurrentPageSelected = useMemo(() => {
@@ -192,7 +195,7 @@ export function InterestsTab() {
 
         toast.success(`Đã xóa ${count} nhãn`);
         setShowDeleteConfirmation(false);
-      } catch (error) {
+      } catch {
         toast.error("Có lỗi xảy ra khi xóa nhãn");
       } finally {
         setIsDeleting(false);
@@ -211,7 +214,7 @@ export function InterestsTab() {
 
         toast.success("Đã xóa nhãn");
         setShowDeleteConfirmation(false);
-      } catch (error) {
+      } catch {
         toast.error("Có lỗi xảy ra khi xóa nhãn");
       } finally {
         setIsDeleting(false);
@@ -273,7 +276,7 @@ export function InterestsTab() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success("Tải xuống nhãn thành công");
-    } catch (error) {
+    } catch {
       toast.dismiss(loadingToast);
       toast.error("Không thể tải xuống nhãn");
     }

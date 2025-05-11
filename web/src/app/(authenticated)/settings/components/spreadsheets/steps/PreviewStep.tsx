@@ -37,7 +37,7 @@ const typeColors: Record<string, string> = {
 };
 
 // Định dạng dữ liệu Excel cho hiển thị - tương tự như trong PreviewSheetModal
-const formatExcelValue = (value: any, type: string): string => {
+const formatExcelValue = (value: any, type: string): any => {
   // Trả về chuỗi rỗng nếu giá trị rỗng
   if (value === null || value === undefined || value === "") {
     return "";
@@ -56,8 +56,9 @@ const formatExcelValue = (value: any, type: string): string => {
           if (!isNaN(date.getTime())) {
             return formatDate ? formatDate(date) : date.toLocaleString();
           }
-        } catch (e) {
+        } catch {
           // Nếu không parse được thì trả về chuỗi gốc
+          return String(value);
         }
       }
 
@@ -94,8 +95,9 @@ const formatExcelValue = (value: any, type: string): string => {
 
               return formatDate ? formatDate(jsDate) : jsDate.toLocaleString();
             }
-          } catch (e) {
+          } catch {
             // Nếu không phải ngày giờ hợp lệ, xử lý như số bình thường
+            return value;
           }
         }
       }
@@ -122,8 +124,9 @@ const formatExcelValue = (value: any, type: string): string => {
               if (!isNaN(date.getTime())) {
                 return formatDate ? formatDate(date) : date.toLocaleString();
               }
-            } catch (e) {
+            } catch {
               // Nếu không chuyển đổi được, giữ nguyên chuỗi
+              return String(value);
             }
           }
         }
@@ -147,7 +150,6 @@ const formatExcelValue = (value: any, type: string): string => {
 interface PreviewStepProps {
   excelData: ExcelData | null;
   columnConfigs: ColumnConfig[];
-  visibleRows: any[][];
   allRows: any[][];
   isLoadingMore: boolean;
   handleScroll: (e: React.UIEvent<HTMLDivElement>) => void;
@@ -157,7 +159,6 @@ interface PreviewStepProps {
 export function PreviewStep({
   excelData,
   columnConfigs,
-  visibleRows,
   allRows,
   isLoadingMore,
   handleScroll,
@@ -187,11 +188,14 @@ export function PreviewStep({
       { threshold: 0.1 }
     );
 
-    observer.observe(scrollRef.current);
+    const currentScrollRef = scrollRef.current;
+    if (currentScrollRef) {
+      observer.observe(currentScrollRef);
+    }
 
     return () => {
-      if (scrollRef.current) {
-        observer.unobserve(scrollRef.current);
+      if (currentScrollRef) {
+        observer.unobserve(currentScrollRef);
       }
     };
   }, [limitedVisibleRows, allRows, isLoadingMore, loadMoreRows]);
@@ -218,9 +222,6 @@ export function PreviewStep({
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-16 border-r sticky top-0 left-0 bg-slate-100 z-20">
-                      id
-                    </TableHead>
                     {columnConfigs.map((col, i) => (
                       <TableHead
                         key={i}
@@ -258,9 +259,6 @@ export function PreviewStep({
                 <TableBody>
                   {limitedVisibleRows.map((row, rowIndex) => (
                     <TableRow key={rowIndex}>
-                      <TableCell className="text-muted-foreground font-medium sticky left-0 bg-white z-10 border-r">
-                        {rowIndex + 1}
-                      </TableCell>
                       {columnConfigs.map((col, colIndex) => (
                         <TableCell
                           key={colIndex}

@@ -144,7 +144,7 @@ export default function ChatHeader(props: ChatHeaderProps) {
 
                   // Hiển thị thông báo thành công
                   toast.success(`Đã giao cho ${value === "ai" ? "AI" : "Tôi"}`);
-                } catch (error) {
+                } catch {
                   // Revert state if update fails (optional, depending on desired UX)
                   // setCurrentAssignment(props.conversationData?.assigned_to || 'ai');
                   toast.error("Lỗi khi cập nhật người phụ trách");

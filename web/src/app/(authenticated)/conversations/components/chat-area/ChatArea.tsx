@@ -4,15 +4,15 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { conversationService } from "@/services/api/conversation.service";
 import { guestService } from "@/services/api/guest.service";
-import { Conversation, Chat, ChatAssignmentType, SentimentType } from "@/types";
+import { Conversation, Chat } from "@/types";
 import { useApp } from "@/context/app-context";
 import { MarkdownContent } from "@/components/markdown-content";
 import { AttachmentViewer } from "@/components/attachment-viewer";
 import { WS_MESSAGES } from "@/lib/constants";
-import { UserInfoModal } from "../UserInfoModal";
+import { GuestInfoModal } from "../../../../../components/guest-info/GuestInfoModal";
 import { TagRow } from "./TagRow";
 import ChatHeader from "./ChatHeader";
 
@@ -25,18 +25,37 @@ interface ChatAreaProps {
 
 const messageLimit = 20; // Limit the number of messages loaded each time
 export default function ChatArea(props: ChatAreaProps) {
+  const {
+    selectedConversationId,
+    onConversationRead,
+    onNewMessageAdded,
+    onConversationUpdated,
+  } = props; // Destructure props
+
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [chatList, setChatList] = useState<Chat[]>([]);
-  const [sentiment, setSentiment] = useState<string>("neutral");
+  const [_sentiment, _setSentiment] = useState<string | null>(null);
   const [conversationData, setConversationData] = useState<Conversation | null>(
     null
   ); // Add state for full conversation data
-  const [isLoadingConversation, setIsLoadingConversation] =
+  const [_isLoadingConversation, _setIsLoadingConversation] =
     useState<boolean>(false); // Add loading state for conversation
   const [showUserInfo, setShowUserInfo] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeight = useRef<number>(0);
   const prevScrollTop = useRef<number>(0);
+
+  // Ref to hold the latest onConversationRead prop to avoid issues with unstable function references
+  const onConversationReadRef = useRef(onConversationRead);
+  useEffect(() => {
+    onConversationReadRef.current = onConversationRead;
+  }, [onConversationRead]);
+
+  // Ref to hold the current chatList for use in useCallback without adding chatList as a dependency
+  const chatListRef = useRef(chatList);
+  useEffect(() => {
+    chatListRef.current = chatList;
+  }, [chatList]);
 
   // State to manage new messages and scroll state
   const [hasNewMessage, setHasNewMessage] = useState<boolean>(false);
@@ -47,69 +66,73 @@ export default function ChatArea(props: ChatAreaProps) {
   // Use the WebSocket context from app-context
   const { registerMessageHandler } = useApp();
 
-  const fetchConversationMessages = async (
-    conversationId: string,
-    loadMore: boolean = false
-  ) => {
-    try {
-      setIsLoadingMessages(true);
+  const fetchConversationMessages = useCallback(
+    async (conversationIdParam: string, loadMore: boolean = false) => {
+      try {
+        setIsLoadingMessages(true);
 
-      // Sử dụng độ dài của mảng hiện tại làm giá trị skip khi loadMore
-      // Khi không phải loadMore (tức load lần đầu), skip = 0
-      const skip = loadMore ? chatList.length : 0;
+        // Use chatListRef to get current length without adding chatList.length to dependencies
+        const currentChatList = chatListRef.current;
+        const skip = loadMore ? currentChatList.length : 0;
 
-      const response = await conversationService.getChatById(
-        conversationId,
-        skip,
-        messageLimit
-      );
-
-      if (response && response.data) {
-        // Sắp xếp tin nhắn theo thời gian để đảm bảo thứ tự đúng
-        const sortedMessages = [...response.data].sort(
-          (a, b) =>
-            new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
+        const response = await conversationService.getChatById(
+          conversationIdParam,
+          skip,
+          messageLimit
         );
 
-        if (loadMore && sortedMessages.length > 0) {
-          // Khi tải thêm tin nhắn cũ, thêm vào đầu danh sách
-          setChatList((prevMessages) => [...sortedMessages, ...prevMessages]);
-        } else {
-          setChatList(sortedMessages);
-        }
-        setHasMoreMessages(response.has_next || false);
-      } else {
-        if (!loadMore) {
-          setChatList([]);
-        }
-        setHasMoreMessages(false);
-      }
+        if (response && response.data) {
+          // Sắp xếp tin nhắn theo thời gian để đảm bảo thứ tự đúng
+          const sortedMessages = [...response.data].sort(
+            (a, b) =>
+              new Date(a.created_at).getTime() -
+              new Date(b.created_at).getTime()
+          );
 
-      return response;
-    } catch (error) {
-      if (!loadMore) setChatList([]);
-      setHasMoreMessages(false);
-      throw error;
-    } finally {
-      setIsLoadingMessages(false);
-    }
-  };
+          if (loadMore && sortedMessages.length > 0) {
+            // Khi tải thêm tin nhắn cũ, thêm vào đầu danh sách
+            setChatList((prevMessages) => [...sortedMessages, ...prevMessages]);
+          } else {
+            setChatList(sortedMessages);
+          }
+          setHasMoreMessages(response.has_next || false);
+        } else {
+          if (!loadMore) {
+            setChatList([]);
+          }
+          setHasMoreMessages(false);
+        }
+
+        return response;
+      } catch {
+        if (!loadMore) setChatList([]);
+        setHasMoreMessages(false);
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    },
+    // Dependencies now only include stable setters or truly external stable dependencies
+    [setIsLoadingMessages, setChatList, setHasMoreMessages] // conversationService is assumed stable
+  );
 
   // Add a new function to fetch conversation data by ID
-  const fetchConversationData = async (conversationId: string) => {
-    try {
-      setIsLoadingConversation(true);
-      const response = await guestService.getGuestInfo(conversationId);
-      setConversationData(response);
-      setSentiment(response.sentiment as string);
-      return response;
-    } catch (error) {
-      setConversationData(null);
-      return null;
-    } finally {
-      setIsLoadingConversation(false);
-    }
-  };
+  const fetchConversationData = useCallback(
+    async (conversationIdParam: string) => {
+      try {
+        _setIsLoadingConversation(true);
+        const response = await guestService.getGuestInfo(conversationIdParam);
+        setConversationData(response);
+        _setSentiment(response.sentiment as string);
+        return response;
+      } catch {
+        setConversationData(null);
+        return null;
+      } finally {
+        _setIsLoadingConversation(false);
+      }
+    },
+    []
+  ); // _setIsLoadingConversation, setConversationData, _setSentiment are stable setters
 
   // Scroll to latest messages with enhanced reliability
   const scrollToBottom = () => {
@@ -125,46 +148,50 @@ export default function ChatArea(props: ChatAreaProps) {
   };
 
   // Handle new messages from WebSocket
-  const handleIncomingMessage = (conversation: Conversation) => {
-    // Only process if the message belongs to the current conversation
-    if (props.selectedConversationId === conversation.id) {
-      // Update conversation data state to reflect potential changes (like interests)
-      setConversationData(conversation); // <--- Add this line
+  const handleIncomingMessage = useCallback(
+    (conversation: Conversation) => {
+      // Only process if the message belongs to the current conversation
+      if (selectedConversationId === conversation.id) {
+        // Update conversation data state to reflect potential changes (like interests)
+        setConversationData(conversation); // <--- Add this line
 
-      if (conversation.last_message) {
-        // Create a new Chat object from the conversation data
-        const newChat: Chat = {
-          id: `temp-${Date.now()}`, // Temporary ID
-          guest_id: conversation.id,
-          content: conversation.last_message,
-          created_at: conversation.last_message_at,
-        };
+        if (conversation.last_message) {
+          // Create a new Chat object from the conversation data
+          const newChat: Chat = {
+            id: `temp-${Date.now()}`, // Temporary ID
+            guest_id: conversation.id,
+            content: conversation.last_message,
+            created_at: conversation.last_message_at,
+          };
 
-        // Add new message to chat list
-        setChatList((prevChats) => [...prevChats, newChat]);
+          // Add new message to chat list
+          setChatList((prevChats) => [...prevChats, newChat]);
 
-        // Show new message notification only when user has scrolled up
-        if (!isAtBottom) {
-          setHasNewMessage(true);
-          // Don't scroll automatically - user will click notification to scroll
-        } else {
-          // Only auto-scroll when user is already at the bottom
-          setTimeout(() => {
-            scrollToBottom();
-          }, 100);
+          // Show new message notification only when user has scrolled up
+          if (!isAtBottom) {
+            setHasNewMessage(true);
+            // Don't scroll automatically - user will click notification to scroll
+          } else {
+            // Only auto-scroll when user is already at the bottom
+            setTimeout(() => {
+              scrollToBottom();
+            }, 100);
+          }
+
+          // Call the callback if provided
+          if (onNewMessageAdded) {
+            onNewMessageAdded(newChat);
+          }
         }
-
-        // Call the callback if provided
-        if (props.onNewMessageAdded) {
-          props.onNewMessageAdded(newChat);
-        }
+        // Update sentiment if it changed (already exists)
+        // if (sentiment !== conversation.sentiment) {
+        //   setSentiment(conversation.sentiment as string);
+        // }
       }
-      // Update sentiment if it changed (already exists)
-      // if (sentiment !== conversation.sentiment) {
-      //   setSentiment(conversation.sentiment as string);
-      // }
-    }
-  };
+    },
+
+    [selectedConversationId, isAtBottom, onNewMessageAdded]
+  );
 
   // Check scroll position to determine if user is at the bottom
   const checkScrollPosition = () => {
@@ -194,15 +221,15 @@ export default function ChatArea(props: ChatAreaProps) {
     return () => {
       unregister();
     };
-  }, [props.selectedConversationId, isAtBottom]);
+  }, [selectedConversationId, registerMessageHandler, handleIncomingMessage]);
 
   useEffect(() => {
     const unregister = registerMessageHandler(
       WS_MESSAGES.UPDATE_SENTIMENT,
       (data) => {
         const conversation = data as Conversation;
-        if (props.selectedConversationId === conversation.id) {
-          setSentiment(conversation.sentiment as string);
+        if (selectedConversationId === conversation.id) {
+          _setSentiment(conversation.sentiment as string);
         }
       }
     );
@@ -210,26 +237,26 @@ export default function ChatArea(props: ChatAreaProps) {
     return () => {
       unregister();
     };
-  }, [props.selectedConversationId]);
+  }, [selectedConversationId, registerMessageHandler]);
 
   // Handle conversation change
   useEffect(() => {
-    if (props.selectedConversationId) {
+    if (selectedConversationId) {
       // Reset state before fetching new data
       setIsConversationSwitching(true);
       setChatList([]); // Clear old messages immediately to avoid displaying incorrect data
       setHasMoreMessages(false);
       setHasNewMessage(false);
       setIsAtBottom(true);
-      setSentiment("neutral");
+      _setSentiment("neutral");
     }
-  }, [props.selectedConversationId]);
+  }, [selectedConversationId]);
 
   useEffect(() => {
-    if (isConversationSwitching && props.selectedConversationId) {
-      fetchConversationMessages(props.selectedConversationId)
+    if (isConversationSwitching && selectedConversationId) {
+      fetchConversationMessages(selectedConversationId)
         .then((response) => {
-          if (response.data && response.data.length > 0) {
+          if (response && response.data && response.data.length > 0) {
             // Make sure to scroll to bottom after messages are loaded
             requestAnimationFrame(() => {
               scrollToBottom();
@@ -241,17 +268,21 @@ export default function ChatArea(props: ChatAreaProps) {
             setIsConversationSwitching(false);
           }
         })
-        .catch((error) => {
+        .catch(() => {
           setIsConversationSwitching(false);
         });
     }
-  }, [isConversationSwitching]);
+  }, [
+    isConversationSwitching,
+    fetchConversationMessages,
+    selectedConversationId,
+  ]);
 
   // Separate useEffect to handle scroll when conversation changes
   useEffect(() => {
     // Chỉ cuộn xuống khi thay đổi hội thoại và dữ liệu đã được tải
     if (
-      props.selectedConversationId &&
+      selectedConversationId &&
       !isLoadingMessages &&
       chatList.length > 0 &&
       isConversationSwitching
@@ -260,8 +291,9 @@ export default function ChatArea(props: ChatAreaProps) {
     }
   }, [
     isLoadingMessages,
-    props.selectedConversationId,
+    selectedConversationId,
     isConversationSwitching,
+    chatList.length,
   ]);
 
   // Add useEffect to handle maintaining scroll position
@@ -283,14 +315,19 @@ export default function ChatArea(props: ChatAreaProps) {
   useEffect(() => {
     // When a conversation is selected and messages are loaded, mark it as read
     if (
-      props.selectedConversationId &&
+      selectedConversationId &&
       !isLoadingMessages &&
       chatList.length > 0 &&
-      props.onConversationRead
+      onConversationReadRef.current // Use the ref's current value
     ) {
-      props.onConversationRead(props.selectedConversationId);
+      onConversationReadRef.current(selectedConversationId);
     }
-  }, [props.selectedConversationId, isLoadingMessages, chatList]);
+  }, [
+    selectedConversationId,
+    // onConversationRead removed from dependencies
+    isLoadingMessages,
+    chatList.length,
+  ]);
 
   // Force scroll to bottom when chat list changes and we're at initial load
   useEffect(() => {
@@ -303,23 +340,23 @@ export default function ChatArea(props: ChatAreaProps) {
         }, 200);
       }
     }
-  }, [chatList, isLoadingMessages]);
+  }, [chatList, isLoadingMessages, chatList.length, isConversationSwitching]);
 
   // Effect to load conversation data when conversation ID changes
   useEffect(() => {
-    if (props.selectedConversationId) {
-      fetchConversationData(props.selectedConversationId);
+    if (selectedConversationId) {
+      fetchConversationData(selectedConversationId);
     } else {
       setConversationData(null);
     }
-  }, [props.selectedConversationId]);
+  }, [selectedConversationId, fetchConversationData, setConversationData]); // Added fetchConversationData and setConversationData (stable)
 
   // Handler for when conversation data is updated (e.g., assignment change in header)
   const handleLocalConversationUpdate = (updatedConversation: Conversation) => {
     setConversationData(updatedConversation);
     // Also notify the parent component if needed
-    if (props.onConversationUpdated) {
-      props.onConversationUpdated(updatedConversation);
+    if (onConversationUpdated) {
+      onConversationUpdated(updatedConversation);
     }
   };
 
@@ -329,7 +366,7 @@ export default function ChatArea(props: ChatAreaProps) {
       <ChatHeader
         conversationData={conversationData}
         setShowUserInfo={setShowUserInfo}
-        selectedConversationId={props.selectedConversationId || ""}
+        selectedConversationId={selectedConversationId || ""}
         onConversationUpdated={handleLocalConversationUpdate} // Pass handler
       />
       {/* Chat Messages Area */}
@@ -349,14 +386,14 @@ export default function ChatArea(props: ChatAreaProps) {
               target.scrollTop < 50 &&
               hasMoreMessages &&
               !isLoadingMessages &&
-              props.selectedConversationId
+              selectedConversationId
             ) {
               // Save current scroll height and position before loading more messages
               prevScrollHeight.current = target.scrollHeight;
               prevScrollTop.current = target.scrollTop;
 
               // Load more messages by calling the function directly
-              fetchConversationMessages(props.selectedConversationId, true);
+              fetchConversationMessages(selectedConversationId, true);
             }
           }}
         >
@@ -471,7 +508,7 @@ export default function ChatArea(props: ChatAreaProps) {
           ) : (
             <div className="flex justify-center items-center h-full">
               <div className="text-gray-500">
-                {props.selectedConversationId
+                {selectedConversationId
                   ? "No messages available"
                   : "Please select a conversation"}
               </div>
@@ -505,25 +542,24 @@ export default function ChatArea(props: ChatAreaProps) {
         </div>
       </div>
       {/* User Info Modal */}
-      <UserInfoModal
+      <GuestInfoModal
         open={showUserInfo}
         onOpenChange={(open) => {
           setShowUserInfo(open);
           // Nếu đóng modal và có conversation đã chọn, cập nhật lại thông tin từ API
-          if (!open && props.selectedConversationId) {
+          if (!open && selectedConversationId) {
             // Fetch lại thông tin khách hàng mà không cần fetch lại tin nhắn chat
-            fetchConversationData(props.selectedConversationId)
+            fetchConversationData(selectedConversationId)
               .then((updatedConversation) => {
                 // Báo lên component cha rằng conversation đã được cập nhật nếu có callback
-                if (props.onConversationUpdated && updatedConversation) {
-                  props.onConversationUpdated(updatedConversation);
+                if (onConversationUpdated && updatedConversation) {
+                  onConversationUpdated(updatedConversation);
                 }
               })
-              .catch((error) => {
-              });
+              .catch(() => {});
           }
         }}
-        guestId={props.selectedConversationId || ""}
+        guestId={selectedConversationId || ""}
       />
     </div>
   );

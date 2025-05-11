@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef } from "react";
+import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -76,7 +76,7 @@ export function ScriptsTab() {
   const hasInitialFetch = useRef(false);
 
   // Fetch scripts data from API
-  const fetchScripts = async () => {
+  const fetchScripts = useCallback(async () => {
     // Nếu đang tải, không fetch thêm
     if (isLoading) return;
     setIsLoading(true);
@@ -90,12 +90,12 @@ export function ScriptsTab() {
       setScripts(response.data);
       setTotalPages(response.total_pages);
       setTotalItems(response.total);
-    } catch (error) {
-      toast.error("Không thể tải danh sách kịch bản");
+    } catch {
+      toast.error("Không thể tải danh sách kịch bản.");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [currentPage, status, isLoading]);
 
   // Fetch data when page or status changes
   useEffect(() => {
@@ -106,8 +106,11 @@ export function ScriptsTab() {
     ) {
       fetchScripts();
       hasInitialFetch.current = true;
+      // Update old values after fetch
+      oldPage = currentPage;
+      oldStatus = status;
     }
-  }, [currentPage, status]);
+  }, [currentPage, status, fetchScripts]);
 
   // Check if all scripts on current page are selected
   const allCurrentPageSelected = useMemo(() => {
@@ -189,7 +192,7 @@ export function ScriptsTab() {
 
         toast.success(`Đã xóa ${count} kịch bản`);
         setShowDeleteConfirmation(false);
-      } catch (error) {
+      } catch {
         toast.error("Có lỗi xảy ra khi xóa kịch bản");
       } finally {
         setIsDeleting(false);
@@ -208,7 +211,7 @@ export function ScriptsTab() {
 
         toast.success("Đã xóa kịch bản");
         setShowDeleteConfirmation(false);
-      } catch (error) {
+      } catch {
         toast.error("Có lỗi xảy ra khi xóa kịch bản");
       } finally {
         setIsDeleting(false);
@@ -270,7 +273,7 @@ export function ScriptsTab() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success("Tải xuống kịch bản thành công");
-    } catch (error) {
+    } catch {
       toast.dismiss(loadingToast);
       toast.error("Không thể tải xuống kịch bản");
     }

@@ -45,7 +45,7 @@ export default function LoginPage() {
 
         router.push(APP_ROUTES.DASHBOARD);
       }
-    } catch (err) {
+    } catch {
       setError("An unexpected error occurred. Please try again.");
     } finally {
       setIsLoading(false);

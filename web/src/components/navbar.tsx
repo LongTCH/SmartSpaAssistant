@@ -12,6 +12,7 @@ import {
 import { useApp } from "@/context/app-context";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import Image from "next/image";
 
 export function Navbar() {
   const {
@@ -72,11 +73,14 @@ export function Navbar() {
     <header className="flex items-center justify-between px-6 py-3 bg-indigo-600 text-white">
       <div className="flex items-center space-x-4">
         <div className="flex items-center mr-4">
-          <img
-            src="/smart-spa.png"
-            alt="Smart Spa Logo"
-            className="h-10 w-auto rounded"
-          />
+          <Link href="/" className="flex items-center space-x-2">
+            <Image
+              width={32}
+              height={32}
+              src="/smart-spa.png"
+              alt="Smart SPA Logo"
+            />
+          </Link>
         </div>
 
         <Tabs

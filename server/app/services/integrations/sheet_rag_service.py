@@ -1,4 +1,3 @@
-import json
 import uuid
 from typing import Iterable
 
@@ -7,7 +6,6 @@ from app.configs.database import async_session
 from app.dtos import SheetChunkDto
 from app.models import Sheet
 from app.repositories import sheet_repository
-from app.services.clients import jina
 from app.services.clients.qdrant import create_qdrant_client
 from fastembed import SparseEmbedding, SparseTextEmbedding
 from qdrant_client import models
@@ -19,7 +17,6 @@ from qdrant_client.http.models import (
     MatchValue,
 )
 from qdrant_client.models import PointStruct
-from tqdm import tqdm
 
 sparse_embedding_model = SparseTextEmbedding(model_name="Qdrant/bm25")
 
@@ -28,20 +25,16 @@ async def get_points_struct_for_embedding(
     sheet_chunks: list[SheetChunkDto],
 ) -> list[PointStruct]:
     texts = [sheet_chunk.chunk for sheet_chunk in sheet_chunks]
-    dense_embeddings: list[list[float]] = await jina.get_embeddings(texts)
     sparse_embeddings: Iterable[SparseEmbedding] = sparse_embedding_model.embed(texts)
     points = []
-    for sheet_chunk, dense_embedding, sparse_embedding in zip(
-        sheet_chunks, dense_embeddings, sparse_embeddings
-    ):
+    for sheet_chunk, sparse_embedding in zip(sheet_chunks, sparse_embeddings):
         point = PointStruct(
             id=str(uuid.uuid4()),
             vector={
-                "jina": dense_embedding,
                 "bm25": models.SparseVector(
                     values=sparse_embedding.values.tolist(),
                     indices=sparse_embedding.indices.tolist(),
-                ),
+                )
             },
             payload={
                 "content": sheet_chunk.chunk,
@@ -65,7 +58,7 @@ def get_sheet_row_content(row: dict, columns: list[str]) -> str:
 def get_sheet_row_content_all_column(row: dict) -> str:
     result = ""
     for key, value in row.items():
-        result += f"{value} "
+        result += f"{key}: {value} \n "
     # strips trailing whitespace
     return result.strip()
 
@@ -112,12 +105,8 @@ async def insert_sheet_only_text_column(sheet_id: str) -> None:
             return None
         text_data_columns.append("id")
         sheet_chunks = await get_chunks(sheet.name, table_name, text_data_columns)
-        batch_size = 100
-        for i in tqdm(
-            range(0, len(sheet_chunks), batch_size),
-            desc=f"Processing sheet '{sheet.name}'",
-            total=(len(sheet_chunks) + batch_size - 1) // batch_size,
-        ):
+        batch_size = 32
+        for i in range(0, len(sheet_chunks), batch_size):
             points = await get_points_struct_for_embedding(
                 sheet_chunks[i : i + batch_size]
             )
@@ -128,15 +117,13 @@ async def insert_sheet(sheet_id: str) -> None:
     async with async_session() as session:
         sheet: Sheet = await sheet_repository.get_sheet_by_id(session, sheet_id)
         table_name = sheet.table_name
-        rows = await sheet_repository.get_all_rows_with_sheet_and_columns(
-            session, table_name, ["id", "data_fts"]
-        )
+        rows = await sheet_repository.get_all_rows_of_sheet(session, table_name)
         sheet_chunks = [
             SheetChunkDto(
                 id=row["id"],
                 sheet_id=sheet.id,
                 sheet_name=sheet.name,
-                chunk=get_sheet_row_content_all_column(json.loads(row["data_fts"])),
+                chunk=get_sheet_row_content_all_column(row),
             )
             for row in rows
         ]
@@ -176,24 +163,17 @@ async def search_chunks_by_sheet_id(
     sheet_id: str, query: str, limit: int = 5
 ) -> list[SheetChunkDto]:
     client = create_qdrant_client()
-    dense_embeddings = await jina.get_embeddings(query)
     sparse_embeddings: Iterable[SparseEmbedding] = sparse_embedding_model.query_embed(
         query
     )
     sparse_embedding = next(iter(sparse_embeddings))
     search_result = await client.query_points(
         collection_name=env_config.QDRANT_SHEET_COLLECTION_NAME,
-        query=models.FusionQuery(fusion=models.Fusion.DBSF),
-        prefetch=[
-            models.Prefetch(
-                query=models.SparseVector(
-                    indices=sparse_embedding.indices.tolist(),
-                    values=sparse_embedding.values.tolist(),
-                ),
-                using="bm25",
-            ),
-            models.Prefetch(query=dense_embeddings[0], using="jina"),
-        ],
+        query=models.SparseVector(
+            indices=sparse_embedding.indices.tolist(),
+            values=sparse_embedding.values.tolist(),
+        ),
+        using="bm25",
         query_filter=Filter(
             must=[FieldCondition(key="sheet_id", match=MatchValue(value=sheet_id))]
         ),

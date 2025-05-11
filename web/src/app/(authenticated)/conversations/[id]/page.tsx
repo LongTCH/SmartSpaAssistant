@@ -49,8 +49,7 @@ export default function ConversationDetail() {
         } else {
         }
       })
-      .catch((error) => {
-      })
+      .catch(() => {})
       .finally(() => {
         setIsLoading(false);
       });

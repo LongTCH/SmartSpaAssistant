@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense, useRef } from "react";
+import { useState, useEffect, Suspense, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -17,7 +17,7 @@ import { KeywordFilter } from "./components/KeywordFilter";
 import { CustomerTable } from "./components/CustomerTable";
 import { CustomerPagination } from "./components/CustomerPagination";
 import { LoadingScreen } from "@/components/loading-screen";
-import { UserInfoModal } from "../conversations/components/UserInfoModal";
+import { GuestInfoModal } from "../../../components/guest-info/GuestInfoModal";
 import { guestService } from "@/services/api/guest.service";
 import { interestService } from "@/services/api/interest.service";
 import { Conversation } from "@/types";
@@ -43,8 +43,8 @@ export default function CustomerManagement() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [interestIds, setInterestIds] = useState<string[]>([]);
 
-  // State cho UserInfoModal
-  const [isUserInfoModalOpen, setIsUserInfoModalOpen] = useState(false);
+  // State cho GuestInfoModal
+  const [isGuestInfoModalOpen, setIsGuestInfoModalOpen] = useState(false);
   const [editingCustomerId, setEditingCustomerId] = useState<string | null>(
     null
   );
@@ -52,23 +52,51 @@ export default function CustomerManagement() {
   // Khởi tạo pendingKeywords từ selectedKeywords khi trang được tải
   useEffect(() => {
     setPendingKeywords(selectedKeywords);
-  }, []);
+  }, [selectedKeywords, setPendingKeywords]);
 
   // Biến cờ để theo dõi lần fetch đầu tiên và các lần fetch tiếp theo
-  const initialLoadRef = useRef({
+  const _initialLoadRef = useRef({
     hasFetchedInitial: false,
     isInitializing: false,
   });
 
   // Biến để lưu trữ trang và trạng thái trước đó
-  let oldPage = useRef(1);
-  let oldSearchQuery = useRef("");
-  let oldInterestIds = useRef<string[]>([]);
+  const oldPage = useRef(1);
+  const oldSearchQuery = useRef("");
+  const oldInterestIds = useRef<string[]>([]);
 
   // Sử dụng useRef để theo dõi trạng thái đã tải
   const hasInitialFetch = useRef(false);
 
   // Fetch customers from API
+  const fetchCustomers = useCallback(async () => {
+    try {
+      setLoading(true);
+      const response = await guestService.getGuestsWithInterests(
+        pagination.page,
+        pagination.limit,
+        searchQuery || "",
+        interestIds
+      );
+
+      // Đảm bảo không có dữ liệu trùng lặp bằng cách sử dụng Set với ID
+      const uniqueCustomers = Array.from(
+        new Map(response.data.map((item) => [item.id, item])).values()
+      );
+
+      setCustomers(uniqueCustomers);
+      setPagination((prevPagination) => ({
+        ...prevPagination,
+        totalPages: response.total_pages,
+        total: response.total,
+      }));
+    } catch {
+      toast.error("Không thể tải danh sách khách hàng");
+    } finally {
+      setLoading(false);
+    }
+  }, [pagination.page, pagination.limit, searchQuery, interestIds]);
+
   useEffect(() => {
     // Chỉ fetch khi thay đổi page, searchQuery, interestIds hoặc chưa tải lần đầu
     if (
@@ -86,35 +114,7 @@ export default function CustomerManagement() {
       fetchCustomers();
       hasInitialFetch.current = true;
     }
-  }, [pagination.page, pagination.limit, searchQuery, interestIds]);
-
-  const fetchCustomers = async () => {
-    try {
-      setLoading(true);
-      const response = await guestService.getGuestsWithInterests(
-        pagination.page,
-        pagination.limit,
-        searchQuery || "",
-        interestIds
-      );
-
-      // Đảm bảo không có dữ liệu trùng lặp bằng cách sử dụng Set với ID
-      const uniqueCustomers = Array.from(
-        new Map(response.data.map((item) => [item.id, item])).values()
-      );
-
-      setCustomers(uniqueCustomers);
-      setPagination({
-        ...pagination,
-        totalPages: response.total_pages,
-        total: response.total,
-      });
-    } catch (error) {
-      toast.error("Không thể tải danh sách khách hàng");
-    } finally {
-      setLoading(false);
-    }
-  };
+  }, [pagination.page, searchQuery, interestIds, fetchCustomers]);
 
   // Effect to convert selected keyword names to IDs when they change
   useEffect(() => {
@@ -134,7 +134,7 @@ export default function CustomerManagement() {
           .map((interest) => interest.id);
 
         setInterestIds(filteredIds);
-      } catch (error) {
+      } catch {
         toast.error("Không thể lấy danh sách từ khóa");
       }
     };
@@ -201,7 +201,7 @@ export default function CustomerManagement() {
 
       setDeleteConfirmOpen(false);
       setCustomerToDelete(null);
-    } catch (error) {
+    } catch {
       toast.error("Không thể xóa khách hàng");
     } finally {
       setIsDeleting(false);
@@ -237,12 +237,12 @@ export default function CustomerManagement() {
   // Xử lý khi nhấn nút chỉnh sửa khách hàng
   const handleCustomerEdit = (id: string) => {
     setEditingCustomerId(id);
-    setIsUserInfoModalOpen(true);
+    setIsGuestInfoModalOpen(true);
   };
 
   // Xử lý khi modal chỉnh sửa đóng lại
   const handleModalClose = () => {
-    setIsUserInfoModalOpen(false);
+    setIsGuestInfoModalOpen(false);
     // Cập nhật lại danh sách khách hàng sau khi chỉnh sửa
     fetchCustomers();
   };
@@ -337,7 +337,7 @@ export default function CustomerManagement() {
                     totalPages: response.total_pages,
                     total: response.total,
                   });
-                } catch (error) {
+                } catch {
                   toast.error("Không thể tải danh sách khách hàng");
                 } finally {
                   setLoading(false);
@@ -438,10 +438,10 @@ export default function CustomerManagement() {
         </DialogContent>
       </Dialog>
 
-      {/* UserInfoModal for editing customer */}
+      {/* GuestInfoModal for editing customer */}
       {editingCustomerId && (
-        <UserInfoModal
-          open={isUserInfoModalOpen}
+        <GuestInfoModal
+          open={isGuestInfoModalOpen}
           onOpenChange={handleModalClose}
           guestId={editingCustomerId}
         />

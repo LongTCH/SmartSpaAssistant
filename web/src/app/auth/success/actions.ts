@@ -27,11 +27,11 @@ export async function exchangeStateAction(
       success: true,
       data: authData,
     };
-  } catch (error: any) {
+  } catch {
     
     return {
       success: false,
-      error: error.message || "Failed to authenticate. Please try again.",
+      error: "Failed to authenticate. Please try again.",
     };
   }
 }

@@ -60,7 +60,7 @@ export function AddScriptModal({
 
           setAvailableScripts(scriptsResponse.data);
           setAvailableSheets(sheetsResponse.data);
-        } catch (error) {
+        } catch {
           toast.error(
             "Không thể tải danh sách kịch bản và bảng tính liên quan"
           );
@@ -142,7 +142,7 @@ export function AddScriptModal({
       // Call onSuccess callback if provided
       onSuccess?.();
       onOpenChange(false);
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi lưu kịch bản");
     } finally {
       setIsSubmitting(false);

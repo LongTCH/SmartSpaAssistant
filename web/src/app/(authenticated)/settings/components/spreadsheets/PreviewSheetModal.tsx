@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import * as XLSX from "xlsx";
 import {
   Dialog,
@@ -19,13 +19,13 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Sheet, SheetRow } from "@/types";
+import { Sheet } from "@/types";
 import { sheetService } from "@/services/api/sheet.service";
 import { toast } from "sonner";
 import { formatDate } from "@/lib/helpers";
 
 // Định dạng dữ liệu Excel cho hiển thị
-const formatExcelValue = (value: any): string => {
+const formatExcelValue = (value: any): any => {
   // Trả về chuỗi rỗng nếu giá trị rỗng
   if (value === null || value === undefined || value === "") {
     return "";
@@ -41,8 +41,9 @@ const formatExcelValue = (value: any): string => {
       if (!isNaN(date.getTime())) {
         return formatDate(date);
       }
-    } catch (e) {
+    } catch {
       // Nếu không parse được thì trả về chuỗi gốc
+      return value;
     }
   }
 
@@ -75,8 +76,9 @@ const formatExcelValue = (value: any): string => {
 
           return formatDate(jsDate);
         }
-      } catch (e) {
+      } catch {
         // Nếu không phải ngày giờ hợp lệ, xử lý như số bình thường
+        return value;
       }
     }
   }
@@ -103,15 +105,14 @@ const formatExcelValue = (value: any): string => {
           if (!isNaN(date.getTime())) {
             return formatDate(date);
           }
-        } catch (e) {
+        } catch {
           // Nếu không chuyển đổi được, giữ nguyên chuỗi
         }
       }
     }
   }
 
-  // Các giá trị khác, chuyển thành chuỗi
-  return String(value);
+  return value;
 };
 
 interface PreviewSheetModalProps {
@@ -131,18 +132,7 @@ export function PreviewSheetModal({
   const [totalRows, setTotalRows] = useState(0);
   const rowsPerPage = 10;
 
-  useEffect(() => {
-    if (open && sheet) {
-      fetchSheetData();
-    } else {
-      // Reset state when modal closes
-      setRows([]);
-      setPage(1);
-      setTotalRows(0);
-    }
-  }, [open, sheet, page]);
-
-  const fetchSheetData = async () => {
+  const fetchSheetData = useCallback(async () => {
     if (!sheet?.id) return;
 
     setIsLoading(true);
@@ -162,14 +152,25 @@ export function PreviewSheetModal({
         setRows([]);
         setTotalRows(0);
       }
-    } catch (error) {
+    } catch {
       toast.error("Không thể tải dữ liệu bảng tính");
       setRows([]);
       setTotalRows(0);
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [sheet?.id, page, setIsLoading, setRows, setTotalRows]);
+
+  useEffect(() => {
+    if (open && sheet) {
+      fetchSheetData();
+    } else {
+      // Reset state when modal closes
+      setRows([]);
+      setPage(1);
+      setTotalRows(0);
+    }
+  }, [open, sheet, page, fetchSheetData]);
 
   const loadNextPage = () => {
     setPage((prev) => prev + 1);
@@ -186,7 +187,7 @@ export function PreviewSheetModal({
       try {
         // Trích xuất tên cột từ column_config
         return sheet.column_config.map((col) => col.column_name);
-      } catch (e) {}
+      } catch {}
     } else if (rows.length > 0 && typeof rows[0] === "object") {
       // Backup: lấy tên cột từ dữ liệu nếu không có column_config
       return Object.keys(rows[0]).filter(
@@ -230,7 +231,7 @@ export function PreviewSheetModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[90vw] max-h-[90vh] overflow-hidden flex flex-col">
+      <DialogContent className="sm:max-w-[90vw] max-h-screen overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-bold">
             Xem trước dữ liệu - {sheet?.name}
@@ -247,18 +248,15 @@ export function PreviewSheetModal({
             </div>
           ) : rows.length > 0 ? (
             <div className="flex flex-col">
-              <div className="relative max-h-[500px]">
+              <div className="relative max-h-[85vh]">
                 <div
                   className="overflow-y-auto overflow-x-auto"
-                  style={{ maxHeight: "500px", width: "100%" }}
+                  style={{ maxHeight: "85vh", width: "100%" }}
                 >
                   <div style={{ minWidth: "100%", width: "max-content" }}>
                     <Table>
                       <TableHeader>
                         <TableRow>
-                          <TableHead className="w-12 border-r sticky top-0 left-0 bg-background z-10">
-                            id
-                          </TableHead>
                           {columnHeaders.map(
                             (header: string, index: number) => (
                               <TableHead
@@ -278,21 +276,9 @@ export function PreviewSheetModal({
                       </TableHeader>
                       <TableBody>
                         {rows.map((row, rowIndex) => {
-                          // Tạo một mảng các cột được lọc (loại bỏ id)
-                          const filteredHeaders = columnHeaders.filter(
-                            (header) =>
-                              !(
-                                header.toLowerCase() === "id" ||
-                                header.toLowerCase() === "_id"
-                              )
-                          );
-
                           return (
                             <TableRow key={rowIndex}>
-                              <TableCell className="border-r sticky left-0 bg-background z-10">
-                                {startRow + rowIndex}
-                              </TableCell>
-                              {filteredHeaders.map(
+                              {columnHeaders.map(
                                 (header: string, index: number) => {
                                   // Đảm bảo hiển thị dữ liệu đúng cách ngay cả khi cấu trúc dữ liệu thay đổi
                                   const cellValue =
@@ -309,7 +295,7 @@ export function PreviewSheetModal({
                                     <TableCell
                                       key={index}
                                       className={
-                                        index < filteredHeaders.length - 1
+                                        index < columnHeaders.length - 1
                                           ? "border-r"
                                           : ""
                                       }

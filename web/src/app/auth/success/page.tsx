@@ -29,7 +29,7 @@ function SuccessPage() {
   const { loginSuccess } = useAuth();
   const searchParams = useSearchParams();
   const [error, setError] = useState<string | null>(null);
-  const [isLoading, setIsLoading] = useState(true);
+  const [_isLoading, _setIsLoading] = useState(true);
   const [isRedirecting, setIsRedirecting] = useState(false);
 
   useEffect(() => {
@@ -37,7 +37,7 @@ function SuccessPage() {
 
     if (!state) {
       setError("Invalid state parameter");
-      setIsLoading(false);
+      _setIsLoading(false);
       return;
     }
 
@@ -47,7 +47,7 @@ function SuccessPage() {
 
         if (!result || !result.data) {
           setError(result?.error || "Authentication failed");
-          setIsLoading(false);
+          _setIsLoading(false);
           return;
         }
 
@@ -64,14 +64,14 @@ function SuccessPage() {
             router.push(APP_ROUTES.DASHBOARD);
           }
         }, 100);
-      } catch (err) {
+      } catch {
         setError("Authentication failed. Please try again.");
-        setIsLoading(false);
+        _setIsLoading(false);
       }
     };
 
     performStateExchange();
-  }, [searchParams]);
+  }, [searchParams, loginSuccess, router]);
 
   if (isRedirecting) {
     return (

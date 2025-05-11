@@ -86,7 +86,9 @@ export function CustomerTable({
   const tableContainerRef = useRef<HTMLDivElement>(null);
 
   // Trạng thái để lưu các hàng đang hiển thị tất cả nhãn
-  const [expandedRows, setExpandedRows] = useState<Record<string, boolean>>({});
+  const [_expandedRows, _setExpandedRows] = useState<Record<string, boolean>>(
+    {}
+  );
 
   // Function to navigate to conversations tab and select a specific guest
   const handleOpenChat = (guestId: string) => {
@@ -95,8 +97,8 @@ export function CustomerTable({
   };
 
   // Hàm để toggle hiển thị đầy đủ/thu gọn nhãn
-  const toggleExpandRow = (customerId: string) => {
-    setExpandedRows((prev) => ({
+  const _toggleExpandRow = (customerId: string) => {
+    _setExpandedRows((prev) => ({
       ...prev,
       [customerId]: !prev[customerId],
     }));

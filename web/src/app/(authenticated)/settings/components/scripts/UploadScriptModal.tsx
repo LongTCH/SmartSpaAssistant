@@ -87,7 +87,7 @@ export function UploadScriptModal({
           } else {
             toast.error("Không thể đọc dữ liệu từ file");
           }
-        } catch (error) {
+        } catch {
           toast.error(
             "Không thể đọc file Excel. Vui lòng kiểm tra lại định dạng file."
           );
@@ -162,10 +162,8 @@ export function UploadScriptModal({
       // Close modal and call success callback if provided
       onOpenChange(false);
       if (onSuccess) onSuccess();
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || "Có lỗi xảy ra khi tải lên kịch bản"
-      );
+    } catch {
+      toast.error("Có lỗi xảy ra khi tải lên kịch bản");
     } finally {
       setIsSubmitting(false);
     }

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -47,8 +47,6 @@ import { sheetService } from "@/services/api/sheet.service";
 
 // Constants
 const ITEMS_PER_PAGE = 10;
-let oldPage = 1;
-let oldStatus = "all";
 
 export function SpreadsheetsTab() {
   const [showSpreadsheetModal, setShowSpreadsheetModal] = useState(false);
@@ -84,43 +82,40 @@ export function SpreadsheetsTab() {
     setShowSpreadsheetModal(open);
   };
 
-  // Sử dụng useRef để theo dõi trạng thái đã tải
-  const hasInitialFetch = useRef(false);
-
-  const fetchSheets = async () => {
+  const fetchSheets = useCallback(async () => {
+    // REMOVED: if (isLoading) return;
+    // This check is problematic: if isLoading is not a dependency, it uses a stale value.
+    // If isLoading IS a dependency, it causes the infinite loop.
+    setIsLoading(true);
     try {
-      // Nếu đang tải, không fetch thêm
-      if (isLoading) return;
-      setIsLoading(true);
-
       const response = await sheetService.getPaginationSheet(
         currentPage,
         ITEMS_PER_PAGE,
         status
       );
-
       setSheets(response.data);
       setTotalPages(response.total_pages);
       setTotalItems(response.total);
-    } catch (error) {
-      toast.error("Không thể tải danh sách bảng tính");
+    } catch {
+      // console.error("Error fetching sheets:", error);
+      toast.error("Không thể tải danh sách trang tính.");
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [
+    currentPage,
+    status,
+    // REMOVED: isLoading, // This was the primary cause of the infinite loop
+    setIsLoading, // Stable setter, can be included
+    setSheets, // Stable setter, can be included
+    setTotalPages, // Stable setter, can be included
+    setTotalItems, // Stable setter, can be included
+  ]);
 
   // Fetch data when page or status changes
   useEffect(() => {
-    // Chỉ fetch khi thay đổi status hoặc page, hoặc chưa tải lần đầu
-    if (
-      !hasInitialFetch.current ||
-      oldPage !== currentPage ||
-      oldStatus !== status
-    ) {
-      fetchSheets();
-      hasInitialFetch.current = true;
-    }
-  }, [currentPage, status]);
+    fetchSheets();
+  }, [fetchSheets]);
 
   // Check if all sheets on current page are selected
   const allCurrentPageSelected = useMemo(() => {
@@ -199,8 +194,9 @@ export function SpreadsheetsTab() {
 
         toast.success(`Đã xóa ${count} bảng tính`);
         setShowDeleteConfirmation(false);
-      } catch (error) {
-        toast.error("Có lỗi xảy ra khi xóa bảng tính");
+      } catch {
+        // console.error("Error deleting sheet:", error);
+        toast.error("Không thể xóa trang tính.");
       } finally {
         setIsDeleting(false);
       }
@@ -218,8 +214,9 @@ export function SpreadsheetsTab() {
 
         toast.success("Đã xóa bảng tính");
         setShowDeleteConfirmation(false);
-      } catch (error) {
-        toast.error("Có lỗi xảy ra khi xóa bảng tính");
+      } catch {
+        // console.error("Error deleting sheet:", error);
+        toast.error("Không thể xóa trang tính.");
       } finally {
         setIsDeleting(false);
       }
@@ -229,24 +226,15 @@ export function SpreadsheetsTab() {
   // Pagination handlers
   const handlePageChange = (pageNumber: number) => {
     if (pageNumber < 1 || pageNumber > totalPages) return;
-    setCurrentPage((prev) => {
-      oldPage = prev;
-      return pageNumber;
-    });
+    setCurrentPage(pageNumber);
     // Selected IDs cleared when changing page
     setSelectedSheetIds(new Set());
   };
 
   // Handle status filter change
   const handleStatusChange = (newStatus: string) => {
-    setStatus((prev) => {
-      oldStatus = prev;
-      return newStatus;
-    });
-    setCurrentPage((prev) => {
-      oldPage = prev;
-      return 1;
-    }); // Reset to first page when filter changes
+    setStatus(newStatus);
+    setCurrentPage(1); // Reset to first page when filter changes
     setSelectedSheetIds(new Set()); // Clear selections when filter changes
   };
 
@@ -276,7 +264,8 @@ export function SpreadsheetsTab() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success("Tải bảng tính thành công");
-    } catch (error) {
+    } catch {
+      // console.error("Error downloading sheet:", error);
       toast.dismiss(loadingToast);
       toast.error("Không thể tải bảng tính");
     }

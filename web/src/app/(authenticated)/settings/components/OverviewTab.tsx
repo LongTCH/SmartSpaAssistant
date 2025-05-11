@@ -41,7 +41,7 @@ export function OverviewTab() {
       try {
         const settingsData = await settingsService.getSettings();
         setSettings(settingsData);
-      } catch (error) {
+      } catch {
         toast.error("Không thể tải cài đặt. Vui lòng thử lại sau!");
       } finally {
         setIsLoading(false);
@@ -57,7 +57,7 @@ export function OverviewTab() {
     try {
       await settingsService.updateSettings(settings);
       toast.success("Đã lưu thay đổi thành công!");
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi lưu thay đổi!");
     } finally {
       setIsSaving(false);

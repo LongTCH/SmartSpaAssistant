@@ -21,8 +21,7 @@ export default function ConversationsPage() {
           // You might want to show a different screen or create a new conversation
         }
       })
-      .catch((error) => {
-      });
+      .catch(() => {});
   }, [router]);
 
   // Show loading screen while redirecting

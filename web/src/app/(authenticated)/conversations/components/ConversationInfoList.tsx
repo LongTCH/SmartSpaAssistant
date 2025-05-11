@@ -12,6 +12,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ChatAssignmentType } from "@/types";
+import { toast } from "sonner";
 
 interface ConversationInfoListProps {
   selectedConversation: Conversation | null;
@@ -26,6 +27,7 @@ interface ConversationInfoListProps {
 const conversationLimit = 20;
 export default function ConversationInfoList(props: ConversationInfoListProps) {
   // Sử dụng state nội bộ để quản lý conversations
+  const { selectedConversation, setSelectedConversation, onNewMessage } = props;
   const [conversations, setConversations] = useState<Conversation[]>([]);
   const [hasNext, setHasNext] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -85,8 +87,8 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
             setConversations(uniqueConversations);
 
             // Auto-select first conversation on page initialization
-            if (!props.selectedConversation && uniqueConversations.length > 0) {
-              props.setSelectedConversation(uniqueConversations[0]);
+            if (!selectedConversation && uniqueConversations.length > 0) {
+              setSelectedConversation(uniqueConversations[0]);
             }
           } else {
             // Next page, append data but avoid duplicates
@@ -121,7 +123,9 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
           }
           setHasNext(false);
         }
-      } catch (error) {
+      } catch {
+        // console.error("Error fetching assigned users:", error);
+        toast.error("Không thể tải danh sách người dùng được chỉ định");
       } finally {
         setIsLoading(false);
         isFetchingRef.current = false;
@@ -132,8 +136,9 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
     [
       conversations.length,
       isLoading,
-      props.selectedConversation,
-      props.setSelectedConversation,
+      assignedTo,
+      selectedConversation,
+      setSelectedConversation,
     ]
   );
 
@@ -165,7 +170,7 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
           if (now - lastScrollTimeRef.current > scrollThrottleTimeMs) {
             lastScrollTimeRef.current = now;
             debouncedFetchMore();
-          } 
+          }
         }
       }
     },
@@ -206,11 +211,8 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
               setConversations(uniqueConversations);
 
               // Auto-select first conversation on page initialization
-              if (
-                !props.selectedConversation &&
-                uniqueConversations.length > 0
-              ) {
-                props.setSelectedConversation(uniqueConversations[0]);
+              if (!selectedConversation && uniqueConversations.length > 0) {
+                setSelectedConversation(uniqueConversations[0]);
               }
 
               setHasNext(response.has_next || false);
@@ -219,7 +221,9 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
               setHasNext(false);
             }
           })
-          .catch((error) => {
+          .catch(() => {
+            // console.error("Error updating conversation status:", error);
+            toast.error("Không thể cập nhật trạng thái cuộc trò chuyện");
           })
           .finally(() => {
             setIsLoading(false);
@@ -233,7 +237,7 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
       // Vẫn cập nhật giá trị filter trước đó ngay cả khi không fetch
       prevAssignedToRef.current = assignedTo;
     }
-  }, [assignedTo, props.selectedConversation, props.setSelectedConversation]);
+  }, [assignedTo, selectedConversation, setSelectedConversation]);
 
   // Cleanup timeout khi component unmount
   useEffect(() => {
@@ -248,8 +252,8 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
   const handleNewConversation = useCallback(
     (conversation: Conversation) => {
       // Nếu props.onNewMessage được cung cấp, gọi nó
-      if (props.onNewMessage) {
-        props.onNewMessage(conversation);
+      if (onNewMessage) {
+        onNewMessage(conversation);
       }
 
       // Cập nhật state nội bộ
@@ -273,7 +277,7 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         return newConversations;
       });
     },
-    [props.onNewMessage]
+    [onNewMessage]
   );
 
   // Register WebSocket handler
@@ -291,8 +295,8 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         const conversation = data as Conversation;
 
         // Nếu props.onNewMessage được cung cấp, gọi nó để cập nhật từ component cha
-        if (props.onNewMessage) {
-          props.onNewMessage(conversation);
+        if (onNewMessage) {
+          onNewMessage(conversation);
         }
 
         // Cập nhật state nội bộ
@@ -311,7 +315,7 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
       unregisterInbox();
       unregisterSentiment();
     };
-  }, [handleNewConversation, props.onNewMessage, registerMessageHandler]);
+  }, [handleNewConversation, onNewMessage, registerMessageHandler]);
 
   // Generate a more robust key for each item
   const generateKey = (item: Conversation) => {

@@ -9,20 +9,20 @@ interface ActionResponse<T> {
   error?: string;
 }
 
-export async function loginUser(
-  formData: FormData
-): Promise<ActionResponse<{ 
-  accessToken: string; 
-  refreshToken?: string;
-  user: {
-    id: string | number
-    email: string
-    username: string
-  }
-}>> {
+export async function loginUser(formData: FormData): Promise<
+  ActionResponse<{
+    accessToken: string;
+    refreshToken?: string;
+    user: {
+      id: string | number;
+      email: string;
+      username: string;
+    };
+  }>
+> {
   try {
-    const email = formData.get('email') as string;
-    const password = formData.get('password') as string;
+    const email = formData.get("email") as string;
+    const password = formData.get("password") as string;
 
     const validatedFields = loginSchema.safeParse({ email, password });
 
@@ -40,12 +40,12 @@ export async function loginUser(
     });
 
     if (authData.refresh) {
-      (await cookies()).set('refreshToken', authData.refresh, {
+      (await cookies()).set("refreshToken", authData.refresh, {
         httpOnly: true,
-        secure: process.env.NODE_ENV === 'production',
-        sameSite: 'strict',
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "strict",
         maxAge: 60 * 60 * 24 * 7,
-        path: '/',
+        path: "/",
       });
     }
 
@@ -53,15 +53,10 @@ export async function loginUser(
       data: {
         accessToken: authData.token,
         refreshToken: authData.refresh,
-        user: authData.user!
+        user: authData.user!,
       },
     };
-  } catch (error: any) {
-    if (error.response?.status === 401) {
-      return { error: "Incorrect email or password. Please try again!" };
-    }
-    return {
-      error: error.message || 'Failed to authenticate. Please try again.',
-    };
+  } catch {
+    return { error: "Incorrect email or password. Please try again!" };
   }
 }

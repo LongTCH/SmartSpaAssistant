@@ -37,7 +37,7 @@ export default function LayoutContainer({
     return () => {
       window.removeEventListener("resize", updateHeight);
     };
-  }, []);
+  }, [setContentHeight]);
 
   return (
     <div className="flex flex-col h-screen">

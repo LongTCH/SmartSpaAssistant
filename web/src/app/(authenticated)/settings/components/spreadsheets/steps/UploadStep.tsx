@@ -11,30 +11,34 @@ import { ColumnConfig, ColumnType } from "@/types";
 interface UploadStepProps {
   selectedFile: File | null;
   setSelectedFile: (file: File | null) => void;
-  setColumnConfigs: (configs: ColumnConfig[]) => void;
   setExcelData: (data: ExcelData | null) => void;
+  setAllRows: (rows: any[][]) => void;
+  setUploadedTableName: (name: string) => void;
+  setUploadedTableDescription: (description: string) => void;
+  setInitialColumnConfigs: (configs: ColumnConfig[]) => void; // This was correctly added before
   isLoading: boolean;
   setIsLoading: (loading: boolean) => void;
-  setAllRows: (rows: any[][]) => void;
+  // Removed setColumnConfigs as it's replaced by setInitialColumnConfigs for the new flow
 }
 
 export function UploadStep({
   selectedFile,
   setSelectedFile,
-  setColumnConfigs,
   setExcelData,
+  setAllRows,
+  setUploadedTableName,
+  setUploadedTableDescription,
+  setInitialColumnConfigs, // This was correctly added before
   isLoading,
   setIsLoading,
-  setAllRows,
 }: UploadStepProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragActive, setDragActive] = useState(false);
 
-  // Xử lý chọn file
+  // Xử lý chọn file (Restored)
   const handleFileChange = (file: File) => {
     if (!file) return;
 
-    // Kiểm tra định dạng file
     const validExts = [
       ".xlsx",
       ".xls",
@@ -58,64 +62,255 @@ export function UploadStep({
     processExcelFile(file);
   };
 
-  // Xử lý file Excel với hiệu suất cải tiến
+  const resetStatesOnError = () => {
+    setSelectedFile(null);
+    setExcelData(null);
+    setAllRows([]);
+    setUploadedTableName("");
+    setUploadedTableDescription("");
+    setInitialColumnConfigs([]);
+    setIsLoading(false);
+  };
+
   const processExcelFile = async (file: File) => {
     if (!file) return;
-
     setIsLoading(true);
+    toast.dismiss(); // Clear previous toasts
 
     try {
       const arrayBuffer = await file.arrayBuffer();
-      const workbook = XLSX.read(arrayBuffer);
+      const workbook = XLSX.read(arrayBuffer, { type: "array" });
 
-      // Lấy sheet đầu tiên
-      const firstSheetName = workbook.SheetNames[0];
-      const worksheet = workbook.Sheets[firstSheetName];
+      // --- 1. Read 'sheet_info' --- (Updated for new header structure)
+      const sheetInfoSheet = workbook.Sheets["sheet_info"];
+      let tableNameFromSheet = "";
+      let tableDescriptionFromSheet = "";
+      if (sheetInfoSheet) {
+        // Expects headers: ["field", "value"] (lowercase)
+        const sheetInfoData = XLSX.utils.sheet_to_json<{
+          [key: string]: string;
+        }>(sheetInfoSheet);
 
-      // Lấy header và tổng số hàng
-      const ref = worksheet["!ref"];
-      if (!ref) {
-        toast.error("File không có dữ liệu");
-        setIsLoading(false);
+        for (const row of sheetInfoData) {
+          // Access row properties using lowercase keys
+          const field = row["field"]?.toString().toLowerCase().trim();
+          const value = row["value"]?.toString().trim();
+
+          if (field === "table") {
+            tableNameFromSheet = value || "";
+          }
+          if (field === "description") {
+            tableDescriptionFromSheet = value || "";
+          }
+        }
+
+        if (
+          !tableNameFromSheet &&
+          !tableDescriptionFromSheet &&
+          sheetInfoData.length > 0
+        ) {
+          // Fallback for old format if new format fails to find table/description
+          // This is a basic fallback, might need more robust detection if both formats are common
+          const oldFormatData = XLSX.utils.sheet_to_json<any[]>(
+            sheetInfoSheet,
+            { header: 1 }
+          );
+          if (
+            oldFormatData.length >= 1 &&
+            oldFormatData[0][0]?.toString().toLowerCase() === "table"
+          ) {
+            tableNameFromSheet = oldFormatData[0][1]?.toString() || "";
+          }
+          if (
+            oldFormatData.length >= 2 &&
+            oldFormatData[1][0]?.toString().toLowerCase() === "description"
+          ) {
+            tableDescriptionFromSheet = oldFormatData[1][1]?.toString() || "";
+          }
+        }
+
+        setUploadedTableName(tableNameFromSheet);
+        setUploadedTableDescription(tableDescriptionFromSheet);
+
+        if (!tableNameFromSheet && !tableDescriptionFromSheet) {
+          toast.info(
+            "Sheet 'sheet_info' được tìm thấy nhưng không chứa thông tin 'table' hoặc 'description' hợp lệ. Tên và mô tả sẽ cần nhập thủ công."
+          );
+        }
+      } else {
+        toast.info(
+          "Không tìm thấy sheet 'sheet_info'. Tên và mô tả bảng sẽ cần nhập thủ công."
+        );
+        setUploadedTableName("");
+        setUploadedTableDescription("");
+      }
+
+      // --- 2. Read 'column_config' --- (New)
+      const columnConfigSheet = workbook.Sheets["column_config"];
+      let configsFromSheet: ColumnConfig[] = [];
+      if (columnConfigSheet) {
+        const columnConfigData = XLSX.utils.sheet_to_json<any>(
+          columnConfigSheet,
+          { header: ["column_name", "column_type", "description", "is_index"] }
+        );
+        // Skip the header row if sheet_to_json includes it as the first object
+        const actualConfigData = columnConfigData.slice(1);
+
+        configsFromSheet = actualConfigData
+          .map((row: any) => ({
+            column_name: row.column_name?.toString().trim() || "",
+            column_type:
+              (row.column_type?.toString() as ColumnType) || "String",
+            description: row.description?.toString() || "",
+            is_index:
+              typeof row.is_index === "boolean"
+                ? row.is_index
+                : row.is_index?.toString().toLowerCase() === "true" ||
+                  row.is_index?.toString() === "1",
+          }))
+          .filter((config) => config.column_name); // Ensure column_name is present
+      }
+      // No specific warning if 'column_config' is missing, as defaults will be generated from 'data' sheet.
+
+      // --- 3. Read 'data' sheet (main data) ---
+      const dataSheetName =
+        workbook.SheetNames.find((name) => name.toLowerCase() === "data") ||
+        workbook.SheetNames[0];
+      const worksheet = workbook.Sheets[dataSheetName];
+      if (!worksheet) {
+        toast.error(
+          "Không tìm thấy sheet 'data' hoặc sheet dữ liệu chính trong file Excel."
+        );
+        resetStatesOnError();
         return;
       }
 
-      // Đọc header từ sheet
-      const headers = XLSX.utils.sheet_to_json(worksheet, {
-        header: 1,
-      })[0] as string[];
-
-      // Kiểm tra có header không
+      const headers = (
+        XLSX.utils.sheet_to_json(worksheet, { header: 1 })[0] as string[]
+      )?.map((h) => String(h).trim());
       if (!headers || headers.length === 0) {
-        toast.error("Không tìm thấy header trong file Excel");
-        setIsLoading(false);
+        toast.error("Không tìm thấy header trong sheet 'data'.");
+        resetStatesOnError();
         return;
       }
 
-      // Tạo cấu hình cột mặc định
-      const columnConfigs = headers.map((header) => ({
-        column_name: String(header).trim(),
-        column_type: "String" as ColumnType, // Explicitly cast to ColumnType
-        is_index: false,
-        description: "",
-      }));
-
-      // Ensure allRows is cast to the correct type
-      const allRows = XLSX.utils.sheet_to_json(worksheet, {
+      const allRowsData = XLSX.utils.sheet_to_json(worksheet, {
         header: 1,
         blankrows: false,
         defval: "",
-      }) as any[][];
+      }) as any[][]; // Includes header row
 
-      // Prepare preview data (first 10 rows)
-      const previewRows = allRows.slice(0, 10) as any[][];
+      if (allRowsData.length <= 1) {
+        toast.error("Sheet 'data' không có dữ liệu ngoài dòng tiêu đề.");
+        resetStatesOnError();
+        return;
+      }
 
-      // Update state with all rows and preview data
-      setColumnConfigs(columnConfigs);
+      // 'id' column validation (from 'data' sheet headers)
+      const idColumnName = headers.find((h) => h.toLowerCase() === "id");
+      let idColumnIndex = -1;
+      if (idColumnName) {
+        idColumnIndex = headers.indexOf(idColumnName);
+      }
+
+      if (idColumnIndex === -1) {
+        toast.error(
+          "Cột 'id' không tồn tại trong sheet 'data'. Vui lòng đặt tên cột định danh là 'id'."
+        );
+        resetStatesOnError();
+        return;
+      }
+
+      const idColumnData = allRowsData
+        .slice(1)
+        .map((row) => row[idColumnIndex]);
+      const allValidIds = idColumnData.every((value) => {
+        if (
+          value === null ||
+          value === undefined ||
+          String(value).trim() === ""
+        )
+          return false;
+        if (typeof value === "number" && Number.isInteger(value)) return true;
+        if (typeof value === "string" && /^-?\d+$/.test(String(value).trim()))
+          return true;
+        return false;
+      });
+
+      if (!allValidIds) {
+        toast.error(
+          "Cột 'id' trong sheet 'data' phải chứa các giá trị số nguyên và không được để trống."
+        );
+        resetStatesOnError();
+        return;
+      }
+
+      const uniqueIds = new Set(idColumnData.map((val) => String(val).trim()));
+      if (uniqueIds.size !== idColumnData.length) {
+        toast.error(
+          "Cột 'id' trong sheet 'data' phải chứa các giá trị duy nhất."
+        );
+        resetStatesOnError();
+        return;
+      }
+
+      // --- Generate initialColumnConfigs --- (Merge/Prioritize)
+      // Priority: 'column_config' sheet > Defaults for 'id' > Generated from 'data' headers
+      let finalGeneratedConfigs: ColumnConfig[] = [];
+
+      if (configsFromSheet.length > 0) {
+        // If 'column_config' sheet exists, use it as the base
+        // Ensure 'id' column from this sheet gets its special properties if not already set
+        finalGeneratedConfigs = configsFromSheet.map((config) => {
+          if (config.column_name.toLowerCase() === "id") {
+            return {
+              ...config,
+              column_type: "Integer" as ColumnType, // Force type for 'id'
+              description: config.description || "Số thứ tự", // Default description if empty
+              is_index: true, // Force index for 'id'
+            };
+          }
+          return config;
+        });
+
+        // Check if 'id' column from 'data' sheet was in 'column_config' sheet
+        const idInSheetConfig = finalGeneratedConfigs.find(
+          (c) => c.column_name.toLowerCase() === "id"
+        );
+        if (!idInSheetConfig && idColumnName) {
+          // id exists in data but not in column_config sheet
+          finalGeneratedConfigs.push({
+            column_name: idColumnName, // Use the exact name from 'data' sheet header
+            column_type: "Integer" as ColumnType,
+            is_index: true,
+            description: "Số thứ tự",
+          });
+        }
+      } else {
+        // If no 'column_config' sheet, generate from 'data' sheet headers
+        finalGeneratedConfigs = headers.map((header) => {
+          const isIdCol = header.toLowerCase() === "id";
+          return {
+            column_name: header,
+            column_type: isIdCol
+              ? ("Integer" as ColumnType)
+              : ("String" as ColumnType),
+            is_index: isIdCol,
+            description: isIdCol ? "Số thứ tự" : "",
+          };
+        });
+      }
+
+      setInitialColumnConfigs(finalGeneratedConfigs);
+
+      const previewRows = allRowsData.slice(1, 11); // Data rows only for preview
       setExcelData({ headers, rows: previewRows });
-      setAllRows(allRows);
-    } catch (error) {
-      toast.error("Có lỗi xảy ra khi xử lý file Excel");
+      setAllRows(allRowsData); // Store all rows including header
+    } catch {
+      toast.error(
+        "Đã xảy ra lỗi khi xử lý file Excel. Vui lòng kiểm tra định dạng file và thử lại."
+      );
+      resetStatesOnError();
     } finally {
       setIsLoading(false);
     }
@@ -222,7 +417,7 @@ export function UploadStep({
                   e.stopPropagation();
                   setSelectedFile(null);
                   setExcelData(null);
-                  setColumnConfigs([]);
+                  setInitialColumnConfigs([]);
                 }}
               >
                 Đổi file khác

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -96,7 +96,7 @@ export function EditScriptModal({
           scriptsResponse.data.filter((s) => s.id !== scriptId)
         );
         setAvailableSheets(sheetsResponse.data);
-      } catch (error) {
+      } catch {
         toast.error("Không thể tải thông tin kịch bản");
       } finally {
         setIsLoading(false);
@@ -193,7 +193,7 @@ export function EditScriptModal({
       toast.success("Đã cập nhật kịch bản thành công");
       onSuccess?.();
       onOpenChange(false);
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi cập nhật kịch bản");
     } finally {
       setIsSubmitting(false);

@@ -12,6 +12,7 @@ import {
 import { toast } from "sonner";
 import { Sheet } from "@/types";
 import { sheetService } from "@/services/api/sheet.service";
+import { cn } from "@/lib/utils";
 
 // Import specialized edit step components
 import { EditSheetInfoStep } from "./steps/EditSheetInfoStep";
@@ -32,7 +33,7 @@ const STEP_TITLES = {
 const TOTAL_STEPS = Object.keys(STEPS).length;
 
 // Types
-interface SheetColumnConfig {
+interface _SheetColumnConfig {
   name: string;
   dataType: string;
   description: string;
@@ -81,7 +82,7 @@ export function MultiStepEditSpreadsheetModal({
         try {
           // Đảm bảo rằng dữ liệu từ API được sử dụng trực tiếp mà không cần chuyển đổi
           setColumnConfigs(sheet.column_config);
-        } catch (err) {
+        } catch {
           setColumnConfigs([]);
         }
       }
@@ -174,10 +175,8 @@ export function MultiStepEditSpreadsheetModal({
       toast.success("Cập nhật bảng tính thành công");
       onOpenChange(false);
       onSuccess?.();
-    } catch (error: any) {
-      toast.error(
-        error?.response?.data?.message || "Có lỗi xảy ra khi cập nhật bảng tính"
-      );
+    } catch {
+      toast.error("Có lỗi xảy ra khi cập nhật bảng tính");
     } finally {
       setIsSubmitting(false);
     }
@@ -223,47 +222,22 @@ export function MultiStepEditSpreadsheetModal({
   };
 
   // Step indicator component
-  const StepIndicator = () => (
-    <div className="flex justify-center items-center gap-2 mb-6">
-      {[STEPS.INFO, STEPS.COLUMNS].map((step) => (
-        <div key={step} className="flex items-center">
+  const _StepIndicator = ({ currentStep }: { currentStep: number }) => {
+    return (
+      <div className="flex justify-center space-x-2 mb-6">
+        {[1, 2, 3].map((step) => (
           <div
-            className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-              step === currentStep
-                ? "bg-[#6366F1] text-white"
-                : step < currentStep
-                ? "bg-green-500 text-white"
-                : "bg-gray-200 text-gray-500"
-            }`}
-          >
-            {step < currentStep ? (
-              <svg
-                xmlns="http://www.w3.org/2000/svg"
-                className="h-5 w-5"
-                viewBox="0 0 20 20"
-                fill="currentColor"
-              >
-                <path
-                  fillRule="evenodd"
-                  d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z"
-                  clipRule="evenodd"
-                />
-              </svg>
-            ) : (
-              step
+            key={step}
+            className={cn(
+              "w-3 h-3 rounded-full bg-gray-300",
+              currentStep === step && "bg-primary",
+              currentStep > step && "bg-green-500"
             )}
-          </div>
-          {step < TOTAL_STEPS && (
-            <div
-              className={`w-12 h-1 ${
-                step < currentStep ? "bg-green-500" : "bg-gray-200"
-              }`}
-            ></div>
-          )}
-        </div>
-      ))}
-    </div>
-  );
+          />
+        ))}
+      </div>
+    );
+  };
 
   // Loading spinner component
   const LoadingSpinner = () => (
@@ -364,7 +338,7 @@ export function MultiStepEditSpreadsheetModal({
                   Đang cập nhật...
                 </span>
               ) : (
-                "Hoàn thành"
+                "Complete"
               )}
             </Button>
           )}

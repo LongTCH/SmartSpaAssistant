@@ -34,27 +34,55 @@ export function MultiStepAddSpreadsheetModal({
   // Basic state
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isLoading, setIsLoading] = useState(false); // isLoading is for UploadStep processing
+  const [isNextEnabled, setIsNextEnabled] = useState(true);
 
-  // Step 1 data
+  // Step 1: Upload Step Data (file, and extracted initial data)
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [excelData, setExcelData] = useState<ExcelData | null>(null); // Data from 'data' sheet for preview & type prediction
+  const [allRows, setAllRows] = useState<any[][]>([]); // All rows from 'data' sheet (includes header row)
+  // Data extracted from 'sheet_info' and 'column_config' sheets by UploadStep
+  const [uploadedTableName, setUploadedTableName] = useState<string>("");
+  const [uploadedTableDescription, setUploadedTableDescription] =
+    useState<string>("");
+  const [initialColumnConfigs, setInitialColumnConfigs] = useState<
+    ColumnConfig[]
+  >([]); // From 'column_config' sheet
+
+  // Step 2: Sheet Info Step Data (user-editable, pre-filled from UploadStep)
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [status, setStatus] = useState<"published" | "draft">("published");
 
-  // Step 2 data
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  // Step 3: Table Config Step Data (user-editable, pre-filled from UploadStep)
+  const [finalColumnConfigs, setFinalColumnConfigs] = useState<ColumnConfig[]>(
+    []
+  );
 
-  // Step 3 data
-  const [columnConfigs, setColumnConfigs] = useState<ColumnConfig[]>([]);
-
-  // Step 4 preview data
-  const [excelData, setExcelData] = useState<ExcelData | null>(null);
-  const [allRows, setAllRows] = useState<any[][]>([]);
+  // Step 4: Preview data (uses excelData and finalColumnConfigs)
   const [isLoadingMore, setIsLoadingMore] = useState(false);
   const rowsPerPage = 10;
 
+  // Effect to pre-fill SheetInfoStep and TableConfigStep when data from UploadStep is ready
+  useEffect(() => {
+    if (uploadedTableName) setName(uploadedTableName);
+  }, [uploadedTableName]);
+
+  useEffect(() => {
+    if (uploadedTableDescription) setDescription(uploadedTableDescription);
+  }, [uploadedTableDescription]);
+
+  useEffect(() => {
+    // This effect now correctly receives initialColumnConfigs from UploadStep
+    // (which could be from 'column_config' sheet or generated defaults if sheet is missing)
+    // It then sets finalColumnConfigs, which TableConfigStep will use and can further refine.
+    if (initialColumnConfigs.length > 0) {
+      setFinalColumnConfigs(initialColumnConfigs);
+    }
+  }, [initialColumnConfigs]);
+
   // Tính toán dữ liệu hiển thị dựa trên allRows và phân trang
-  const getVisibleRows = () => {
+  const _getVisibleRows = () => {
     if (!excelData || !allRows.length) return [];
     return allRows.slice(0, Math.min(allRows.length, rowsPerPage));
   };
@@ -63,13 +91,21 @@ export function MultiStepAddSpreadsheetModal({
   useEffect(() => {
     if (!open) {
       setCurrentStep(1);
+      // Reset Step 1 data
+      setSelectedFile(null);
+      setExcelData(null);
+      setAllRows([]);
+      setUploadedTableName("");
+      setUploadedTableDescription("");
+      setInitialColumnConfigs([]);
+      // Reset Step 2 data
       setName("");
       setDescription("");
       setStatus("published");
-      setSelectedFile(null);
-      setColumnConfigs([]);
-      setExcelData(null);
-      setAllRows([]);
+      // Reset Step 3 data
+      setFinalColumnConfigs([]);
+      setIsLoading(false);
+      setIsNextEnabled(true);
     }
   }, [open]);
 
@@ -122,7 +158,7 @@ export function MultiStepAddSpreadsheetModal({
 
   // Update column configuration
   const updateColumnConfig = (index: number, field: string, value: any) => {
-    setColumnConfigs((prev) => {
+    setFinalColumnConfigs((prev) => {
       const newConfigs = [...prev];
       newConfigs[index] = {
         ...newConfigs[index],
@@ -135,17 +171,7 @@ export function MultiStepAddSpreadsheetModal({
   // Handle next step
   const handleNextStep = () => {
     if (currentStep === 1) {
-      // Validate step 1
-      if (!name.trim()) {
-        toast.error("Vui lòng nhập tên bảng tính");
-        return;
-      }
-      if (!description.trim()) {
-        toast.error("Vui lòng nhập mô tả bảng tính");
-        return;
-      }
-    } else if (currentStep === 2) {
-      // Validate step 2
+      // From Upload to Sheet Info
       if (!selectedFile) {
         toast.error("Vui lòng tải lên file Excel");
         return;
@@ -156,8 +182,42 @@ export function MultiStepAddSpreadsheetModal({
         );
         return;
       }
-      if (columnConfigs.length === 0 || !excelData) {
-        toast.error("Vui lòng chờ xử lý file hoàn tất");
+      // initialColumnConfigs should be populated by UploadStep.
+      // If UploadStep failed to produce them (e.g. critical error reading file structure),
+      // it should have shown an error and prevented proceeding. We assume they are populated here.
+      if (
+        initialColumnConfigs.length === 0 &&
+        excelData &&
+        excelData.headers.length > 0
+      ) {
+        // This case implies 'column_config' sheet might be missing or empty, and UploadStep
+        // should have generated default configs from 'data' sheet headers.
+        // If initialColumnConfigs is still empty, it might be an issue.
+        // However, UploadStep is now designed to always provide some initialColumnConfigs.
+      }
+    } else if (currentStep === 2) {
+      // From Sheet Info to Table Config
+      if (!name.trim()) {
+        toast.error("Vui lòng nhập tên bảng tính");
+        return;
+      }
+      if (!description.trim()) {
+        toast.error("Vui lòng nhập mô tả bảng tính");
+        return;
+      }
+    } else if (currentStep === 3) {
+      // From Table Config to Preview
+      if (!isNextEnabled) {
+        // isNextEnabled is controlled by TableConfigStep
+        toast.error(
+          "Vui lòng kiểm tra lại cấu hình cột. Đảm bảo cột 'id' hợp lệ."
+        );
+        return;
+      }
+      // Ensure there's at least one column marked as index
+      const hasIndexColumn = finalColumnConfigs.some((col) => col.is_index);
+      if (!hasIndexColumn) {
+        toast.error("Vui lòng chọn ít nhất một cột làm cột Index (chỉ mục).");
         return;
       }
     }
@@ -172,7 +232,7 @@ export function MultiStepAddSpreadsheetModal({
 
   // Convert internal column configs to API format
   const convertColumnConfigsToAPIFormat = (): ColumnConfig[] => {
-    return columnConfigs.map((config) => ({
+    return finalColumnConfigs.map((config) => ({
       column_name: config.column_name,
       column_type: config.column_type,
       description: config.description,
@@ -212,9 +272,9 @@ export function MultiStepAddSpreadsheetModal({
       // Close modal and call success callback if provided
       onOpenChange(false);
       if (onSuccess) onSuccess();
-    } catch (error: any) {
+    } catch {
       toast.error(
-        error?.response?.data?.message || "Có lỗi xảy ra khi lưu bảng tính"
+        "Có lỗi xảy ra khi lưu bảng tính"
       );
     } finally {
       setIsSubmitting(false);
@@ -224,7 +284,21 @@ export function MultiStepAddSpreadsheetModal({
   // Get current step component
   const getStepContent = () => {
     switch (currentStep) {
-      case 1:
+      case 1: // Upload Step
+        return (
+          <UploadStep
+            selectedFile={selectedFile}
+            setSelectedFile={setSelectedFile}
+            setExcelData={setExcelData}
+            setAllRows={setAllRows}
+            setUploadedTableName={setUploadedTableName}
+            setUploadedTableDescription={setUploadedTableDescription}
+            setInitialColumnConfigs={setInitialColumnConfigs} // Corrected: Was missing, now added
+            isLoading={isLoading}
+            setIsLoading={setIsLoading}
+          />
+        );
+      case 2: // Sheet Info Step
         return (
           <SheetInfoStep
             name={name}
@@ -235,32 +309,21 @@ export function MultiStepAddSpreadsheetModal({
             setStatus={setStatus}
           />
         );
-      case 2:
-        return (
-          <UploadStep
-            selectedFile={selectedFile}
-            setSelectedFile={setSelectedFile}
-            setColumnConfigs={setColumnConfigs}
-            setExcelData={setExcelData}
-            setAllRows={setAllRows} // Add this missing prop
-            isLoading={isLoading}
-            setIsLoading={setIsLoading}
-          />
-        );
-      case 3:
+      case 3: // Table Config Step
         return (
           <TableConfigStep
-            columnConfigs={columnConfigs}
+            columnConfigs={finalColumnConfigs}
             updateColumnConfig={updateColumnConfig}
             excelData={excelData}
+            allRows={allRows}
+            setNextEnabled={setIsNextEnabled}
           />
         );
-      case 4:
+      case 4: // Preview Step
         return (
           <PreviewStep
             excelData={excelData}
-            columnConfigs={columnConfigs}
-            visibleRows={excelData?.rows || []}
+            columnConfigs={finalColumnConfigs}
             allRows={allRows}
             isLoadingMore={isLoadingMore}
             handleScroll={handleScroll}
@@ -276,13 +339,13 @@ export function MultiStepAddSpreadsheetModal({
   const getStepTitle = () => {
     switch (currentStep) {
       case 1:
-        return "Thông tin bảng";
+        return "Tải File Excel"; // New Step 1
       case 2:
-        return "Upload";
+        return "Thông tin bảng"; // New Step 2
       case 3:
-        return "Cấu hình bảng";
+        return "Cấu hình cột"; // New Step 3
       case 4:
-        return "Preview";
+        return "Xem trước & Hoàn tất"; // New Step 4
       default:
         return "";
     }
@@ -297,8 +360,9 @@ export function MultiStepAddSpreadsheetModal({
           </DialogTitle>
         </DialogHeader>
 
-        {/* Step indicators */}
+        {/* Step indicators - Updated Order */}
         <div className="w-full flex justify-center items-center py-6">
+          {/* Step 1: Upload */}
           <div className="flex items-center">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -309,13 +373,14 @@ export function MultiStepAddSpreadsheetModal({
             >
               1
             </div>
-            <div className="text-xs font-medium ml-2 mr-3">Thông tin bảng</div>
+            <div className="text-xs font-medium ml-2 mr-3">Tải File</div>
           </div>
           <div
             className={`w-12 h-0.5 mx-1 ${
               currentStep > 1 ? "bg-[#0F62FE]" : "bg-gray-200"
             }`}
           ></div>
+          {/* Step 2: Sheet Info */}
           <div className="flex items-center">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -326,13 +391,14 @@ export function MultiStepAddSpreadsheetModal({
             >
               2
             </div>
-            <div className="text-xs font-medium ml-2 mr-3">Upload</div>
+            <div className="text-xs font-medium ml-2 mr-3">Thông tin</div>
           </div>
           <div
             className={`w-12 h-0.5 mx-1 ${
               currentStep > 2 ? "bg-[#0F62FE]" : "bg-gray-200"
             }`}
           ></div>
+          {/* Step 3: Table Config */}
           <div className="flex items-center">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -343,13 +409,14 @@ export function MultiStepAddSpreadsheetModal({
             >
               3
             </div>
-            <div className="text-xs font-medium ml-2 mr-3">Cấu hình bảng</div>
+            <div className="text-xs font-medium ml-2 mr-3">Cấu hình cột</div>
           </div>
           <div
             className={`w-12 h-0.5 mx-1 ${
               currentStep > 3 ? "bg-[#0F62FE]" : "bg-gray-200"
             }`}
           ></div>
+          {/* Step 4: Preview */}
           <div className="flex items-center">
             <div
               className={`w-8 h-8 rounded-full flex items-center justify-center ${
@@ -360,7 +427,7 @@ export function MultiStepAddSpreadsheetModal({
             >
               4
             </div>
-            <div className="text-xs font-medium ml-2">Preview</div>
+            <div className="text-xs font-medium ml-2">Xem trước</div>
           </div>
         </div>
 
@@ -378,7 +445,7 @@ export function MultiStepAddSpreadsheetModal({
             <Button
               variant="outline"
               onClick={handlePrevStep}
-              disabled={isSubmitting}
+              disabled={isSubmitting || isLoading} // Also disable prev if UploadStep is loading
             >
               Previous
             </Button>
@@ -388,9 +455,13 @@ export function MultiStepAddSpreadsheetModal({
             <Button
               className="bg-blue-600 hover:bg-blue-700 text-white"
               onClick={handleNextStep}
-              disabled={currentStep === 2 && isLoading}
+              disabled={
+                (currentStep === 1 && isLoading) ||
+                (currentStep === 3 && !isNextEnabled) ||
+                isSubmitting
+              }
             >
-              {currentStep === 2 && isLoading ? "Đang xử lý..." : "Next"}
+              {currentStep === 1 && isLoading ? "Đang xử lý..." : "Next"}
             </Button>
           ) : (
             <Button

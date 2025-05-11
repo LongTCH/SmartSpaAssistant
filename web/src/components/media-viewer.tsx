@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useRef, useEffect, useCallback } from "react";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChatAttachment } from "@/types";
@@ -43,15 +43,33 @@ export function MediaViewer({
     setIsPlaying(true);
   }, [attachment]);
 
-  const handleKeyDown = (e: KeyboardEvent) => {
-    if (e.key === "Escape") {
-      onClose();
-    } else if (e.key === "ArrowLeft" && attachments.length > 1) {
-      navigateToPrev();
-    } else if (e.key === "ArrowRight" && attachments.length > 1) {
-      navigateToNext();
+  const navigateToNext = useCallback(() => {
+    if (attachments.length > 1 && onNavigate) {
+      const nextIndex = (currentIndex + 1) % attachments.length;
+      onNavigate(nextIndex);
     }
-  };
+  }, [attachments.length, currentIndex, onNavigate]);
+
+  const navigateToPrev = useCallback(() => {
+    if (attachments.length > 1 && onNavigate) {
+      const prevIndex =
+        (currentIndex - 1 + attachments.length) % attachments.length;
+      onNavigate(prevIndex);
+    }
+  }, [attachments.length, currentIndex, onNavigate]);
+
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        onClose();
+      } else if (e.key === "ArrowLeft" && attachments.length > 1) {
+        navigateToPrev();
+      } else if (e.key === "ArrowRight" && attachments.length > 1) {
+        navigateToNext();
+      }
+    },
+    [onClose, attachments.length, navigateToPrev, navigateToNext]
+  );
 
   useEffect(() => {
     if (isOpen) {
@@ -60,7 +78,7 @@ export function MediaViewer({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [isOpen, currentIndex]);
+  }, [isOpen, currentIndex, handleKeyDown]);
 
   const handleDownload = () => {
     if (attachment.payload?.url) {
@@ -84,21 +102,6 @@ export function MediaViewer({
     } else {
       navigator.clipboard.writeText(attachment.payload?.url || "");
       alert("Đã sao chép liên kết vào clipboard");
-    }
-  };
-
-  const navigateToNext = () => {
-    if (attachments.length > 1 && onNavigate) {
-      const nextIndex = (currentIndex + 1) % attachments.length;
-      onNavigate(nextIndex);
-    }
-  };
-
-  const navigateToPrev = () => {
-    if (attachments.length > 1 && onNavigate) {
-      const prevIndex =
-        (currentIndex - 1 + attachments.length) % attachments.length;
-      onNavigate(prevIndex);
     }
   };
 
@@ -134,6 +137,7 @@ export function MediaViewer({
       case "image":
         return (
           <div className="flex items-center justify-center w-full h-full">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               ref={mediaRef as React.RefObject<HTMLImageElement>}
               src={url}

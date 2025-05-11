@@ -11,7 +11,6 @@ import { ComponentPropsWithoutRef } from "react";
 
 // Định nghĩa các kiểu dữ liệu
 type CodeProps = ComponentPropsWithoutRef<"code"> & {
-  node?: any;
   inline?: boolean;
   className?: string;
   children: React.ReactNode;
@@ -19,22 +18,22 @@ type CodeProps = ComponentPropsWithoutRef<"code"> & {
 
 type ComponentTypes = {
   code: React.FC<CodeProps>;
-  a: React.FC<ComponentPropsWithoutRef<"a"> & { node?: any }>;
-  p: React.FC<ComponentPropsWithoutRef<"p"> & { node?: any }>;
-  h1: React.FC<ComponentPropsWithoutRef<"h1"> & { node?: any }>;
-  h2: React.FC<ComponentPropsWithoutRef<"h2"> & { node?: any }>;
-  h3: React.FC<ComponentPropsWithoutRef<"h3"> & { node?: any }>;
-  ul: React.FC<ComponentPropsWithoutRef<"ul"> & { node?: any }>;
-  ol: React.FC<ComponentPropsWithoutRef<"ol"> & { node?: any }>;
-  li: React.FC<ComponentPropsWithoutRef<"li"> & { node?: any }>;
-  blockquote: React.FC<ComponentPropsWithoutRef<"blockquote"> & { node?: any }>;
-  hr: React.FC<ComponentPropsWithoutRef<"hr"> & { node?: any }>;
-  img: React.FC<ComponentPropsWithoutRef<"img"> & { node?: any }>;
-  table: React.FC<ComponentPropsWithoutRef<"table"> & { node?: any }>;
-  th: React.FC<ComponentPropsWithoutRef<"th"> & { node?: any }>;
-  td: React.FC<ComponentPropsWithoutRef<"td"> & { node?: any }>;
-  strong: React.FC<ComponentPropsWithoutRef<"strong"> & { node?: any }>;
-  em: React.FC<ComponentPropsWithoutRef<"em"> & { node?: any }>;
+  a: React.FC<ComponentPropsWithoutRef<"a">>;
+  p: React.FC<ComponentPropsWithoutRef<"p">>;
+  h1: React.FC<ComponentPropsWithoutRef<"h1">>;
+  h2: React.FC<ComponentPropsWithoutRef<"h2">>;
+  h3: React.FC<ComponentPropsWithoutRef<"h3">>;
+  ul: React.FC<ComponentPropsWithoutRef<"ul">>;
+  ol: React.FC<ComponentPropsWithoutRef<"ol">>;
+  li: React.FC<ComponentPropsWithoutRef<"li">>;
+  blockquote: React.FC<ComponentPropsWithoutRef<"blockquote">>;
+  hr: React.FC<ComponentPropsWithoutRef<"hr">>;
+  img: React.FC<ComponentPropsWithoutRef<"img">>;
+  table: React.FC<ComponentPropsWithoutRef<"table">>;
+  th: React.FC<ComponentPropsWithoutRef<"th">>;
+  td: React.FC<ComponentPropsWithoutRef<"td">>;
+  strong: React.FC<ComponentPropsWithoutRef<"strong">>;
+  em: React.FC<ComponentPropsWithoutRef<"em">>;
 };
 
 interface MarkdownContentProps {
@@ -76,13 +75,13 @@ export function MarkdownContent({
 
   // Xác định các components cho ReactMarkdown
   const components: Partial<ComponentTypes> = {
-    code({ node, inline, className, children, ...props }) {
+    code({ inline, className, children, ...props }) {
       const match = /language-(\w+)/.exec(className || "");
 
       return !inline && match ? (
         <div className="overflow-hidden rounded-md my-4">
           <SyntaxHighlighter
-            // @ts-ignore - Bỏ qua lỗi TypeScript cho style
+            // @ts-expect-error - rehype-raw is not yet updated for React 19
             style={vscDarkPlus}
             language={match[1]}
             PreTag="div"
@@ -100,7 +99,7 @@ export function MarkdownContent({
         </code>
       );
     },
-    a: ({ node, ...props }) => (
+    a: ({ ...props }) => (
       <a
         {...props}
         target="_blank"
@@ -108,40 +107,33 @@ export function MarkdownContent({
         className={`${themeClasses.link} hover:underline`}
       />
     ),
-    p: ({ node, ...props }) => <p className="mb-4 last:mb-0" {...props} />,
-    h1: ({ node, ...props }) => (
-      <h1 className="text-xl font-bold mb-2" {...props} />
-    ),
-    h2: ({ node, ...props }) => (
-      <h2 className="text-lg font-bold mb-2" {...props} />
-    ),
-    h3: ({ node, ...props }) => (
+    p: ({ ...props }) => <p className="mb-4 last:mb-0" {...props} />,
+    h1: ({ ...props }) => <h1 className="text-xl font-bold mb-2" {...props} />,
+    h2: ({ ...props }) => <h2 className="text-lg font-bold mb-2" {...props} />,
+    h3: ({ ...props }) => (
       <h3 className="text-base font-bold mb-2" {...props} />
     ),
-    ul: ({ node, ...props }) => (
-      <ul className="list-disc ml-5 mb-4" {...props} />
-    ),
-    ol: ({ node, ...props }) => (
-      <ol className="list-decimal ml-5 mb-4" {...props} />
-    ),
-    li: ({ node, ...props }) => <li className="mb-1" {...props} />,
-    blockquote: ({ node, ...props }) => (
+    ul: ({ ...props }) => <ul className="list-disc ml-5 mb-4" {...props} />,
+    ol: ({ ...props }) => <ol className="list-decimal ml-5 mb-4" {...props} />,
+    li: ({ ...props }) => <li className="mb-1" {...props} />,
+    blockquote: ({ ...props }) => (
       <blockquote
         className={`border-l-4 ${themeClasses.border} pl-4 italic ${themeClasses.textMuted} my-4`}
         {...props}
       />
     ),
-    hr: ({ node, ...props }) => (
+    hr: ({ ...props }) => (
       <hr className={`border-t ${themeClasses.border} my-4`} {...props} />
     ),
-    img: ({ node, alt, ...props }) => (
+    img: ({ alt, ...props }) => (
+      // eslint-disable-next-line @next/next/no-img-element
       <img
         alt={alt || "Image"}
         className="max-w-full h-auto rounded my-4"
         {...props}
       />
     ),
-    table: ({ node, ...props }) => (
+    table: ({ ...props }) => (
       <div className="overflow-x-auto my-4">
         <table
           className={`border-collapse border ${themeClasses.border}`}
@@ -149,17 +141,17 @@ export function MarkdownContent({
         />
       </div>
     ),
-    th: ({ node, ...props }) => (
+    th: ({ ...props }) => (
       <th
         className={`border ${themeClasses.border} px-4 py-2 ${themeClasses.bgSecondary}`}
         {...props}
       />
     ),
-    td: ({ node, ...props }) => (
+    td: ({ ...props }) => (
       <td className={`border ${themeClasses.border} px-4 py-2`} {...props} />
     ),
-    strong: ({ node, ...props }) => <strong className="font-bold" {...props} />,
-    em: ({ node, ...props }) => <em className="italic" {...props} />,
+    strong: ({ ...props }) => <strong className="font-bold" {...props} />,
+    em: ({ ...props }) => <em className="italic" {...props} />,
   };
 
   // Loại bỏ prop className khỏi ReactMarkdown và đặt nó vào div wrapper
@@ -168,7 +160,7 @@ export function MarkdownContent({
       <ReactMarkdown
         remarkPlugins={[remarkGfm, remarkMath]}
         rehypePlugins={[rehypeRaw, rehypeKatex]}
-        // @ts-ignore - Bỏ qua lỗi TypeScript cho components
+        // @ts-expect-error - Bỏ qua lỗi TypeScript cho components
         components={components}
       >
         {content}

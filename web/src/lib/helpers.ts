@@ -49,7 +49,7 @@ export function formatDate(
         : getDateFormatter();
 
     return formatter.format(date);
-  } catch (e) {
+  } catch {
     return String(value);
   }
 }

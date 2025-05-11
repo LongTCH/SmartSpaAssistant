@@ -198,7 +198,7 @@ async def get_rows_with_columns(
     return result.mappings().all()
 
 
-async def get_data_fts_of_row(db: AsyncSession, table_name: str, row_id: int) -> dict:
-    query = text(f'SELECT data_fts::text FROM "{table_name}" WHERE id = :row_id')
-    result = await db.execute(query, {"row_id": row_id})
-    return json.loads(result.mappings().first()["data_fts"])
+async def get_all_rows_of_sheet(db: AsyncSession, table_name: str) -> list[dict]:
+    query = text(f'SELECT * FROM "{table_name}" ORDER BY id')
+    result = await db.execute(query)
+    return result.mappings().all()

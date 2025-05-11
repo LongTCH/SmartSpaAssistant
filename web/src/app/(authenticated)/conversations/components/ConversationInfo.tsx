@@ -2,7 +2,6 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatContent, Conversation, ProviderType } from "@/types";
-import { useRouter } from "next/navigation";
 import Image from "next/image";
 
 export default function ConversationInfo({
@@ -16,8 +15,6 @@ export default function ConversationInfo({
   isUnread?: boolean;
   onClick: () => void;
 }) {
-  const router = useRouter();
-
   const getTimeDifference = (date: string) => {
     const now = new Date();
     const messageDate = new Date(date);

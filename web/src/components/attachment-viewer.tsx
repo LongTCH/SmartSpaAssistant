@@ -1,6 +1,5 @@
 import React, { useState } from "react";
 import { ChatAttachment } from "@/types";
-import Image from "next/image";
 import { MediaViewer } from "./media-viewer";
 
 interface AttachmentViewerProps {
@@ -25,7 +24,7 @@ export function AttachmentViewer({
     (att) => att.type === "image" || att.type === "video"
   );
 
-  const handleMediaClick = (attachment: ChatAttachment, index: number) => {
+  const handleMediaClick = (attachment: ChatAttachment, _u: number) => {
     // Chỉ mở MediaViewer cho image và video
     if (attachment.type === "image" || attachment.type === "video") {
       setSelectedMedia(attachment);
@@ -50,18 +49,26 @@ export function AttachmentViewer({
   return (
     <>
       <div className={`attachment-container ${className}`}>
-        {attachments.map((attachment, index) => {
+        {attachments.map((attachment) => {
           const url = attachment.payload?.url || "";
 
           switch (attachment.type) {
             case "image":
               return (
                 <div
-                  key={index}
+                  key={url} // Use URL as key if unique, or generate a unique ID
                   className="relative rounded-lg overflow-hidden my-2 max-w-full cursor-pointer"
-                  onClick={() => handleMediaClick(attachment, index)}
+                  onClick={() =>
+                    handleMediaClick(
+                      attachment,
+                      mediaAttachments.findIndex(
+                        (media) => media.payload?.url === url
+                      )
+                    )
+                  }
                 >
                   <div className="group relative">
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
                       src={url}
                       alt="Hình ảnh"
@@ -76,9 +83,16 @@ export function AttachmentViewer({
             case "video":
               return (
                 <div
-                  key={index}
+                  key={url} // Use URL as key
                   className="my-2 relative cursor-pointer"
-                  onClick={() => handleMediaClick(attachment, index)}
+                  onClick={() =>
+                    handleMediaClick(
+                      attachment,
+                      mediaAttachments.findIndex(
+                        (media) => media.payload?.url === url
+                      )
+                    )
+                  }
                 >
                   <div className="group relative">
                     <video
@@ -113,7 +127,7 @@ export function AttachmentViewer({
 
             case "audio":
               return (
-                <div key={index} className="my-2">
+                <div key={url} className="my-2">
                   <audio controls className="w-full">
                     <source src={url} />
                     Trình duyệt của bạn không hỗ trợ audio này.
@@ -127,7 +141,7 @@ export function AttachmentViewer({
 
               return (
                 <div
-                  key={index}
+                  key={url} // Use URL as key
                   className={`flex items-center gap-2 p-3 rounded-lg border ${
                     isDarkTheme
                       ? "bg-gray-800 border-gray-700"

@@ -74,7 +74,8 @@ export function AddKeywordModal({
         status: "published",
         color: "#4CAF50",
       });
-    } catch (error) {
+    } catch {
+      // console.error("Error adding keyword:", error);
       toast.error("Có lỗi xảy ra khi lưu nhãn");
     } finally {
       setIsSubmitting(false);

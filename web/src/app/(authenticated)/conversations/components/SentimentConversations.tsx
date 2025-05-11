@@ -1,9 +1,10 @@
 import { Conversation } from "@/types";
 import SentimentConversationInfo from "./SentimentConversationInfo";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { conversationService } from "@/services/api/conversation.service";
 import { useApp } from "@/context/app-context";
 import { WS_MESSAGES } from "@/lib/constants";
+import { toast } from "sonner";
 
 interface SentimentConversationsProps {
   selectedConversation: Conversation | null;
@@ -36,94 +37,99 @@ export default function SentimentConversations(
 
   const { registerMessageHandler } = useApp();
 
-  // Hàm kiểm tra xem một conversation đã tồn tại trong danh sách chưa
-  const isConversationExists = (list: Conversation[], id: string): boolean => {
-    return list.some((conversation) => conversation.id === id);
-  };
+  const fetchNegativeConversations = useCallback(
+    async (isInitialLoad = false) => {
+      try {
+        // Nếu đang tải, không fetch thêm
+        if (negativeLoading) return;
 
-  const fetchNegativeConversations = async (isInitialLoad = false) => {
-    try {
-      // Nếu đang tải, không fetch thêm
-      if (negativeLoading) return;
+        setNegativeLoading(true);
 
-      setNegativeLoading(true);
+        // Sử dụng độ dài của mảng hiện tại làm giá trị skip
+        const skip = isInitialLoad ? 0 : negativeConversations.length;
 
-      // Sử dụng độ dài của mảng hiện tại làm giá trị skip
-      const skip = isInitialLoad ? 0 : negativeConversations.length;
+        const response =
+          await conversationService.getPagingConversationBySentiment(
+            skip,
+            negativeLimit,
+            "negative"
+          );
 
-      const response =
-        await conversationService.getPagingConversationBySentiment(
-          skip,
-          negativeLimit,
-          "negative"
-        );
-
-      if (response.data.length !== 0) {
-        if (isInitialLoad) {
-          // First page, replace data
-          setNegativeConversations(response.data);
+        if (response.data.length !== 0) {
+          if (isInitialLoad) {
+            // First page, replace data
+            setNegativeConversations(response.data);
+          } else {
+            // Next page, append data
+            setNegativeConversations((prevConversations) => [
+              ...prevConversations,
+              ...response.data,
+            ]);
+          }
+          setHasMoreNegative(response.has_next || false);
         } else {
-          // Next page, append data
-          setNegativeConversations((prevConversations) => [
-            ...prevConversations,
-            ...response.data,
-          ]);
+          if (isInitialLoad) {
+            setNegativeConversations([]);
+          }
+          setHasMoreNegative(false);
         }
-        setHasMoreNegative(response.has_next || false);
-      } else {
-        if (isInitialLoad) {
-          setNegativeConversations([]);
-        }
+      } catch {
+        // console.error("Error fetching negative conversations:", error);
+        toast.error("Không thể tải cuộc trò chuyện tiêu cực");
         setHasMoreNegative(false);
+      } finally {
+        setNegativeLoading(false);
       }
-    } catch (error) {
-      setHasMoreNegative(false);
-    } finally {
-      setNegativeLoading(false);
-    }
-  };
+    },
+    [negativeConversations.length, negativeLoading]
+  );
 
-  const fetchPositiveConversations = async (isInitialLoad = false) => {
-    try {
-      // Nếu đang tải, không fetch thêm
-      if (positiveLoading) return;
+  const fetchPositiveConversations = useCallback(
+    async (isInitialLoad = false) => {
+      try {
+        // Nếu đang tải, không fetch thêm
+        if (positiveLoading) return;
 
-      setPositiveLoading(true);
+        setPositiveLoading(true);
 
-      // Sử dụng độ dài của mảng hiện tại làm giá trị skip
-      const skip = isInitialLoad ? 0 : positiveConversations.length;
+        // Sử dụng độ dài của mảng hiện tại làm giá trị skip
+        const skip = isInitialLoad ? 0 : positiveConversations.length;
 
-      const response =
-        await conversationService.getPagingConversationBySentiment(
-          skip,
-          positiveLimit,
-          "positive"
-        );
+        const response =
+          await conversationService.getPagingConversationBySentiment(
+            skip,
+            positiveLimit,
+            "positive"
+          );
 
-      if (response.data.length !== 0) {
-        if (isInitialLoad) {
-          // First page, replace data
-          setPositiveConversations(response.data);
+        if (response.data.length !== 0) {
+          if (isInitialLoad) {
+            // First page, replace data
+            setPositiveConversations(response.data);
+          } else {
+            // Next page, append data
+            setPositiveConversations((prevConversations) => [
+              ...prevConversations,
+              ...response.data,
+            ]);
+          }
+          setHasMorePositive(response.has_next || false);
         } else {
-          // Next page, append data
-          setPositiveConversations((prevConversations) => [
-            ...prevConversations,
-            ...response.data,
-          ]);
+          if (isInitialLoad) {
+            setPositiveConversations([]);
+          }
+          setHasMorePositive(false);
         }
-        setHasMorePositive(response.has_next || false);
-      } else {
-        if (isInitialLoad) {
-          setPositiveConversations([]);
-        }
+      } catch {
+        // console.error("Error fetching positive conversations:", error);
+        toast.error("Không thể tải cuộc trò chuyện tích cực");
         setHasMorePositive(false);
+      } finally {
+        setPositiveLoading(false);
       }
-    } catch (error) {
-      setHasMorePositive(false);
-    } finally {
-      setPositiveLoading(false);
-    }
-  };
+    },
+    [positiveConversations.length, positiveLoading]
+  );
 
   // Thay thế useEffect cũ bằng useEffect mới với cờ hasInitialFetch
   useEffect(() => {
@@ -133,7 +139,7 @@ export default function SentimentConversations(
       fetchPositiveConversations(true);
       hasInitialFetch.current = true;
     }
-  }, []);
+  }, [fetchNegativeConversations, fetchPositiveConversations]); // Changed dependency array to [] to run only once on mount
 
   // Handler for infinite scroll
   const handleNegativeScroll = (e: React.UIEvent<HTMLDivElement>) => {

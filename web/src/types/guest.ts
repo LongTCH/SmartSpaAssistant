@@ -1,4 +1,3 @@
-import { Interest } from "./interest";
 
 export interface GuestInfoUpdate {
   fullname: string | null;

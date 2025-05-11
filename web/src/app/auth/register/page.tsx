@@ -1,11 +1,11 @@
-'use client';
+"use client";
 
-import { useForm } from 'react-hook-form';
-import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import { Button } from '@/components/ui/button';
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import { z } from "zod";
+import { useRouter } from "next/navigation";
+import Link from "next/link";
+import { Button } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -13,21 +13,21 @@ import {
   CardFooter,
   CardHeader,
   CardTitle,
-} from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { APP_ROUTES } from '@/lib/constants';
-import { registerSchema } from '@/schemas/auth';
-import { useState } from 'react';
-import { toast } from 'sonner';
+} from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { APP_ROUTES } from "@/lib/constants";
+import { registerSchema } from "@/schemas/auth";
+import { useState } from "react";
+import { toast } from "sonner";
 import { Toaster } from "sonner";
-import { registerUser } from './action';
+import { registerUser } from "./action";
 
 type RegisterFormData = z.infer<typeof registerSchema>;
 
 export default function RegisterPage() {
   const router = useRouter();
-  const [error, setError] = useState<string>('');
+  const [error, setError] = useState<string>("");
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
   const {
@@ -35,24 +35,24 @@ export default function RegisterPage() {
     handleSubmit,
     formState: { errors },
   } = useForm<RegisterFormData>({
-    resolver: zodResolver(registerSchema), 
+    resolver: zodResolver(registerSchema),
   });
 
   async function onSubmit(data: RegisterFormData) {
     setIsLoading(true);
-    setError('');
+    setError("");
 
     try {
       const formData = new FormData();
-      formData.append('username', data.username);
-      formData.append('email', data.email);
-      formData.append('password', data.password);
+      formData.append("username", data.username);
+      formData.append("email", data.email);
+      formData.append("password", data.password);
 
       const result = await registerUser(formData);
 
       if (result.error) {
-        if (result.error.includes('409')) {
-          setError('Account already exists. Please use another email.');
+        if (result.error.includes("409")) {
+          setError("Account already exists. Please use another email.");
         } else {
           setError(result.error);
         }
@@ -61,13 +61,14 @@ export default function RegisterPage() {
       }
 
       if (result.data) {
-        toast.success('Registration successful! Redirected to login page...');
+        toast.success("Registration successful! Redirected to login page...");
         setTimeout(() => {
           router.push(APP_ROUTES.LOGIN);
         }, 2000);
       }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
+    } catch (_err: any) {
+      // Add :any type to _err
+      toast.error(_err.response?.data?.message || "Đăng ký thất bại");
     } finally {
       setIsLoading(false);
     }
@@ -92,7 +93,7 @@ export default function RegisterPage() {
               <Label htmlFor="username">User Name</Label>
               <Input
                 id="username"
-                {...register('username')}
+                {...register("username")}
                 placeholder="John"
                 disabled={isLoading}
               />
@@ -107,7 +108,7 @@ export default function RegisterPage() {
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
-                {...register('email')}
+                {...register("email")}
                 type="email"
                 placeholder="name@example.com"
                 disabled={isLoading}
@@ -121,7 +122,7 @@ export default function RegisterPage() {
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
-                {...register('password')}
+                {...register("password")}
                 type="password"
                 disabled={isLoading}
               />
@@ -136,7 +137,7 @@ export default function RegisterPage() {
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
                 id="confirmPassword"
-                {...register('confirmPassword')}
+                {...register("confirmPassword")}
                 type="password"
                 disabled={isLoading}
               />
@@ -152,13 +153,13 @@ export default function RegisterPage() {
             )}
 
             <Button type="submit" className="w-full" disabled={isLoading}>
-              {isLoading ? 'Signing up...' : 'Sign up with Email'}
+              {isLoading ? "Signing up..." : "Sign up with Email"}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="flex justify-center">
           <p className="text-sm text-muted-foreground">
-            Already have an account?{' '}
+            Already have an account?{" "}
             <Link
               href={APP_ROUTES.LOGIN}
               className="text-primary underline-offset-4 hover:underline"

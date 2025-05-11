@@ -89,13 +89,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
             handlers.forEach((handler) => {
               try {
                 handler(data.data);
-              } catch (err) {}
+              } catch {}
             });
           }
-        } catch (err) {}
+        } catch {}
       };
-
-      ws.onerror = (error) => {};
+      ws.onerror = () => {
+        setIsWebSocketConnected(false);
+      };
 
       ws.onclose = () => {
         setIsWebSocketConnected(false);
@@ -202,7 +203,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const logout = async () => {
     try {
       await logoutUser();
-    } catch (error) {
+    } catch {
     } finally {
       clearAuthTokens();
       clearAuthUser();

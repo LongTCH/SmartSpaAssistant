@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
   TableBody,
@@ -24,8 +23,6 @@ export function EditTableConfigStep({
   updateColumnConfig,
   descriptionOnly = false,
 }: EditTableConfigStepProps) {
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
-
   const validColumnTypes = [
     { value: "String", label: "String (Văn bản ngắn)" },
     { value: "Text", label: "Text (Văn bản dài)" },
@@ -39,64 +36,40 @@ export function EditTableConfigStep({
     <div className="space-y-4 p-4">
       <p className="text-sm text-muted-foreground">
         {descriptionOnly
-          ? "Bạn có thể cập nhật mô tả cho các cột trong bảng tính. Hãy nhấp vào ô mô tả để chỉnh sửa trực tiếp."
+          ? "Bạn có thể cập nhật mô tả cho các cột trong bảng tính."
           : "Cấu hình cột cho bảng tính. Bạn có thể thay đổi tên, kiểu dữ liệu và mô tả cho từng cột."}
       </p>
 
-      <div className="border rounded-md overflow-hidden">
-        <Table>
+      <div className="border rounded-md overflow-y-auto max-h-[400px]">
+        <Table className="w-full table-fixed">
           <TableHeader>
             <TableRow className="bg-muted">
-              <TableHead className="w-[50px]">#</TableHead>
-              <TableHead>Tên cột</TableHead>
-              <TableHead>Kiểu dữ liệu</TableHead>
-              <TableHead className="w-[40%]">Mô tả</TableHead>
+              <TableHead className="w-[50px] border-r">#</TableHead>
+              <TableHead className="w-[15%] border-r">Tên cột</TableHead>
+              <TableHead className="w-[20%] border-r">Kiểu dữ liệu</TableHead>
+              <TableHead className="border-r">Mô tả</TableHead>
               <TableHead className="w-[100px]">Index</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
             {columnConfigs.map((config, index) => (
               <TableRow key={index} className="hover:bg-muted/50">
-                <TableCell>{index + 1}</TableCell>
-                <TableCell>{config.column_name}</TableCell>
-                <TableCell>
+                <TableCell className="border-r">{index + 1}</TableCell>
+                <TableCell className="border-r">{config.column_name}</TableCell>
+                <TableCell className="border-r">
                   {validColumnTypes.find(
                     (type) => type.value === config.column_type
                   )?.label || config.column_type}
                 </TableCell>
-                <TableCell
-                  className={`cursor-text ${
-                    editingIndex === index ? "p-0" : ""
-                  }`}
-                  onClick={() => {
-                    if (descriptionOnly && editingIndex !== index) {
-                      setEditingIndex(index);
+                <TableCell className="border-r">
+                  <Textarea
+                    value={config.description || ""}
+                    onChange={(e) =>
+                      updateColumnConfig(index, "description", e.target.value)
                     }
-                  }}
-                >
-                  {editingIndex === index ? (
-                    <Input
-                      value={config.description || ""}
-                      onChange={(e) =>
-                        updateColumnConfig(index, "description", e.target.value)
-                      }
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          setEditingIndex(null);
-                        }
-                      }}
-                      onBlur={() => setEditingIndex(null)}
-                      autoFocus
-                      className="w-full border-none focus-visible:ring-1"
-                      placeholder="Nhập mô tả cho cột này"
-                    />
-                  ) : (
-                    <span>
-                      {config.description
-                        ? config.description
-                        : "Chưa có mô tả"}
-                    </span>
-                  )}
+                    placeholder="Nhập mô tả cho cột này"
+                    className="w-full min-h-[60px] focus-visible:ring-1"
+                  />
                 </TableCell>
                 <TableCell className="text-center">
                   <div className="flex justify-center">

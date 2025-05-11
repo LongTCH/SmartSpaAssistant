@@ -50,9 +50,9 @@ export async function registerUser(
         refreshToken: authData.refresh,
       },
     };
-  } catch (error: any) {
+  } catch {
     return {
-      error: error.message || "Failed to register. Please try again.",
+      error: "Failed to register. Please try again.",
     };
   }
 }

@@ -59,7 +59,7 @@ export function EditKeywordModal({
           return;
         }
         setInterestData(interest);
-      } catch (error) {
+      } catch {
         toast.error("Không thể tải thông tin nhãn");
       } finally {
         setIsLoading(false);
@@ -101,7 +101,7 @@ export function EditKeywordModal({
       toast.success("Đã cập nhật nhãn thành công");
       onSuccess?.();
       onOpenChange(false);
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi cập nhật nhãn");
     } finally {
       setIsSubmitting(false);

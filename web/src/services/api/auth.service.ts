@@ -11,9 +11,6 @@ interface LoginRequest {
   email: string;
   password: string;
 }
-interface ExchangeStateRequest {
-  state: string;
-}
 
 export const authService = {
   login: async (credentials: LoginRequest): Promise<AuthResponse> => {
