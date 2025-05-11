@@ -10,9 +10,9 @@ from app.configs import env_config
 from app.configs.constants import CHAT_ASSIGNMENT, CHAT_SIDES, PROVIDERS, WS_MESSAGES
 from app.configs.database import async_session
 from app.dtos import WsMessageDto
-from app.models import Chat, Guest, GuestInfo
-from app.repositories import chat_repository, guest_info_repository, guest_repository
-from app.services import interest_service
+from app.models import Guest, GuestInfo
+from app.repositories import guest_info_repository, guest_repository
+from app.services import chat_service, interest_service
 from app.services.connection_manager import manager
 from app.services.integrations import sentiment_service
 from app.stores.store import LOCAL_DATA
@@ -26,32 +26,6 @@ SENDER_ACTION = {
 
 # Cấu trúc để lưu trữ tin nhắn đợi xử lý
 map_message: Dict[str, Dict[str, Any]] = {}
-
-
-async def save_message(
-    db: AsyncSession,
-    guest_id: str,
-    side: str,
-    text: str,
-    attachments: list,
-    created_at: datetime,
-):
-    """
-    Lưu tin nhắn vào cơ sở dữ liệu hoặc bộ nhớ tạm thời
-    """
-    message = {"text": text, "attachments": attachments}
-    content = {"side": side, "message": message}
-    chat = Chat(guest_id=guest_id, content=content, created_at=created_at)
-    await chat_repository.insert_chat(db, chat)
-    # increase message count
-    await guest_repository.increase_message_count(db, guest_id)
-    # update last message
-    guest = await guest_repository.update_last_message(
-        db, guest_id, chat.content, chat.created_at
-    )
-    await db.commit()
-    await db.refresh(guest)
-    return guest
 
 
 async def get_conversation(db: AsyncSession, sender_psid):
@@ -153,7 +127,7 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                     guest = await get_conversation(db, receipient_psid)
                     if guest:
                         # Convert millisecond timestamp to seconds for proper datetime handling
-                        guest = await save_message(
+                        guest = await chat_service.insert_chat(
                             db,
                             guest.id,
                             CHAT_SIDES.STAFF,
@@ -172,7 +146,7 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                         print(f"Failed to create guest for sender_psid: {sender_psid}")
                         return
 
-                await save_message(
+                await chat_service.insert_chat(
                     db, guest.id, CHAT_SIDES.CLIENT, text, attachments, created_at
                 )
                 guest = await guest_repository.get_guest_by_id(db, guest.id)

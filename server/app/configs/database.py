@@ -3,6 +3,7 @@ from typing import AsyncGenerator, Awaitable, Callable, TypeVar
 
 import asyncpg
 from app.configs import env_config
+from app.scripts.init_sql import create_custom_functions_and_triggers
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.orm import declarative_base
 
@@ -89,12 +90,6 @@ async def get_session() -> AsyncGenerator[AsyncSession, None]:
         await session.close()
 
 
-# For use in background tasks
-def get_db_session():
-    """Get a session for background tasks"""
-    return async_session()  # The caller is responsible for closing the session
-
-
 async def init_models():
     """Initialize models during application startup"""
     # Ensure the database exists before initializing models
@@ -112,9 +107,7 @@ async def init_models():
     # Connect để tạo các functions, triggers, và set up PGroonga
     conn = await asyncpg.connect(asyncpg_url)
     try:
-        print("Thiết lập PGroonga và các triggers...")
-        # await create_custom_functions_and_triggers(conn)
-        print("Thiết lập PGroonga và các triggers hoàn tất")
+        await create_custom_functions_and_triggers(conn)
     finally:
         await conn.close()
 
@@ -126,7 +119,7 @@ async def shutdown_models():
 
 async def process_background_with_session(func, *args, **kwargs):
     """Process a function in the background with a session"""
-    session = get_db_session()
+    session = async_session()
     try:
         await func(session, *args, **kwargs)
         await session.commit()

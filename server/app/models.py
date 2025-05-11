@@ -18,7 +18,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, relationship
 
 # Association table for Guest-Interest many-to-many relationship
-guest_interest = Table(
+guest_interests = Table(
     "guest_interests",
     Base.metadata,
     Column("guest_id", String, ForeignKey("guests.id", ondelete="CASCADE")),
@@ -40,16 +40,6 @@ script_sheets = Table(
     Column("script_id", String, ForeignKey("scripts.id", ondelete="CASCADE")),
     Column("sheet_id", String, ForeignKey("sheets.id", ondelete="CASCADE")),
 )
-
-
-class FileMetaData(Base):
-    __tablename__ = "file_metadata"
-
-    id = Column(String, primary_key=True, index=True)
-    name = Column(String, nullable=False)
-    version = Column(Integer, nullable=False)
-    mime_type = Column(String, nullable=False)
-    schema = Column(String, nullable=True)
 
 
 class Sheet(Base):
@@ -84,106 +74,45 @@ class Sheet(Base):
         }
 
 
-class Guest(Base):
-    __tablename__ = "guests"
+class Chat(Base):
+    __tablename__ = "chats"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    provider = Column(String(50))  # Đưa provider từ guest_info vào guest
-    account_id = Column(String(50))
-    # Đưa account_name từ guest_info vào guest
-    account_name = Column(String(100))
-    avatar = Column(Text)
-    last_message_at = Column(DateTime)
-    last_message = Column(JSONB)
-    created_at = Column(DateTime, default=datetime.datetime.now)
-    message_count = Column(Integer, default=0)
-    sentiment = Column(String(50), default=SENTIMENTS.NEUTRAL.value)
-    assigned_to = Column(String(50), default=CHAT_ASSIGNMENT.AI.value)
-
-    # Thêm quan hệ one-to-one đến GuestInfo
-    info_id = Column(String, ForeignKey("guest_infos.id", ondelete="CASCADE"))
-    info = relationship("GuestInfo", back_populates="guest", uselist=False)
-
-    # Quan hệ với Interest chuyển sang GuestInfo
-    interests = relationship(
-        "Interest", secondary=guest_interest, back_populates="guests", lazy="select"
+    guest_id = Column(
+        String, ForeignKey("guests.id", ondelete="CASCADE"), nullable=False
     )
+    content = Column(JSONB, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.now)
 
-    def to_dict(self, include=None):
-        """
-        Convert object to dictionary representation
-
-        Args:
-            include: Optional list of related objects to include in the output
-        """
-        if include is None:
-            include = []
-
-        # Tạo dict kết quả trước, không truy cập lazy relationship trực tiếp
-        result = {
+    def to_dict(self):
+        return {
             "id": self.id,
-            "provider": self.provider,
-            "account_id": self.account_id,
-            "account_name": self.account_name,
-            "avatar": self.avatar,
-            "fullname": None,
-            "gender": None,
-            "birthday": None,
-            "phone": None,
-            "email": None,
-            "address": None,
-            "last_message_at": (
-                self.last_message_at.isoformat() if self.last_message_at else None
-            ),
-            "last_message": self.last_message,
+            "guest_id": self.guest_id,
+            "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "message_count": self.message_count,
-            "sentiment": self.sentiment,
-            "assigned_to": self.assigned_to,
         }
-
-        # Chỉ truy cập thuộc tính info nếu nó đã được tải trước đó
-        # Cách này giúp tránh lỗi greenlet_spawn
-        info_dict = {}
-        if "info" in self.__dict__ and self.info is not None:
-            info_dict = {
-                "fullname": self.info.fullname,
-                "gender": self.info.gender,
-                "birthday": (
-                    self.info.birthday.isoformat() if self.info.birthday else None
-                ),
-                "phone": self.info.phone,
-                "email": self.info.email,
-                "address": self.info.address,
-            }
-            result.update(info_dict)
-
-        if "interests" in include and "interests" in self.__dict__ and self.interests:
-            result["interests"] = [
-                interest.to_dict(include=[]) for interest in self.interests
-            ]
-
-        return result
 
 
 class GuestInfo(Base):
     __tablename__ = "guest_infos"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    # Đã loại bỏ provider và account_name
     fullname = Column(String(255))
     gender = Column(String(20))
     birthday = Column(DateTime)
     phone = Column(String(50))
     email = Column(String(255))
     address = Column(Text)
-    data = Column(JSONB)  # Trường JSONB cho full-text search
-    updated_at = Column(
-        DateTime, default=datetime.datetime.now, onupdate=datetime.datetime.now
-    )  # Thêm trường để trigger hoạt động
+    updated_at = Column(DateTime, default=datetime.datetime.now)
 
-    # Quan hệ ngược với Guest
-    guest = relationship("Guest", back_populates="info", uselist=False)
+    # Thêm khóa ngoại guest_id để liên kết với Guest
+    guest_id = Column(
+        String, ForeignKey("guests.id", ondelete="CASCADE"), unique=True, nullable=False
+    )
+
+    # Quan hệ ngược với Guest, chỉ định foreign_keys
+    # uselist=False is implicit for one-to-one when guest_id is unique
+    guest = relationship("Guest", back_populates="info", foreign_keys=[guest_id])
 
     def to_dict(self, include=None):
         """
@@ -205,23 +134,80 @@ class GuestInfo(Base):
         return result
 
 
-class Chat(Base):
-    __tablename__ = "chats"
+class Guest(Base):
+    __tablename__ = "guests"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    guest_id = Column(
-        String, ForeignKey("guests.id", ondelete="CASCADE"), nullable=False
-    )
-    content = Column(JSONB, nullable=False)
+    provider = Column(String(50))  # Đưa provider từ guest_info vào guest
+    account_id = Column(String(50))
+    account_name = Column(String(100))
+    avatar = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.now)
+    message_count = Column(Integer, default=0)
+    sentiment = Column(String(50), default=SENTIMENTS.NEUTRAL.value)
+    assigned_to = Column(String(50), default=CHAT_ASSIGNMENT.AI.value)
 
-    def to_dict(self):
-        return {
+    # Foreign Keys for relationships
+    last_message_id = Column(
+        String, ForeignKey("chats.id", ondelete="SET NULL"), nullable=True
+    )
+
+    # Relationships
+    # uselist=False được thêm vào để đảm bảo mối quan hệ một-một từ phía Guest
+    info: Mapped[GuestInfo] = relationship(
+        "GuestInfo", back_populates="guest", uselist=False
+    )
+
+    # Quan hệ với Interest chuyển sang GuestInfo
+    interests: Mapped[List["Interest"]] = relationship(
+        "Interest", secondary=guest_interests, back_populates="guests", lazy="select"
+    )
+    last_chat_message: Mapped[Chat] = relationship(
+        "Chat", foreign_keys=[last_message_id], uselist=False, lazy="select"
+    )
+
+    def to_dict(self, include=None):
+        """
+        Convert object to dictionary representation
+
+        Args:
+            include: Optional list of related objects to include in the output
+        """
+        if include is None:
+            include = []
+
+        # Tạo dict kết quả trước, không truy cập lazy relationship trực tiếp
+        result = {
             "id": self.id,
-            "guest_id": self.guest_id,
-            "content": self.content,
+            "provider": self.provider,
+            "account_id": self.account_id,
+            "account_name": self.account_name,
+            "avatar": self.avatar,
             "created_at": self.created_at.isoformat() if self.created_at else None,
+            "message_count": self.message_count,
+            "sentiment": self.sentiment,
+            "assigned_to": self.assigned_to,
         }
+
+        # Chỉ truy cập thuộc tính info nếu nó đã được tải trước đó
+        # Cách này giúp tránh lỗi greenlet_spawn
+        if "info" in include and "info" in self.__dict__ and self.info is not None:
+            # Call GuestInfo's to_dict method
+            result["info"] = self.info.to_dict()
+
+        if "interests" in include and "interests" in self.__dict__ and self.interests:
+            result["interests"] = [
+                interest.to_dict(include=[]) for interest in self.interests
+            ]
+
+        if (
+            "last_chat_message" in include
+            and "last_chat_message" in self.__dict__
+            and self.last_chat_message
+        ):
+            result["last_chat_message"] = self.last_chat_message.to_dict()
+
+        return result
 
 
 class Script(Base):
@@ -312,8 +298,8 @@ class Interest(Base):
     created_at = Column(DateTime, default=datetime.datetime.now)
 
     # Relationship to Guest
-    guests = relationship(
-        "Guest", secondary=guest_interest, back_populates="interests", lazy="select"
+    guests: Mapped[List[Guest]] = relationship(
+        "Guest", secondary=guest_interests, back_populates="interests", lazy="select"
     )
 
     def to_dict(self, include=None):

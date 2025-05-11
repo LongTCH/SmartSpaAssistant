@@ -1,61 +1,31 @@
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 import asyncio
-import datetime
 import json
 
-from sqlalchemy import Column, DateTime, MetaData, String, Table, Text
-from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
-from sqlalchemy.orm import sessionmaker
-
-# Load sample customers from the JSON file
-
-
-# PostgreSQL connection parameters
-db_params = {
-    "database": "smartspa",
-    "user": "root",
-    "password": "password",
-    "host": "localhost",
-    "port": "5432",
-}
+from app.configs.database import async_session
+from app.models import Interest
 
 # Load interests from the JSON file
 with open("sampling/interests.json", "r", encoding="utf-8-sig") as f:
     interests = json.load(f)
 
 
-async def create_and_insert_interests():
-    # Create a connection pool
-    conn_str = f"postgresql+asyncpg://{db_params['user']}:{db_params['password']}@{db_params['host']}:{db_params['port']}/{db_params['database']}"
-    engine = create_async_engine(conn_str)
-    async_session = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
-
-    # Define the interests table
-    metadata = MetaData()
-    interests_table = Table(
-        "interests",
-        metadata,
-        Column("id", String, primary_key=True),
-        Column("name", String(255), nullable=False),
-        Column("related_terms", Text, nullable=False),
-        Column("status", String(50), default="published"),
-        Column("color", String(50), default="#000000"),
-        Column("created_at", DateTime, default=datetime.datetime.now),
-    )
-
-    async with engine.begin() as conn:
-        await conn.run_sync(metadata.create_all)
-
-    # Sử dụng async with để quản lý session, tự động đóng session khi kết thúc khối
+async def insert_interests():
     async with async_session() as session:
         for interest in interests:
-            query = interests_table.insert().values(**interest)
-            await session.execute(query)
+            interest_obj = Interest(
+                id=interest.get("id"),
+                name=interest.get("name"),
+                related_terms=interest.get("related_terms"),
+                status=interest.get("status"),
+                color=interest.get("color"),
+            )
+            session.add(interest_obj)
         await session.commit()
-
-    # Chỉ cần đóng engine, session đã được đóng tự động
-    await engine.dispose()
 
 
 if __name__ == "__main__":
-    asyncio.run(create_and_insert_interests())
-    print("Interests inserted successfully.")
+    asyncio.run(insert_interests())

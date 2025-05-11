@@ -215,7 +215,7 @@ export default function CustomerManagement() {
   };
 
   // Format birthday for display (backend returns ISO string)
-  const formatBirthday = (dateString: string) => {
+  const formatBirthday = (dateString: string | null | undefined) => {
     if (!dateString) return "";
     const date = new Date(dateString);
     if (isNaN(date.getTime())) return dateString;

@@ -1,9 +1,21 @@
-from app.models import Guest, Interest, guest_interest
+from app.models import Chat, Guest, Interest, guest_interests  # Import Chat
 from sqlalchemy import delete, insert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import joinedload, selectinload
 from sqlalchemy.sql import text
+
+
+def construct_chain_conditionstatement_pgroonga(guest_info_alias: str) -> str:
+    """
+    Xây dựng câu lệnh SQL cho PGroonga với xử lý NULL
+    """
+    return f"""(
+        COALESCE({guest_info_alias}.fullname, '') &@~ :keywords OR
+        COALESCE({guest_info_alias}.phone, '') &@~ :keywords OR
+        COALESCE({guest_info_alias}.email, '') &@~ :keywords OR
+        COALESCE({guest_info_alias}.address, '') &@~ :keywords
+    )"""
 
 
 async def count_guests(db: AsyncSession) -> int:
@@ -34,12 +46,12 @@ async def count_guests_by_interests_and_keywords(
     Đếm số lượng khách hàng theo danh sách interest_ids và từ khóa tìm kiếm
     """
     stmt = text(
-        """
+        f"""
         SELECT COUNT(DISTINCT g.id)
         FROM guests g
-        JOIN guest_infos gi ON g.info_id = gi.id
+        JOIN guest_infos gi ON g.id = gi.guest_id
         JOIN guest_interests gi2 ON g.id = gi2.guest_id
-        WHERE gi.data &@~ :keywords 
+        WHERE {construct_chain_conditionstatement_pgroonga("gi")}
         AND gi2.interest_id = ANY(:interest_ids)
         """
     )
@@ -65,8 +77,15 @@ async def get_paging_conversation(
     # Eager load guest_info
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info), selectinload(Guest.interests))
-        .order_by(Guest.last_message_at.desc())
+        # Add outer join for ordering
+        .join(Guest.last_chat_message, isouter=True)
+        .options(
+            joinedload(Guest.info),
+            selectinload(Guest.interests),
+            selectinload(Guest.last_chat_message),
+        )
+        # Order by Chat.created_at
+        .order_by(Chat.created_at.desc().nullslast())
         .offset(skip)
         .limit(limit)
     )
@@ -80,9 +99,16 @@ async def get_paging_conversation_by_assignment(
     # Eager load guest_info
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info), selectinload(Guest.interests))
+        # Add outer join for ordering
+        .join(Guest.last_chat_message, isouter=True)
+        .options(
+            joinedload(Guest.info),
+            selectinload(Guest.interests),
+            selectinload(Guest.last_chat_message),
+        )
         .where(Guest.assigned_to == assigned_to)
-        .order_by(Guest.last_message_at.desc())
+        # Order by Chat.created_at
+        .order_by(Chat.created_at.desc().nullslast())
         .offset(skip)
         .limit(limit)
     )
@@ -93,10 +119,13 @@ async def get_paging_conversation_by_assignment(
 async def get_conversation_by_provider(
     db: AsyncSession, provider: str, account_id: str
 ) -> Guest:
-    # Sửa lại để tìm theo provider trực tiếp từ guest thay vì từ guest_info
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info))
+        .options(
+            joinedload(Guest.info),
+            selectinload(Guest.interests),
+            selectinload(Guest.last_chat_message),
+        )
         .where(Guest.provider == provider, Guest.account_id == account_id)
     )
     result = await db.execute(stmt)
@@ -107,19 +136,6 @@ async def insert_guest(db: AsyncSession, guest: Guest) -> Guest:
     db.add(guest)
     await db.flush()
     return guest
-
-
-async def update_last_message(
-    db: AsyncSession, guest_id: str, last_message, last_message_at
-) -> Guest:
-    stmt = select(Guest).where(Guest.id == guest_id)
-    result = await db.execute(stmt)
-    guest = result.scalars().first()
-    if guest:
-        guest.last_message_at = last_message_at
-        guest.last_message = last_message
-        return guest
-    return None
 
 
 async def update_sentiment(db: AsyncSession, guest_id: str, sentiment: str) -> Guest:
@@ -164,9 +180,12 @@ async def get_guests_by_sentiment(
     # Eager load guest_info
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info))
+        # Add outer join for ordering
+        .join(Guest.last_chat_message, isouter=True)
+        .options(joinedload(Guest.info), selectinload(Guest.last_chat_message))
         .where(Guest.sentiment == sentiment)
-        .order_by(Guest.last_message_at.desc())
+        # Order by Chat.created_at
+        .order_by(Chat.created_at.desc().nullslast())
         .offset(skip)
         .limit(limit)
     )
@@ -177,7 +196,11 @@ async def get_guests_by_sentiment(
 async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -> Guest:
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info), selectinload(Guest.interests))
+        .options(
+            joinedload(Guest.info),
+            selectinload(Guest.interests),
+            selectinload(Guest.last_chat_message),
+        )
         .where(Guest.id == guest_id)
     )
     result = await db.execute(stmt)
@@ -192,7 +215,11 @@ async def get_guest_by_id(db: AsyncSession, guest_id: str) -> Guest:
     # Eager load cả guest_info và interests
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info), selectinload(Guest.interests))
+        .options(
+            joinedload(Guest.info),
+            selectinload(Guest.interests),
+            selectinload(Guest.last_chat_message),
+        )
         .where(Guest.id == guest_id)
     )
     result = await db.execute(stmt)
@@ -213,8 +240,16 @@ async def get_paging_guests_with_interests(
     """
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info), selectinload(Guest.interests))
-        .order_by(Guest.last_message_at.desc())
+        # Add outer join for ordering
+        .join(Guest.last_chat_message, isouter=True)
+        .options(
+            joinedload(Guest.info),
+            selectinload(Guest.interests),
+            # Keep for eager loading related data
+            selectinload(Guest.last_chat_message),
+        )
+        # Order by Chat.created_at
+        .order_by(Chat.created_at.desc().nullslast())
         .offset(skip)
         .limit(limit)
     )
@@ -230,11 +265,10 @@ async def search_guests_by_keywords(
     """
     stmt = text(
         f"""
-    SELECT g.*
+    SELECT DISTINCT ON (g.id) g.*
     FROM guests g
-    JOIN guest_infos gi ON g.info_id = gi.id
-    WHERE gi.data &@~ :keywords
-    ORDER BY g.last_message_at DESC
+    JOIN guest_infos gi ON g.id = gi.guest_id
+    WHERE {construct_chain_conditionstatement_pgroonga("gi")}
     LIMIT :limit OFFSET :skip
     """
     )
@@ -264,9 +298,8 @@ async def count_search_guests(db: AsyncSession, keywords: str) -> int:
     stmt = text(
         f"""
     SELECT COUNT(*) as count
-    FROM guests g
-    JOIN guest_infos gi ON g.info_id = gi.id
-    WHERE gi.data &@~ :keywords
+    FROM guest_infos gi
+    WHERE {construct_chain_conditionstatement_pgroonga("gi")}
     """
     )
     result = await db.execute(stmt, {"keywords": keywords})
@@ -278,28 +311,25 @@ async def get_guests_by_interests(
     db: AsyncSession, interest_ids: list[str], skip: int, limit: int
 ) -> list[Guest]:
     """
-    Lấy danh sách khách hàng theo danh sách interest_ids
+    Lấy danh sách khách hàng theo danh sách interest_ids, sắp xếp theo thời gian chat cuối cùng.
     """
-    # Sử dụng subquery với DISTINCT để lấy unique guest IDs trước
-    subquery = (
-        select(Guest.id)
-        .join(Guest.interests)
-        .where(Interest.id.in_(interest_ids))
-        .distinct()
-        .order_by(Guest.id)
-        .offset(skip)
-        .limit(limit)
-        .subquery()
-    )
-
-    # Sau đó join với subquery để lấy chi tiết guest
     stmt = (
         select(Guest)
-        .options(joinedload(Guest.info), selectinload(Guest.interests))
-        .join(subquery, Guest.id == subquery.c.id)
-        .order_by(Guest.last_message_at.desc())
+        .join(Guest.interests)  # Join for filtering by interests
+        # Outer join for ordering by last chat
+        .join(Guest.last_chat_message, isouter=True)
+        .options(
+            joinedload(Guest.info),
+            selectinload(Guest.interests),
+            # Eager load last_chat_message
+            selectinload(Guest.last_chat_message),
+        )
+        .where(Interest.id.in_(interest_ids))  # Filter by interest IDs
+        # Order by last chat message time
+        .order_by(Chat.created_at.desc().nullslast())
+        .offset(skip)
+        .limit(limit)
     )
-
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -312,14 +342,13 @@ async def get_guests_by_interests_and_keywords(
     """
     # Sử dụng text để xây dựng SQL query trực tiếp kết hợp cả tìm kiếm theo interests và keywords
     stmt = text(
-        """
+        f"""
         SELECT DISTINCT ON (g.id) g.*
         FROM guests g
-        JOIN guest_infos gi ON g.info_id = gi.id
+        JOIN guest_infos gi ON g.id = gi.guest_id
         JOIN guest_interests gi2 ON g.id = gi2.guest_id
-        WHERE gi.data &@~ :keywords 
+        WHERE {construct_chain_conditionstatement_pgroonga("gi")}
         AND gi2.interest_id = ANY(:interest_ids)
-        ORDER BY g.id, g.last_message_at DESC
         LIMIT :limit OFFSET :skip
         """
     )
@@ -376,10 +405,10 @@ async def add_interests_to_guest_by_id(
     """
     Insert interest associations for a given guest using the relationship table.
     """
-    from app.models import guest_interest
-
     for interest_id in interest_ids:
-        stmt = insert(guest_interest).values(guest_id=guest_id, interest_id=interest_id)
+        stmt = insert(guest_interests).values(
+            guest_id=guest_id, interest_id=interest_id
+        )
         await db.execute(stmt)
 
 
@@ -389,8 +418,8 @@ async def remove_interests_from_guest_by_id(
     """
     Delete interest associations for a given guest using the relationship table.
     """
-    stmt = delete(guest_interest).where(
-        guest_interest.c.guest_id == guest_id,
-        guest_interest.c.interest_id.in_(interest_ids),
+    stmt = delete(guest_interests).where(
+        guest_interests.c.guest_id == guest_id,
+        guest_interests.c.interest_id.in_(interest_ids),
     )
     await db.execute(stmt)

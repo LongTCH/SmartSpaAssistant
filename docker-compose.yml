@@ -1,0 +1,43 @@
+volumes:
+  postgres_storage:
+    name: postgres_storage
+  qdrant_storage:
+    name: qdrant_storage
+
+networks:
+  ssa:
+    name: n8n_ssa_network
+    driver: bridge
+
+services:
+  postgres:
+    image: groonga/pgroonga:4.0.1-alpine-17
+    hostname: postgres
+    container_name: postgres
+    networks: [ 'ssa' ]
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER
+      - POSTGRES_PASSWORD
+      - POSTGRES_DB
+    ports:
+      - 5432:5432
+    volumes:
+      - postgres_storage:/var/lib/postgresql/data
+    healthcheck:
+      test: [ 'CMD-SHELL', 'pg_isready -h localhost -U ${POSTGRES_USER} -d ${POSTGRES_DB}' ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  qdrant:
+    image: qdrant/qdrant
+    hostname: qdrant
+    container_name: qdrant
+    networks: [ 'ssa' ]
+    restart: unless-stopped
+    ports:
+      - 6333:6333
+      - 6334:6334
+    volumes:
+      - qdrant_storage:/qdrant/storage

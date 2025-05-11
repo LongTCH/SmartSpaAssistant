@@ -155,13 +155,13 @@ export default function ChatArea(props: ChatAreaProps) {
         // Update conversation data state to reflect potential changes (like interests)
         setConversationData(conversation); // <--- Add this line
 
-        if (conversation.last_message) {
+        if (conversation.last_chat_message) {
           // Create a new Chat object from the conversation data
           const newChat: Chat = {
             id: `temp-${Date.now()}`, // Temporary ID
             guest_id: conversation.id,
-            content: conversation.last_message,
-            created_at: conversation.last_message_at,
+            content: conversation.last_chat_message.content,
+            created_at: conversation.last_chat_message.created_at,
           };
 
           // Add new message to chat list

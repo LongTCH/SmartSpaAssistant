@@ -117,7 +117,7 @@ export default function ConversationInfo({
               </div>
             </div>
             <span className="text-[10px] text-gray-500">
-              {getTimeDifference(item.last_message_at)}
+              {getTimeDifference(item.last_chat_message.created_at)}
             </span>
           </div>
           <p
@@ -125,7 +125,7 @@ export default function ConversationInfo({
               isUnread ? "text-black font-medium" : "text-gray-500"
             } truncate`}
           >
-            {getLastMessage(item.last_message)}
+            {getLastMessage(item.last_chat_message.content)}
           </p>
         </div>
       </div>

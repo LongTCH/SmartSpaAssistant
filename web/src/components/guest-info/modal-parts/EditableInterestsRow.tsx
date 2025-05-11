@@ -46,6 +46,18 @@ export function EditableInterestsRow({
       !selectedInterestNames.includes(interest.name)
   );
 
+  const getInterestColorStyle = (interestName: string) => {
+    const interest = availableInterests.find((i) => i.name === interestName);
+    if (interest && interest.color) {
+      return {
+        backgroundColor: `${interest.color}20`, // 20% opacity
+        color: interest.color,
+        borderColor: `${interest.color}30`, // 30% opacity
+      };
+    }
+    return {}; // Fallback to default Badge styling if no color found
+  };
+
   return (
     <div className="flex items-start justify-between">
       <div className="w-[120px] font-medium pt-2">{label}:</div>
@@ -60,8 +72,9 @@ export function EditableInterestsRow({
                 {selectedInterestNames.map((name) => (
                   <Badge
                     key={name}
-                    variant="secondary"
+                    // variant="secondary" // Remove or keep if you want to mix styles
                     className="flex items-center gap-1"
+                    style={getInterestColorStyle(name)}
                   >
                     {name}
                     <button
@@ -122,7 +135,11 @@ export function EditableInterestsRow({
             <div className="flex flex-wrap gap-2 p-2 border rounded-md min-h-[40px] bg-gray-50">
               {selectedInterestNames.length > 0 ? (
                 selectedInterestNames.map((name) => (
-                  <Badge key={name} variant="secondary">
+                  <Badge
+                    key={name}
+                    // variant="secondary" // Remove or keep if you want to mix styles
+                    style={getInterestColorStyle(name)}
+                  >
                     {name}
                   </Badge>
                 ))

@@ -1,3 +1,4 @@
+import { GuestInfo } from "./guest";
 import { Interest } from "./interest";
 
 export type ProviderType = "messenger" | "web";
@@ -9,19 +10,13 @@ export type ChatAssignmentType = "ai" | "me" | "all";
 export interface Conversation {
   id: string;
   account_name: string;
-  last_message_at: string;
   avatar: string;
-  last_message: ChatContent;
+  last_chat_message: Chat;
   provider: ProviderType;
   sentiment: SentimentType;
   assigned_to: ChatAssignmentType;
-  fullname: string;
-  email: string;
-  phone: string;
-  address: string;
-  gender: string;
-  birthday: string;
-  interests: Interest[];
+  info?: GuestInfo;
+  interests?: Interest[];
 }
 
 export interface ChatAttachmentPayload {

@@ -31,7 +31,7 @@ interface CustomerTableProps {
   isAllSelected: boolean;
   onEdit?: (id: string) => void;
   onDelete: (id: string) => void;
-  formatBirthday: (dateString: string) => string;
+  formatBirthday: (dateString: string | null | undefined) => string;
 }
 
 export function CustomerTable({
@@ -160,7 +160,10 @@ export function CustomerTable({
 
   // Hàm tính toán số lượng nhãn cho một khách hàng cụ thể
   const getVisibleTagsForCustomer = (customer: Conversation) => {
-    return calculateVisibleTags(columnWidths.interests, customer.interests);
+    return calculateVisibleTags(
+      columnWidths.interests,
+      customer.interests || []
+    );
   };
 
   // State để lưu trữ số lượng nhãn hiển thị
@@ -454,15 +457,15 @@ export function CustomerTable({
                     className="border-r font-medium"
                     style={{ width: columnWidths.name + "px" }}
                   >
-                    {customer.fullname}
+                    {customer.info?.fullname}
                   </TableCell>
                   <TableCell
                     className="border-r"
                     style={{ width: columnWidths.gender + "px" }}
                   >
-                    {customer.gender === "male"
+                    {customer.info?.gender === "male"
                       ? "Nam"
-                      : customer.gender === "female"
+                      : customer.info?.gender === "female"
                       ? "Nữ"
                       : ""}
                   </TableCell>
@@ -470,26 +473,25 @@ export function CustomerTable({
                     className="border-r"
                     style={{ width: columnWidths.birthday + "px" }}
                   >
-                    {formatBirthday(customer.birthday)}
+                    {formatBirthday(customer.info?.birthday)}
                   </TableCell>
                   <TableCell
                     className="border-r"
                     style={{ width: columnWidths.phone + "px" }}
                   >
-                    {customer.phone}
+                    {customer.info?.phone}
                   </TableCell>
                   <TableCell
                     className="border-r"
                     style={{ width: columnWidths.email + "px" }}
                   >
-                    {customer.email}
+                    {customer.info?.email}
                   </TableCell>
                   <TableCell
                     className="border-r truncate"
                     style={{ width: columnWidths.address + "px" }}
-                    title={customer.address}
                   >
-                    {customer.address}
+                    {customer.info?.address}
                   </TableCell>
                   <TableCell
                     className="border-r"

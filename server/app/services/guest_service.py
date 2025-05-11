@@ -32,7 +32,10 @@ async def get_conversations(db: AsyncSession, skip: int, limit: int) -> PagingDt
         return PagingDto(skip=skip, limit=limit, total=count, data=[])
     data = await guest_repository.get_paging_conversation(db, skip, limit)
     # Convert all objects to dictionaries
-    data_dict = [guest.to_dict(include=["interests"]) for guest in data]
+    data_dict = [
+        guest.to_dict(include=["interests", "info", "last_chat_message"])
+        for guest in data
+    ]
     return PagingDto(skip=skip, limit=limit, total=count, data=data_dict)
 
 
@@ -48,7 +51,10 @@ async def get_conversations_by_assignment(
         db, assigned_to, skip, limit
     )
     # Convert all objects to dictionaries
-    data_dict = [guest.to_dict(include=["interests"]) for guest in data]
+    data_dict = [
+        guest.to_dict(include=["info", "interests", "last_chat_message"])
+        for guest in data
+    ]
     return PagingDto(skip=skip, limit=limit, total=count, data=data_dict)
 
 
@@ -72,35 +78,57 @@ async def get_conversation_by_provider(
     guest = await guest_repository.get_conversation_by_provider(
         db, provider, account_id
     )
-    return guest.to_dict() if guest else None
+    return (
+        guest.to_dict(include=["interests", "info", "last_chat_message"])
+        if guest
+        else None
+    )
 
 
 async def insert_guest(db: AsyncSession, guest_data: dict) -> dict:
-    # Tạo GuestInfo không có provider và account_name
-    guest_info = GuestInfo(
-        fullname=guest_data.get("fullname"),
-        gender=guest_data.get("gender"),
-        birthday=guest_data.get("birthday"),
-        phone=guest_data.get("phone"),
-        email=guest_data.get("email"),
-        address=guest_data.get("address"),
-    )
-    guest_info = await guest_info_repository.insert_guest_info(db, guest_info)
-
-    # Tạo Guest với provider và account_name
     guest = Guest(
         provider=guest_data.get("provider"),
         account_id=guest_data.get("account_id"),
         account_name=guest_data.get("account_name"),
         avatar=guest_data.get("avatar"),
-        last_message_at=guest_data.get("last_message_at"),
-        last_message=guest_data.get("last_message", {}),
         message_count=guest_data.get("message_count", 0),
         sentiment=guest_data.get("sentiment", "neutral"),
         assigned_to=guest_data.get("assigned_to", "AI"),
-        info_id=guest_info.id,
     )
     guest = await guest_repository.insert_guest(db, guest)
+    info = guest_data.get("info")
+
+    birthday_str = info.get("birthday")
+    birthday_dt = None
+    if birthday_str:
+        try:
+            # Attempt to parse as YYYY-MM-DD or ISO format
+            if isinstance(birthday_str, str):
+                dt_with_tz = datetime.fromisoformat(birthday_str.replace("Z", "+00:00"))
+                birthday_dt = datetime(
+                    dt_with_tz.year, dt_with_tz.month, dt_with_tz.day
+                )
+            elif isinstance(birthday_str, datetime):  # Already a datetime object
+                birthday_dt = datetime(
+                    birthday_str.year, birthday_str.month, birthday_str.day
+                )
+        except ValueError:
+            # Handle cases where parsing might fail or if it's already a date object
+            try:
+                birthday_dt = datetime.strptime(birthday_str, "%Y-%m-%d")
+            except (ValueError, TypeError):
+                birthday_dt = None  # Or handle error as appropriate
+
+    guest_info = GuestInfo(
+        fullname=info.get("fullname"),
+        gender=info.get("gender"),
+        birthday=birthday_dt,
+        phone=info.get("phone"),
+        email=info.get("email"),
+        address=info.get("address"),
+        guest_id=guest.id,
+    )
+    guest_info = await guest_info_repository.insert_guest_info(db, guest_info)
     await db.commit()
     await db.refresh(guest)
     return guest.to_dict()
@@ -116,7 +144,10 @@ async def get_paging_guests_by_sentiment(
         return PagingDto(skip=skip, limit=limit, total=count, data=[])
     data = await guest_repository.get_guests_by_sentiment(db, sentiment, skip, limit)
     # Convert all objects to dictionaries
-    data_dict = [guest.to_dict() for guest in data]
+    data_dict = [
+        guest.to_dict(include=["interests", "info", "last_chat_message"])
+        for guest in data
+    ]
     return PagingDto(skip=skip, limit=limit, total=count, data=data_dict)
 
 
@@ -124,12 +155,16 @@ async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -
     guest = await guest_repository.update_assignment(db, guest_id, assigned_to)
     await db.commit()
     await db.refresh(guest)
-    return guest.to_dict(include=["interests"])
+    return guest.to_dict(include=["interests", "info", "last_chat_message"])
 
 
 async def get_guest_by_id(db: AsyncSession, guest_id: str) -> Guest:
     guest = await guest_repository.get_guest_by_id(db, guest_id)
-    return guest.to_dict(include=["interests"]) if guest else None
+    return (
+        guest.to_dict(include=["interests", "info", "last_chat_message"])
+        if guest
+        else None
+    )
 
 
 async def update_guest_by_id(db: AsyncSession, guest_id: str, body: dict) -> Guest:
@@ -197,7 +232,7 @@ async def update_guest_by_id(db: AsyncSession, guest_id: str, body: dict) -> Gue
     guest = await guest_repository.update_guest(db, guest)
     await db.commit()
     await db.refresh(guest)
-    return guest.to_dict(include=["interests"])
+    return guest.to_dict(include=["interests", "info", "last_chat_message"])
 
 
 async def get_pagination_guests_with_interests(
@@ -220,7 +255,10 @@ async def get_pagination_guests_with_interests(
         data = await guest_repository.get_guests_by_interests_and_keywords(
             db, interest_ids, keyword, skip, limit
         )
-        data_dict = [guest.to_dict(include=["interests"]) for guest in data]
+        data_dict = [
+            guest.to_dict(include=["interests", "info", "last_chat_message"])
+            for guest in data
+        ]
         return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
     elif filter_params and filter_params.get("keyword"):
         # Sử dụng full-text search với PGroonga
@@ -233,7 +271,10 @@ async def get_pagination_guests_with_interests(
         data = await guest_repository.search_guests_by_keywords(
             db, keyword, skip, limit
         )
-        data_dict = [guest.to_dict(include=["interests"]) for guest in data]
+        data_dict = [
+            guest.to_dict(include=["interests", "info", "last_chat_message"])
+            for guest in data
+        ]
         return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
     elif filter_params and filter_params.get("interest_ids"):
         # Lọc theo interest_ids
@@ -245,7 +286,10 @@ async def get_pagination_guests_with_interests(
         data = await guest_repository.get_guests_by_interests(
             db, interest_ids, skip, limit
         )
-        data_dict = [guest.to_dict(include=["interests"]) for guest in data]
+        data_dict = [
+            guest.to_dict(include=["interests", "info", "last_chat_message"])
+            for guest in data
+        ]
         return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
     else:
         # Phân trang bình thường
@@ -254,7 +298,10 @@ async def get_pagination_guests_with_interests(
             return PaginationDto(page=page, limit=limit, total=0, data=[])
         skip = (page - 1) * limit
         data = await guest_repository.get_paging_guests_with_interests(db, skip, limit)
-        data_dict = [guest.to_dict(include=["interests"]) for guest in data]
+        data_dict = [
+            guest.to_dict(include=["interests", "info", "last_chat_message"])
+            for guest in data
+        ]
         return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
 
 
@@ -281,7 +328,7 @@ async def add_interests_to_guest(
         return None
     await db.commit()
     await db.refresh(guest)
-    return guest.to_dict(include=["interests"])
+    return guest.to_dict(include=["interests", "info", "last_chat_message"])
 
 
 async def remove_interests_from_guest(
@@ -294,7 +341,7 @@ async def remove_interests_from_guest(
         return None
     await db.commit()
     await db.refresh(guest)
-    return guest.to_dict(include=["interests"])
+    return guest.to_dict(include=["interests", "info", "last_chat_message"])
 
 
 async def delete_guest_by_id(db: AsyncSession, guest_id: str) -> dict:

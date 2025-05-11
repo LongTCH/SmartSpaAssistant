@@ -65,7 +65,7 @@ export default function SentimentConversationInfo(
         )}
       </div>
       <span className="text-xs text-gray-500 ml-2 text-right min-w-[80px]">
-        {getTimeDifference(props.conversation.last_message_at)}
+        {getTimeDifference(props.conversation.last_chat_message.created_at)}
       </span>
     </div>
   );
