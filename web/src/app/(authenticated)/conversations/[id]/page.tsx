@@ -8,11 +8,13 @@ import SentimentConversations from "../components/SentimentConversations";
 import { LoadingScreen } from "@/components/loading-screen";
 import { guestService } from "@/services/api/guest.service";
 import { useParams } from "next/navigation";
+import { useApp } from "@/context/app-context"; // Import useApp
 
 export default function ConversationDetail() {
   // Sử dụng useParams() để lấy params từ URL
   const params = useParams();
   const conversationId = params.id as string;
+  const { setActiveNavTab } = useApp(); // Get setActiveNavTab from context
 
   const [selectedConversation, setSelectedConversation] =
     useState<Conversation | null>(null);
@@ -24,13 +26,14 @@ export default function ConversationDetail() {
   // Ref để kiểm soát việc gọi API một lần
   const hasInitialFetchRef = useRef<boolean>(false);
 
-  // Fetch conversation cụ thể từ ID trong URL
+  // Set active nav tab and fetch conversation
   useEffect(() => {
+    setActiveNavTab("messages"); // Set "messages" tab as active
     if (conversationId && !hasInitialFetchRef.current) {
       hasInitialFetchRef.current = true;
       fetchSelectedConversation(conversationId);
     }
-  }, [conversationId]);
+  }, [conversationId, setActiveNavTab]);
 
   // Hàm fetch conversation cụ thể để tránh code trùng lặp
   const fetchSelectedConversation = (id: string) => {

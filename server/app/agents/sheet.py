@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import pytz
+from app.configs import env_config
 from app.configs.database import async_session, with_session
 from app.repositories import sheet_repository
 from app.services.integrations import sheet_rag_service
@@ -11,6 +12,9 @@ from app.utils.agent_utils import is_read_only_sql
 from fuzzywuzzy import process
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
 from sqlalchemy import text
 
 
@@ -19,29 +23,35 @@ class SheetAgentDeps:
     user_input: str
     user_id: str
     script_context: str
-    context_memory: str
+    # context_memory: str
     timezone: str = "Asia/Ho_Chi_Minh"
 
 
 instructions = """
-From the user's message and provided context, decide if you need to construct sql and use tool to query more information with sheet data.
+From the user's message and provided context, construct sql and use tool to query more information with sheet data.
 Carefully study the user's message, the context of scripts, sheet columns to provide more information about the customer's needs.
 Strictly follow the descriptions of the tools.
 From published sheets available from database, you need to analyze the sheets including their names, descriptions, especially column's type, description, example data. 
 After analyzing the sheets, you can write sql query and use the `execute_query_on_sheet_rows` tool to query the sheet data. Do not return sql query in final response.
-You must use fulltext search against 'data_fts' instead of normal LIKE or ILIKE in other text fields.
 After querying, you must re examine the data if suitable for the user's needs. If not you can perform more queries.
 You are also provided with the RAG tool to query vector database, each vector contains an entire row of sheet.
 If query SQL not return appropriate data, you can fall back to RAG tool, but notice that results from RAG are just relevant data and not the accurate data.
-You need to veriry the data from RAG before returning to the user.
+You need to verify the data from RAG before returning to the user.
+If you don't find any data after utilizing both tools, you can return a message that no data found. DO NOT return any information if don't use any tools.
 """
-
+model = OpenAIModel(
+    "deepseek-chat",
+    provider=OpenAIProvider(
+        base_url="https://api.deepseek.com", api_key=env_config.DEEPSEEK_API_KEY
+    ),
+)
 sheet_agent = Agent(
-    model="openai:gpt-4o-mini",
+    model=model,
     instructions=instructions,
     retries=3,
     output_type=str,
     output_retries=3,
+    model_settings=ModelSettings(temperature=0, timeout=120),
 )
 
 
@@ -243,111 +253,6 @@ async def execute_query_on_sheet_rows(
         raise ModelRetry(
             f"Error executing query: {str(e)}. Please check your query again."
         )
-
-
-# @sheet_agent.tool(retries=5)
-# async def execute_query_on_sheet_rows(
-#     context: RunContext[SheetAgentDeps], query: str
-# ) -> list[dict[str, any]]:
-#     """
-#     Use this tool to query from {sheet.table_name} when you know the table_name via the sheet you are querying. FROM "{sheet.table_name}" is the table name you need to query from.
-#     You can use other fields of {table_name} specified in {sheet.column_config}, with normal operations to filter the query.
-#     You can use the "data_fts" field of "{sheet.table_name}" to perform fulltext search, this is a jsonb type field containing all the keys read from the 'sheet.column_config' field of that sheet in 'sheets' table.
-
-#     NOTICE: The table to query FROM is "{sheet.table_name}".
-#     You must enclose the table name and column names in double quotes.
-#     For example:
-#     SELECT
-#       "product_name",
-#       "discounted_price"
-#     FROM "some_table_name"
-#     WHERE "product_price" > 100
-#     Dont use single quotes for table name and column names.
-#     Dont use LIKE or ILIKE, just below PGroonga operators.
-#     Carefully try different keywords when using PGroonga operators.
-
-#     Use Pgroonga specific operators to filter on "data_fts" field. Below is introduction.
-#     How to use PGroonga for JSON
-
-#     &@~ operator is a PGroonga original operator. You can perform full text search against all texts query syntax.
-
-#     Here is an example to search "server" OR "send":
-
-#     SELECT jsonb_pretty(record) FROM logs WHERE "record" &@~ 'server OR send';
-#     --                  jsonb_pretty
-#     -- ----------------------------------------------
-#     --  {                                           +
-#     --      "host": "www.example.com",              +
-#     --      "tags": [                               +
-#     --          "web",                              +
-#     --          "example.com"                       +
-#     --      ],                                      +
-#     --      "message": "Server is started."         +
-#     --  }
-#     --  {                                           +
-#     --      "host": "mail.example.net",             +
-#     --      "tags": [                               +
-#     --          "mail",                             +
-#     --          "example.net"                       +
-#     --      ],                                      +
-#     --      "message": "Send to <info@example.com>."+
-#     --  }
-#     -- (2 rows)
-#     You must include the OR in keywords, as example: 'server OR send'
-#     If you want to search "server" AND "send", just do not include OR in keywords:
-
-#     SELECT jsonb_pretty(record) FROM logs WHERE "record" &@~ 'server send';
-
-#     You must always enclose the pgroonga query in parentheses, for example: FROM "some_table_name" WHERE ("data_fts" &@~ 'a OR b')​
-
-#     Example 1:
-#     If the input keyword string is: 'tàn nhang'
-#     Then the SQL query should be:
-#     SELECT
-#       "product_name",
-#       "discounted_price"
-#     FROM "some_table_name"
-#     WHERE ("data_fts" &@~ 'tàn nhang')
-
-#     Normal query without fulltext search.
-#     Example 2:
-#     SELECT
-#       "product_name",
-#       "discounted_price"
-#     FROM "some_table_name" as tb
-#     WHERE tb."product_price" > 100
-#     """
-#     try:
-#         async with async_session() as db:
-#             query = normalize_postgres_query(query)
-#             if not is_read_only_sql(query):
-#                 raise ModelRetry(
-#                     "Query must be read-only SQL. Please check your query again."
-#                 )
-#             sheets = await sheet_repository.get_all_sheets_by_status(db, "published")
-#             table_names = [
-#                 sheet.table_name for sheet in sheets
-#             ]
-#             query = replace_table_if_needed(query, table_names)
-#             # execute the query and return the result
-#             result = await db.execute(text(query))
-#             # Fetch all results as dictionaries
-#             rows = result.mappings().all()
-#             # if rows is empty, raise ModelRetry
-#             if not rows:
-#                 raise ModelRetry(
-#                     "No data found. Please check your query again."
-#                     "If your query contain fulltext search, such as data &@~ 'example keyword', that will search rows contain both 'example' and 'keyword'."
-#                     "Prefer using less keywords or using OR to comine them. Please check your keywords."
-#                 )
-#             return [dict(row) for row in rows]
-#     except ModelRetry as model_retry:
-#         raise model_retry
-#     except Exception as e:
-#         print(f"Error executing query: {e}")
-#         raise ModelRetry(
-#             f"Error executing query: {str(e)}. Please check your query again."
-#         )
 
 
 def get_table_name_from_query(query: str) -> str:

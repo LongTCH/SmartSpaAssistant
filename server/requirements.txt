@@ -9,7 +9,6 @@ tqdm
 aiohttp
 openpyxl
 pydantic-ai[logfire]
-jinja2
 fuzzywuzzy
 python-Levenshtein
 fastembed

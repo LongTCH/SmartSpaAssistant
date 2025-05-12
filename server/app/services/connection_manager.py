@@ -17,5 +17,8 @@ class ConnectionManager:
         for connection in self.active_connections:
             await connection.send_json(message.__dict__)
 
+    async def send_message(self, websocket: WebSocket, message: WsMessageDto):
+        await websocket.send_json(message.__dict__)
+
 
 manager = ConnectionManager()

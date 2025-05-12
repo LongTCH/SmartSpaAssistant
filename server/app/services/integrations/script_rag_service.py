@@ -5,11 +5,11 @@ from app.configs.database import with_session
 from app.dtos import ScriptChunkDto
 from app.models import Script
 from app.repositories import script_repository
-from app.services.clients import jina, ollama
+from app.services.clients import jina
 from app.services.clients.qdrant import create_qdrant_client
 from app.utils.rag_utils import markdown_splitter
 from fastembed import SparseTextEmbedding
-from qdrant_client.http.models import PointStruct, QueryResponse
+from qdrant_client.http.models import PointStruct
 from qdrant_client.models import (
     FieldCondition,
     Filter,
@@ -108,7 +108,7 @@ async def get_script_points_all(scripts: list[Script]):
             ScriptChunkDto(
                 script_id=script.id,
                 script_name=script.name,
-                chunk=f"{script.description}\n{script.solution}",
+                chunk=f"{script.description}",
             )
         ]
         chunks.extend(script_chunks)
@@ -198,25 +198,3 @@ async def search_script_chunks(query: str, limit: int = 5) -> list[ScriptChunkDt
                 )
         i += 1
     return list(final_scripts.values())
-
-
-async def get_similar_scripts(input_text: str, limit: int = 5) -> list[dict]:
-    qdrant_client = create_qdrant_client()
-    embedding = await ollama.get_ollama_embeddings(input_text)
-    results: QueryResponse = await qdrant_client.query_points(
-        collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
-        query=embedding,
-        limit=limit,
-    )
-    script_ids = [result.payload["script_id"] for result in results.points]
-    scripts = await with_session(
-        lambda session: script_repository.get_scripts_by_ids(session, script_ids)
-    )
-    # map_id_to_script = {script.id: script for script in scripts}
-    # for script in scripts:
-    #     for s in script.related_scripts:
-    #         map_id_to_script[s.id] = s
-
-    # scripts = map_id_to_script.values()
-    scripts_dict = [script.to_dict() for script in scripts]
-    return scripts_dict

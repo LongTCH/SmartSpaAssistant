@@ -70,10 +70,12 @@ export const APP_ROUTES = {
   SETTINGS: "/settings",
   ANALYSIS: "/analysis",
   CUSTOMERS: "/customers",
+  TEST_CHAT: "/test-chat",
 };
 
 export const WS_MESSAGES = {
   CONNECTED: "CONNECTED",
   INBOX: "INBOX",
   UPDATE_SENTIMENT: "UPDATE_SENTIMENT",
+  TEST_CHAT: "TEST_CHAT",
 };

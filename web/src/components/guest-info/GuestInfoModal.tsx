@@ -5,8 +5,8 @@ import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { guestService } from "@/services/api/guest.service";
 import { interestService } from "@/services/api/interest.service";
-import type { Conversation } from "@/types/conversation";
-import type { GuestInfoUpdate } from "@/types/guest"; // Corrected import
+import type { Conversation as BaseConversation } from "@/types/conversation"; // Renamed import
+import type { GuestInfo, GuestInfoUpdate } from "@/types/guest";
 import type { Interest } from "@/types/interest";
 
 // Import new components
@@ -16,6 +16,21 @@ import { EditableGenderRow } from "./modal-parts/EditableGenderRow";
 import { EditableBirthdayRow } from "./modal-parts/EditableBirthdayRow";
 import { EditableInterestsRow } from "./modal-parts/EditableInterestsRow";
 import { GuestInfoModalActions } from "./modal-parts/GuestInfoModalActions";
+
+// Define defaultGuestInfo outside the component or at the top of the file
+const defaultGuestInfo: GuestInfo = {
+  fullname: null,
+  email: null,
+  phone: null,
+  address: null,
+  gender: null,
+  birthday: null,
+};
+
+// Define the new type where 'info' is mandatory
+interface LoadedConversation extends Omit<BaseConversation, "info"> {
+  info: GuestInfo;
+}
 
 interface GuestInfoModalProps {
   open: boolean;
@@ -28,9 +43,9 @@ export function GuestInfoModal({
   onOpenChange,
   guestId,
 }: GuestInfoModalProps) {
-  const [guestInfo, setGuestInfo] = useState<Conversation | null>(null);
+  const [guestInfo, setGuestInfo] = useState<LoadedConversation | null>(null); // Updated type
   const [originalGuestInfo, setOriginalGuestInfo] =
-    useState<Conversation | null>(null);
+    useState<LoadedConversation | null>(null); // Updated type
   const [editableFields, setEditableFields] = useState<Record<string, boolean>>(
     {
       fullname: false,
@@ -53,9 +68,14 @@ export function GuestInfoModal({
 
   const fetchGuestInfo = async (guestId: string) => {
     try {
-      const response = await guestService.getGuestInfo(guestId);
-      setGuestInfo(response);
-      setOriginalGuestInfo(response);
+      const response = await guestService.getGuestInfo(guestId); // response is BaseConversation
+      // Ensure the data conforms to LoadedConversation
+      const loadedData: LoadedConversation = {
+        ...response,
+        info: response.info ?? defaultGuestInfo,
+      };
+      setGuestInfo(loadedData);
+      setOriginalGuestInfo(loadedData);
       setSelectedInterestNames(
         response.interests?.map((interest) => interest.name) || []
       );
@@ -137,55 +157,75 @@ export function GuestInfoModal({
   };
 
   const resetField = (fieldName: keyof typeof editableFields) => {
-    if (!originalGuestInfo || !guestInfo) return;
-    const update: Partial<Conversation> = {};
+    if (!originalGuestInfo || !guestInfo) return; // They are LoadedConversation | null here
 
-    if (fieldName === "interests") {
-      setSelectedInterestNames(
-        originalGuestInfo.interests?.map((interest) => interest.name) || []
-      );
-      update.interests = originalGuestInfo.interests || [];
-    } else if (fieldName === "gender") {
-      update.gender = originalGuestInfo.gender;
-    } else if (fieldName === "birthday") {
-      update.birthday = originalGuestInfo.birthday;
-    } else if (
-      fieldName === "fullname" ||
-      fieldName === "email" ||
-      fieldName === "phone" ||
-      fieldName === "address"
-    ) {
-      update[fieldName] = originalGuestInfo[fieldName];
-    }
+    setGuestInfo((prev) => {
+      // prev is LoadedConversation | null
+      if (!prev) return prev; // Should be caught by the outer check
 
-    setGuestInfo((prev) => ({
-      ...prev!,
-      ...update,
-    }));
+      // prev is LoadedConversation, so prev.info is guaranteed.
+      // originalGuestInfo is also LoadedConversation, so originalGuestInfo.info is guaranteed.
+      const newInfo = { ...prev.info }; // Create a copy of the info object
+      let newInterests = prev.interests;
+
+      if (fieldName === "interests") {
+        setSelectedInterestNames(
+          originalGuestInfo.interests?.map((interest) => interest.name) || []
+        );
+        newInterests = originalGuestInfo.interests || [];
+      } else {
+        // fieldName is a key of GuestInfo here
+        // originalGuestInfo.info is guaranteed to exist.
+        if (fieldName === "gender") {
+          newInfo.gender = originalGuestInfo.info.gender;
+        } else if (fieldName === "birthday") {
+          newInfo.birthday = originalGuestInfo.info.birthday;
+        } else if (
+          fieldName === "fullname" ||
+          fieldName === "email" ||
+          fieldName === "phone" ||
+          fieldName === "address"
+        ) {
+          newInfo[fieldName as keyof GuestInfo] =
+            originalGuestInfo.info[fieldName as keyof GuestInfo];
+        }
+      }
+
+      return {
+        ...prev,
+        info: newInfo,
+        interests: newInterests,
+      };
+    });
     toggleEditField(fieldName);
   };
 
   const handleInputChange = (
-    fieldName: keyof Omit<typeof editableFields, "interests">, // Exclude interests as it's handled by add/remove
+    fieldName: keyof Omit<typeof editableFields, "interests">, // This resolves to keys of GuestInfo
     value: string | null
   ) => {
-    if (!guestInfo) return;
-    let actualValueToStore: string | null;
+    setGuestInfo((prev) => {
+      // prev is LoadedConversation | null
+      if (!prev) return prev; // If prev is null, return null. prev.info is guaranteed if prev is not null.
 
-    if (fieldName === "gender") {
-      actualValueToStore = value === "unknown" ? null : value;
-    } else {
-      actualValueToStore = value === "" ? null : value;
-    }
+      let actualValueToStore: string | null;
+      if (fieldName === "gender") {
+        actualValueToStore = value === "unknown" ? null : value;
+      } else {
+        actualValueToStore = value === "" ? null : value;
+      }
 
-    setGuestInfo((prev) => ({
-      ...prev!,
-      [fieldName]: actualValueToStore,
-    }));
+      // Create a new info object with the updated field
+      const newInfo = {
+        ...prev.info,
+        [fieldName]: actualValueToStore,
+      };
+      return { ...prev, info: newInfo };
+    });
   };
 
   const handleSave = async () => {
-    if (!guestInfo) return;
+    if (!guestInfo) return; // guestInfo is LoadedConversation, so guestInfo.info is guaranteed.
     setIsSaving(true);
     try {
       const interestIds = selectedInterestNames
@@ -195,26 +235,35 @@ export function GuestInfoModal({
         })
         .filter((id): id is string => id !== null);
 
+      const currentInfo = guestInfo.info; // This is now safe
+
       const updateData: GuestInfoUpdate = {
-        fullname: guestInfo.fullname || null,
-        email: guestInfo.email || null,
-        phone: guestInfo.phone || null,
-        address: guestInfo.address || null,
-        gender: guestInfo.gender,
-        birthday: guestInfo.birthday
-          ? new Date(guestInfo.birthday).toISOString()
+        fullname: currentInfo.fullname,
+        email: currentInfo.email,
+        phone: currentInfo.phone,
+        address: currentInfo.address,
+        gender: currentInfo.gender,
+        birthday: currentInfo.birthday
+          ? new Date(currentInfo.birthday).toISOString()
           : null,
         interest_ids: interestIds,
       };
 
-      const updatedGuestInfo = await guestService.updateGuestInfo(
+      const updatedConversationResponse = await guestService.updateGuestInfo(
+        // Returns BaseConversation
         guestId,
         updateData
       );
-      setGuestInfo(updatedGuestInfo);
-      setOriginalGuestInfo(updatedGuestInfo);
+      // Ensure the updated data also conforms to LoadedConversation
+      const ensuredUpdatedConversation: LoadedConversation = {
+        ...updatedConversationResponse,
+        info: updatedConversationResponse.info ?? defaultGuestInfo,
+      };
+
+      setGuestInfo(ensuredUpdatedConversation);
+      setOriginalGuestInfo(ensuredUpdatedConversation);
       setSelectedInterestNames(
-        updatedGuestInfo.interests?.map((i) => i.name) || []
+        ensuredUpdatedConversation.interests?.map((i) => i.name) || []
       );
 
       toast.success("Lưu thông tin thành công");
@@ -238,7 +287,11 @@ export function GuestInfoModal({
   ): string => {
     if (!isoDateString) return "";
     try {
-      return new Date(isoDateString).toISOString().slice(0, 10);
+      const date = new Date(isoDateString);
+      const year = date.getFullYear();
+      const month = String(date.getMonth() + 1).padStart(2, "0");
+      const day = String(date.getDate()).padStart(2, "0");
+      return `${year}-${month}-${day}`;
     } catch {
       return "";
     }
@@ -247,7 +300,7 @@ export function GuestInfoModal({
   const formatSafeDate = (isoDateString: string | null | undefined): string => {
     if (!isoDateString) return "N/A";
     try {
-      return new Date(isoDateString).toLocaleDateString("vi-VN");
+      return new Date(isoDateString).toLocaleDateString();
     } catch {
       return "Invalid Date";
     }
@@ -266,7 +319,7 @@ export function GuestInfoModal({
           <div className="p-6 space-y-4">
             <EditableInputRow
               label="Tên"
-              value={guestInfo.fullname}
+              value={guestInfo.info.fullname} // Safe: guestInfo.info is GuestInfo
               placeholder="Chưa có thông tin"
               isEditable={editableFields.fullname}
               fieldName="fullname"
@@ -276,7 +329,7 @@ export function GuestInfoModal({
             />
             <EditableGenderRow
               label="Giới tính"
-              value={guestInfo.gender}
+              value={guestInfo.info.gender} // Safe
               isEditable={editableFields.gender}
               fieldName="gender"
               onValueChange={handleInputChange}
@@ -285,7 +338,7 @@ export function GuestInfoModal({
             />
             <EditableBirthdayRow
               label="Năm sinh"
-              value={guestInfo.birthday}
+              value={guestInfo.info.birthday} // Safe
               isEditable={editableFields.birthday}
               fieldName="birthday"
               onInputChange={handleInputChange}
@@ -296,7 +349,7 @@ export function GuestInfoModal({
             />
             <EditableInputRow
               label="Email"
-              value={guestInfo.email}
+              value={guestInfo.info.email} // Safe
               placeholder="Chưa có thông tin"
               isEditable={editableFields.email}
               fieldName="email"
@@ -306,7 +359,7 @@ export function GuestInfoModal({
             />
             <EditableInputRow
               label="SĐT"
-              value={guestInfo.phone}
+              value={guestInfo.info.phone} // Safe
               placeholder="Chưa có thông tin"
               isEditable={editableFields.phone}
               fieldName="phone"
@@ -316,7 +369,7 @@ export function GuestInfoModal({
             />
             <EditableInputRow
               label="Địa chỉ"
-              value={guestInfo.address}
+              value={guestInfo.info.address} // Safe
               placeholder="Chưa có thông tin"
               isEditable={editableFields.address}
               fieldName="address"

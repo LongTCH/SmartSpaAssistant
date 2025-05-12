@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { Conversation, Interest } from "@/types";
 import { useRouter } from "next/navigation";
+import { useApp } from "@/context/app-context";
 
 interface CustomerTableProps {
   customers: Conversation[];
@@ -74,6 +75,7 @@ export function CustomerTable({
 
   // Add router for navigation to chat page
   const router = useRouter();
+  const { setActiveNavTab } = useApp();
 
   // State to track which column is being resized
   const [resizingColumn, setResizingColumn] = useState<string | null>(null);
@@ -93,15 +95,8 @@ export function CustomerTable({
   // Function to navigate to conversations tab and select a specific guest
   const handleOpenChat = (guestId: string) => {
     // Sử dụng định dạng slug thay vì query parameter
+    setActiveNavTab("messages");
     router.push(`/conversations/${guestId}`);
-  };
-
-  // Hàm để toggle hiển thị đầy đủ/thu gọn nhãn
-  const _toggleExpandRow = (customerId: string) => {
-    _setExpandedRows((prev) => ({
-      ...prev,
-      [customerId]: !prev[customerId],
-    }));
   };
 
   // Hàm tính toán số lượng nhãn có thể hiển thị dựa theo chiều rộng cột và kích thước thực tế của từng nhãn

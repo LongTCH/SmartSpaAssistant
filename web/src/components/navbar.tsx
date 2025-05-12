@@ -1,7 +1,7 @@
 "use client";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Bell, User, LogOut } from "lucide-react";
+import { Bell, User, LogOut, MessageSquare } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -23,10 +23,14 @@ export function Navbar() {
     isPageLoading,
   } = useApp();
   const router = useRouter();
-
   const handleTabChange = (value: string) => {
     // Nếu đang loading, không cho phép chuyển tab
     if (isPageLoading) return;
+
+    // Nếu tab đã active, không cần chuyển đổi
+    if (activeNavTab === value) {
+      return;
+    }
 
     // Đặt tab active ngay lập tức
     setActiveNavTab(value);
@@ -48,7 +52,14 @@ export function Navbar() {
       case "customers":
         router.push("/customers");
         break;
+      case "test-chat":
+        router.push("/test-chat");
+        break;
+      case "notifications":
+        router.push("/notifications");
+        break;
       default:
+        setPageLoading(false); // Ensure loading is stopped for unhandled cases
         break;
     }
   };
@@ -64,6 +75,10 @@ export function Navbar() {
         return "/analysis";
       case "customers":
         return "/customers";
+      case "test-chat":
+        return "/test-chat";
+      case "notifications": // Added new case for notifications
+        return "/notifications";
       default:
         return "#";
     }
@@ -143,7 +158,7 @@ export function Navbar() {
               >
                 QL Khách hàng
               </Link>
-            </TabsTrigger>
+            </TabsTrigger>{" "}
             <TabsTrigger
               value="analysis"
               disabled={isPageLoading}
@@ -163,13 +178,42 @@ export function Navbar() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-      </div>
+      </div>{" "}
       <div className="flex items-center space-x-4">
+        {" "}
         <Button
           variant="ghost"
           size="icon"
-          className="text-white/90 hover:text-white hover:bg-white/10 rounded-full"
+          className={`${
+            activeNavTab === "test-chat"
+              ? "bg-white text-[#6366F1]"
+              : "text-white/90 hover:text-white hover:bg-white/10"
+          } rounded-full`}
           disabled={isPageLoading}
+          onClick={() => {
+            if (isPageLoading) return;
+            router.push("/test-chat");
+            setActiveNavTab("test-chat");
+          }}
+          title="Test Chat"
+        >
+          <MessageSquare className="h-5 w-5" />
+        </Button>
+        <Button
+          variant="ghost"
+          size="icon"
+          className={`${
+            activeNavTab === "notifications"
+              ? "bg-white text-[#6366F1]"
+              : "text-white/90 hover:text-white hover:bg-white/10"
+          } rounded-full`}
+          disabled={isPageLoading}
+          onClick={() => {
+            if (isPageLoading) return;
+            router.push("/notifications");
+            setActiveNavTab("notifications");
+          }}
+          title="Notifications"
         >
           <Bell className="h-5 w-5" />
         </Button>

@@ -2,7 +2,11 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import pytz
+from app.configs import env_config
 from pydantic_ai import Agent, RunContext
+from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.settings import ModelSettings
 
 
 @dataclass
@@ -28,7 +32,12 @@ BEHAVIOR:
 GOAL:
 Deliver accurate, engaging, and value‑added answers that showcase Mailisa’s expertise and encourage customers to book treatments or purchase products.
 """
-
+model = OpenAIModel(
+    "deepseek-chat",
+    provider=OpenAIProvider(
+        base_url="https://api.deepseek.com", api_key=env_config.DEEPSEEK_API_KEY
+    ),
+)
 
 synthetic_agent = Agent(
     model="openai:gpt-4o-mini",
@@ -36,6 +45,7 @@ synthetic_agent = Agent(
     retries=2,
     output_type=str,
     output_retries=3,
+    model_settings=ModelSettings(temperature=0, timeout=120),
 )
 
 
