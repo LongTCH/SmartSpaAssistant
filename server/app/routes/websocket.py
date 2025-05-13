@@ -1,4 +1,4 @@
-from app.agents import invoke_agent
+from app.baml_agents import invoke_agent
 from app.configs.constants import WS_MESSAGES
 from app.dtos import WsMessageDto
 from app.services.connection_manager import manager

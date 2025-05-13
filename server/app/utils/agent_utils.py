@@ -25,6 +25,41 @@ def is_read_only_sql(sql_text: str) -> bool:
     return True
 
 
+def normalize_query_quotes(query: str) -> str:
+    """
+    Normalize SQL query by ensuring table names are properly quoted with double quotes.
+    """
+    # Replace any single quotes around table names with double quotes
+    # FROM 'table_name' -> FROM "table_name"
+    query = re.sub(r"FROM\s+'([^']+)'", r'FROM "\1"', query, flags=re.IGNORECASE)
+
+    # Also ensure table names after FROM are in double quotes
+    # FROM table_name -> FROM "table_name"
+    query = re.sub(
+        r"FROM\s+([a-zA-Z0-9_]+)(?!\s*\"|\s*\')",
+        r'FROM "\1"',
+        query,
+        flags=re.IGNORECASE,
+    )
+
+    return query
+
+
+def normalize_postgres_query(query: str) -> str:
+    """
+    Normalize Postgres SQL query for execution.
+    - Ensure table names are properly quoted
+    - Handle escaped quotes
+    """
+    # First normalize quotes for table names
+    query = normalize_query_quotes(query)
+
+    # Then handle escaped quotes
+    query = re.sub(r"\\'", "'", query)
+
+    return query
+
+
 def limit_text_words(text, max_words=100):
     """Limit text to a maximum number of words and add '...' if truncated.
     Handles text with various separators commonly found in user editor content.

@@ -8,7 +8,7 @@ from app.configs import env_config
 from app.configs.database import async_session, with_session
 from app.repositories import sheet_repository
 from app.services.integrations import sheet_rag_service
-from app.utils.agent_utils import is_read_only_sql
+from app.utils.agent_utils import is_read_only_sql, normalize_postgres_query
 from fuzzywuzzy import process
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import ModelRetry
@@ -117,7 +117,7 @@ async def get_all_available_sheets(
         #     )
         #     sheet_list[i]["example_rows"] = limit_sample_rows_content(example)
         return (
-            f"\nHere is relevant sheet:\n{json.dumps(sheet_list, ensure_ascii=False)}"
+            f"\nHere are relevant sheets:\n{json.dumps(sheet_list, ensure_ascii=False)}"
         )
     except Exception as e:
         print(f"Error fetching sheets: {e}")
@@ -302,40 +302,5 @@ def replace_table_if_needed(
 
         # Replace table name in FROM clause with the best match
         query = query.replace(table_in_query, best_table)
-
-    return query
-
-
-def normalize_query_quotes(query: str) -> str:
-    """
-    Normalize SQL query by ensuring table names are properly quoted with double quotes.
-    """
-    # Replace any single quotes around table names with double quotes
-    # FROM 'table_name' -> FROM "table_name"
-    query = re.sub(r"FROM\s+'([^']+)'", r'FROM "\1"', query, flags=re.IGNORECASE)
-
-    # Also ensure table names after FROM are in double quotes
-    # FROM table_name -> FROM "table_name"
-    query = re.sub(
-        r"FROM\s+([a-zA-Z0-9_]+)(?!\s*\"|\s*\')",
-        r'FROM "\1"',
-        query,
-        flags=re.IGNORECASE,
-    )
-
-    return query
-
-
-def normalize_postgres_query(query: str) -> str:
-    """
-    Normalize Postgres SQL query for execution.
-    - Ensure table names are properly quoted
-    - Handle escaped quotes
-    """
-    # First normalize quotes for table names
-    query = normalize_query_quotes(query)
-
-    # Then handle escaped quotes
-    query = re.sub(r"\\'", "'", query)
 
     return query

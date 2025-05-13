@@ -34,7 +34,7 @@ async def get_embeddings(texts: str | list[str]) -> list[list[float]]:
     data = {"model": "jina-embeddings-v3", "task": "text-matching", "input": texts}
     async with aiohttp.ClientSession() as session:
         async with session.post(
-            url, headers=headers, data=json.dumps(data)
+            url, headers=headers, data=json.dumps(data, ensure_ascii=False)
         ) as response:
             if response.status != 200:
                 raise Exception(f"Error: {response.status}")
@@ -72,7 +72,7 @@ async def rerank(query: str, texts: list[str]) -> list[ReRankResult]:
     }
     async with aiohttp.ClientSession() as session:
         async with session.post(
-            url, headers=headers, data=json.dumps(data)
+            url, headers=headers, data=json.dumps(data, ensure_ascii=False)
         ) as response:
             if response.status != 200:
                 raise Exception(f"Error: {response.status}")

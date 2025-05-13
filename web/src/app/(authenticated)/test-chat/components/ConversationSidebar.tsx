@@ -11,6 +11,15 @@ import {
   X,
 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from "@/components/ui/dialog"; // DialogClose removed as it's not used directly here, Button is used instead.
+import { Button } from "@/components/ui/button";
 
 export interface Conversation {
   id: string;
@@ -50,6 +59,11 @@ export function ConversationSidebar({
   const [newTitle, setNewTitle] = useState<string>("");
   const [showNewConversationModal, setShowNewConversationModal] =
     useState(false);
+  const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
+  const [conversationToDelete, setConversationToDelete] = useState<
+    string | null
+  >(null);
+  const [isDeletingAll, setIsDeletingAll] = useState(false);
 
   const handleEditTitle = (conversation: Conversation, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -66,10 +80,7 @@ export function ConversationSidebar({
       if (onUpdateTitle) {
         onUpdateTitle(editingConversationId, newTitle.trim());
       }
-      if (onUpdateTitle) {
-        onUpdateTitle(editingConversationId, newTitle.trim());
-      }
-
+      // Duplicate call removed
       setEditingConversationId(null);
     }
   };
@@ -90,6 +101,38 @@ export function ConversationSidebar({
 
   const handleCancelNewConversation = () => {
     setShowNewConversationModal(false);
+  };
+
+  const handleDeleteRequest = (id: string) => {
+    setConversationToDelete(id);
+    setIsDeletingAll(false);
+    setShowDeleteConfirmation(true);
+  };
+
+  const handleDeleteAllRequest = () => {
+    setIsDeletingAll(true);
+    setShowDeleteConfirmation(true);
+  };
+
+  const confirmDelete = () => {
+    if (isDeletingAll) {
+      onDeleteAllConversations();
+    } else if (conversationToDelete) {
+      onDeleteConversation(conversationToDelete);
+    }
+    setShowDeleteConfirmation(false);
+    setConversationToDelete(null);
+    setIsDeletingAll(false);
+    if (isMobile && sidebarOpen) {
+      // Close sidebar on mobile after confirmation
+      toggleSidebar();
+    }
+  };
+
+  const cancelDelete = () => {
+    setShowDeleteConfirmation(false);
+    setConversationToDelete(null);
+    setIsDeletingAll(false);
   };
 
   return (
@@ -114,7 +157,7 @@ export function ConversationSidebar({
                     <Plus size={16} />
                   </button>
                   <button
-                    onClick={onDeleteAllConversations}
+                    onClick={handleDeleteAllRequest} // Updated
                     className="p-1.5 rounded-md hover:bg-gray-100 text-red-500"
                     title="Clear All Conversations"
                   >
@@ -169,15 +212,13 @@ export function ConversationSidebar({
                               onConversationSelect(conversation.id)
                             }
                             className={`group w-full text-left p-3 rounded-lg transition-colors cursor-pointer ${
-                              // Added cursor-pointer
                               currentConversationId === conversation.id
                                 ? "bg-indigo-50 text-indigo-700"
                                 : "hover:bg-gray-100 text-gray-700"
                             }`}
-                            role="button" // Added for accessibility
-                            tabIndex={0} // Added for accessibility
+                            role="button"
+                            tabIndex={0}
                             onKeyDown={(e) => {
-                              // Added for keyboard accessibility
                               if (e.key === "Enter" || e.key === " ") {
                                 e.preventDefault();
                                 onConversationSelect(conversation.id);
@@ -192,7 +233,7 @@ export function ConversationSidebar({
                                 <button
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    onDeleteConversation(conversation.id);
+                                    handleDeleteRequest(conversation.id); // Updated
                                   }}
                                   className="p-1 rounded-md hover:bg-gray-100 text-red-500 mr-1"
                                   aria-label={`Delete conversation ${conversation.title}`}
@@ -246,7 +287,7 @@ export function ConversationSidebar({
           {sidebarOpen && (
             <>
               <motion.div
-                key="backdrop" // added key for AnimatePresence child
+                key="backdrop"
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 0.5 }}
                 exit={{ opacity: 0 }}
@@ -254,7 +295,7 @@ export function ConversationSidebar({
                 onClick={toggleSidebar}
               ></motion.div>
               <motion.div
-                key="sidebar" // added key for AnimatePresence child
+                key="sidebar"
                 initial={{ x: "-100%" }}
                 animate={{ x: 0 }}
                 exit={{ x: "-100%" }}
@@ -275,6 +316,9 @@ export function ConversationSidebar({
                     <div className="flex items-center justify-between p-2">
                       <button
                         onClick={() => {
+                          // For mobile, new conversation modal is not used, directly create.
+                          // Consider if mobile should also use the modal for consistency.
+                          // For now, it directly creates and closes sidebar.
                           onNewConversation();
                           toggleSidebar();
                         }}
@@ -291,7 +335,6 @@ export function ConversationSidebar({
                       </div>
                     ) : (
                       <div className="space-y-1 p-2">
-                        {" "}
                         {conversations.map((conversation) => (
                           <div
                             key={conversation.id}
@@ -320,7 +363,8 @@ export function ConversationSidebar({
                             </button>
                             <button
                               onClick={() =>
-                                onDeleteConversation(conversation.id)
+                                // Updated to show confirmation
+                                handleDeleteRequest(conversation.id)
                               }
                               className="p-2 text-red-500"
                               aria-label={`Delete conversation ${conversation.title}`}
@@ -335,8 +379,8 @@ export function ConversationSidebar({
                   <div className="p-4 border-t">
                     <button
                       onClick={() => {
-                        onDeleteAllConversations();
-                        toggleSidebar();
+                        handleDeleteAllRequest(); // Updated
+                        // toggleSidebar(); // Removed toggleSidebar, let confirmation handle it
                       }}
                       className="flex items-center space-x-2 text-red-500 hover:text-red-600 p-2 w-full justify-center rounded-md hover:bg-red-50"
                     >
@@ -359,6 +403,34 @@ export function ConversationSidebar({
         initialTitle={newTitle}
         onTitleChange={setNewTitle}
       />
+
+      {/* Delete Confirmation Modal */}
+      <Dialog
+        open={showDeleteConfirmation}
+        onOpenChange={setShowDeleteConfirmation}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Deletion</DialogTitle>
+            <DialogDescription>
+              {isDeletingAll
+                ? "Are you sure you want to delete all conversations? This action cannot be undone."
+                : `Are you sure you want to delete the conversation "${
+                    conversations.find((c) => c.id === conversationToDelete)
+                      ?.title
+                  }"? This action cannot be undone.`}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelDelete}>
+              Cancel
+            </Button>
+            <Button variant="destructive" onClick={confirmDelete}>
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </>
   );
 }
@@ -394,13 +466,12 @@ function NewConversationModal({
         <div className="mb-4">
           <label className="block text-sm font-medium text-gray-700 mb-1">
             Conversation Title
-          </label>{" "}
+          </label>
           <input
             type="text"
             value={title}
             onChange={(e) => {
               setTitle(e.target.value);
-              // Pass the value back to parent component
               onTitleChange(e.target.value);
             }}
             className="w-full p-2 border rounded focus:outline-none focus:ring-1 focus:ring-indigo-400"
@@ -429,26 +500,20 @@ function NewConversationModal({
 
 export function saveConversation(conversation: Conversation): void {
   try {
-    // Get existing conversations from localStorage
     const existingConversationsJson = localStorage.getItem("conversations");
     let conversations = existingConversationsJson
       ? JSON.parse(existingConversationsJson)
       : [];
 
-    // Check if the conversation already exists
     const existingIndex = conversations.findIndex(
       (c: Conversation) => c.id === conversation.id
     );
 
     if (existingIndex !== -1) {
-      // Update existing conversation
       conversations[existingIndex] = conversation;
     } else {
-      // Add new conversation
       conversations.push(conversation);
     }
-
-    // Save back to localStorage
     localStorage.setItem("conversations", JSON.stringify(conversations));
   } catch (error) {
     console.error("Error saving conversation:", error);
@@ -504,7 +569,6 @@ export function deleteConversation(conversationId: string): void {
       JSON.stringify(filteredConversations)
     );
 
-    // If the deleted conversation was the last opened, remove that reference
     const lastOpenedId = localStorage.getItem("test-chat-last-opened-id");
     if (lastOpenedId === conversationId) {
       localStorage.removeItem("test-chat-last-opened-id");

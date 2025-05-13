@@ -16,3 +16,5 @@ pytz
 langchain
 pandas
 sqlparse
+langfuse
+
