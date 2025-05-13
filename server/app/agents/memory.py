@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 
+from app.agents.model_hub import model_hub
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 
@@ -19,9 +20,9 @@ Please write in customer's language.
 This string will be stored in database as long-term memory, so keep it short, concise and relevant.
 """
 
-
+model = model_hub["gemini-2.0-flash-lite"]
 memory_agent = Agent(
-    model="openai:gpt-4.1-nano",
+    model=model,
     instructions=instructions,
     retries=2,
     model_settings=ModelSettings(temperature=0, timeout=120),

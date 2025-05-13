@@ -98,6 +98,8 @@ async def get_all_available_sheets(
         sheets = await with_session(
             lambda db: sheet_repository.get_all_sheets_by_status(db, "published")
         )
+        if not sheets:
+            return ""
         sheet_list = [
             {
                 "id": sheet.id,
