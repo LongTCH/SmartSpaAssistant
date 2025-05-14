@@ -186,7 +186,7 @@ async def search_script_chunks(query: str, limit: int = 5) -> list[ScriptChunkDt
         final_scripts[script_top_i.id] = ScriptChunkDto(
             script_id=script_top_i.id,
             script_name=script_top_i.name,
-            chunk=f"{script_top_i.description}\n{script_top_i.solution}",
+            chunk=f"{script_top_i.solution}",
         )
         related_scripts = script_top_i.related_scripts
         for related_script in related_scripts:
@@ -194,7 +194,7 @@ async def search_script_chunks(query: str, limit: int = 5) -> list[ScriptChunkDt
                 final_scripts[related_script.id] = ScriptChunkDto(
                     script_id=related_script.id,
                     script_name=related_script.name,
-                    chunk=f"{related_script.description}\n{related_script.solution}",
+                    chunk=f"{related_script.solution}",
                 )
         i += 1
     return list(final_scripts.values())

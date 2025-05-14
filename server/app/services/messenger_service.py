@@ -5,13 +5,13 @@ from datetime import datetime
 from typing import Any, Dict
 
 import aiohttp
+from app.baml_agents import invoke_agent
 from app.configs import env_config
 from app.configs.constants import CHAT_ASSIGNMENT, CHAT_SIDES, PROVIDERS
 from app.configs.database import async_session
 from app.models import Guest, GuestInfo
 from app.repositories import guest_info_repository, guest_repository
 from app.services import chat_service, interest_service
-from app.services.integrations import sentiment_service
 from app.stores.store import LOCAL_DATA
 from app.utils.message_utils import (
     get_attachment_type_name,
@@ -31,16 +31,7 @@ SENDER_ACTION = {
 map_message: Dict[str, Dict[str, Any]] = {}
 
 
-async def get_conversation(db: AsyncSession, sender_psid):
-    """
-    Lấy thông tin cuộc trò chuyện từ cơ sở dữ liệu hoặc bộ nhớ tạm thời
-    """
-    return await guest_repository.get_conversation_by_provider(
-        db, PROVIDERS.MESSENGER, sender_psid
-    )
-
-
-async def insert_guest(db: AsyncSession, sender_id):
+async def insert_guest(db: AsyncSession, sender_id) -> Guest | None:
     if not env_config.PAGE_ID or not env_config.PAGE_ACCESS_TOKEN:
         print("Missing PAGE_ID or PAGE_ACCESS_TOKEN")
         return
@@ -60,46 +51,45 @@ async def insert_guest(db: AsyncSession, sender_id):
                 account_name = data.get("name")
                 gender = data.get("gender")
                 # Tải ảnh từ URL
+                image_data = None
                 async with session.get(
                     image_url, params=image_params
                 ) as image_response:
                     if image_response.status != 200:
                         return {"error": "Không thể tải ảnh từ URL."}
-
-                fullname = data.get("last_name") + " " + data.get("first_name")
-
-                # Tạo GuestInfo trước - không có provider và account_name
-                guest_info = GuestInfo(fullname=fullname, gender=gender)
-
-                # Lưu GuestInfo vào database
-                guest_info = await guest_info_repository.insert_guest_info(
-                    db, guest_info
-                )
+                    image_data = await image_response.read()
 
                 # Tạo Guest với provider và account_name trong guest
                 guest = Guest(
                     provider=PROVIDERS.MESSENGER,
                     account_id=account_id,
                     account_name=account_name,
-                    info_id=guest_info.id,
                     assigned_to=CHAT_ASSIGNMENT.AI,
                 )
                 guest = await guest_repository.insert_guest(db, guest)
 
+                fullname = data.get("last_name") + " " + data.get("first_name")
                 image_path = os.path.join("static", "images", f"{guest.id}.jpg")
                 avatar_url = f"{env_config.BASE_URL}/static/images/{guest.id}.jpg"
                 # Lưu ảnh vào thư mục 'images'
                 with open(image_path, "wb") as f:
-                    f.write(image_response.content)
+                    f.write(image_data)
                 guest.avatar = avatar_url
+
+                guest_info = GuestInfo(
+                    fullname=fullname, gender=gender, guest_id=guest.id
+                )
+
+                # Lưu GuestInfo vào database
+                guest_info = await guest_info_repository.insert_guest_info(
+                    db, guest_info
+                )
+
                 await db.commit()
                 return guest
             else:
                 print(f"Error fetching user info: {response.status}")
                 return None
-
-
-# Replace process_message with this fixed version:
 
 
 async def process_message(sender_psid, receipient_psid, timestamp, webhook_event):
@@ -117,10 +107,12 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                 created_at = datetime.fromtimestamp(timestamp / 1000)
 
                 if message.get("is_echo", False):
-                    guest = await get_conversation(db, receipient_psid)
+                    guest = await guest_repository.get_conversation_by_provider(
+                        db, PROVIDERS.MESSENGER, receipient_psid
+                    )
                     if guest:
                         # Convert millisecond timestamp to seconds for proper datetime handling
-                        guest = await chat_service.insert_chat(
+                        await chat_service.insert_chat(
                             db,
                             guest.id,
                             CHAT_SIDES.STAFF,
@@ -128,11 +120,14 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                             attachments,
                             created_at,
                         )
+                        guest = await guest_repository.get_guest_by_id(db, guest.id)
                         await send_message_to_ws(guest)
                     return
 
                 # Ensure we explicitly handle the case when guest is None
-                guest = await get_conversation(db, sender_psid)
+                guest = await guest_repository.get_conversation_by_provider(
+                    db, PROVIDERS.MESSENGER, receipient_psid
+                )
                 if not guest:
                     guest = await insert_guest(db, sender_psid)
                     if not guest:
@@ -196,15 +191,15 @@ async def process_after_wait(sender_psid, wait_seconds: float, guest: Guest):
 
                 # Xử lý tin nhắn
                 if combined_message:
-                    sentiment, should_reset = await sentiment_service.analyze_sentiment(
-                        db, guest
-                    )
-                    if sentiment != guest.sentiment:
-                        guest.sentiment = sentiment
-                        await sentiment_service.update_sentiment_to_websocket(guest)
-                        await guest_repository.update_sentiment(db, guest.id, sentiment)
-                    if should_reset:
-                        await guest_repository.reset_message_count(db, guest.id)
+                    # sentiment, should_reset = await sentiment_service.analyze_sentiment(
+                    #     db, guest
+                    # )
+                    # if sentiment != guest.sentiment:
+                    #     guest.sentiment = sentiment
+                    #     await sentiment_service.update_sentiment_to_websocket(guest)
+                    #     await guest_repository.update_sentiment(db, guest.id, sentiment)
+                    # if should_reset:
+                    #     await guest_repository.reset_message_count(db, guest.id)
                     # Process interests
                     interest_ids = await interest_service.get_interest_ids_from_text(
                         db, combined_message
@@ -214,12 +209,12 @@ async def process_after_wait(sender_psid, wait_seconds: float, guest: Guest):
                     )
                     # Handle the chat message
                     await handle_chat(sender_psid, combined_message, guest)
-                    db.commit()
+                    await db.commit()
         except asyncio.CancelledError as ex:
-            db.rollback()
+            await db.rollback()
             raise ex
         except Exception as e:
-            db.rollback()
+            await db.rollback()
             print(f"Error in process_after_wait: {e}")
 
 
@@ -234,7 +229,7 @@ async def handle_chat(sender_psid, message, guest: Guest):
             typing_task = asyncio.create_task(keep_typing(sender_psid))
 
             # Handle the message
-            response_text = await send_to_n8n(guest.id, message)
+            response_text = await invoke_agent(guest.id, message)
 
             message_parts = parse_and_format_message(response_text, 1000)
 
@@ -306,7 +301,7 @@ async def keep_typing(sender_psid):
     try:
         while True:
             await send_action(sender_psid, SENDER_ACTION["typing_on"])
-            await asyncio.sleep(3)  # Send typing indicator every 3 seconds
+            await asyncio.sleep(5)  # Send typing indicator every 5 seconds
     except Exception as e:
         print(f"Error in keep_typing: {e}")
 

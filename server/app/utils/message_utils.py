@@ -11,7 +11,8 @@ async def send_message_to_ws(guest: Guest):
     Gửi tin nhắn đến WebSocket
     """
     message = WsMessageDto(
-        message=WS_MESSAGES.INBOX, data=guest.to_dict(include=["interests"])
+        message=WS_MESSAGES.INBOX,
+        data=guest.to_dict(include=["interests", "info", "last_chat_message"]),
     )
     await manager.broadcast(message)
 
