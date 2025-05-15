@@ -2,9 +2,13 @@ from dataclasses import dataclass
 from datetime import datetime
 
 import pytz
-from app.baml_agents.utils import BAMLAgentRunResult, construct_output_langfuse
+from app.baml_agents.utils import (
+    BAMLAgentRunResult,
+    construct_output_langfuse,
+    dump_json,
+)
 from baml_client.async_client import BamlCallOptions, b
-from baml_client.types import BAMLMessage
+from baml_client.types import BAMLMessage, ChatResponseItem
 from langfuse.decorators import langfuse_context, observe
 
 
@@ -18,7 +22,7 @@ class SyntheticAgentDeps:
 
 class SyntheticAgent:
     CONFIG = {
-        "model_retries": 2,
+        "model_retries": 0,
     }
 
     @observe(as_type="generation", name="synthetic_agent")
@@ -28,7 +32,7 @@ class SyntheticAgent:
         deps: SyntheticAgentDeps,
         message_history: list[BAMLMessage] = [],
         baml_options: BamlCallOptions = {},
-    ) -> BAMLAgentRunResult[str]:
+    ) -> BAMLAgentRunResult[list[ChatResponseItem]]:
         collector = baml_options.get("collector", None)
         dynamic_prompt = self.get_current_local_time(deps)
         dynamic_prompt += self.get_scripts_context(deps)
@@ -39,10 +43,10 @@ class SyntheticAgent:
         model_retries = self.CONFIG["model_retries"]
         while True:
             try:
-                agent_response: str = await b.SyntheticAgent(
+                agent_response: list[ChatResponseItem] = await b.SyntheticAgent(
                     dynamic_system_prompt=dynamic_prompt,
                     user_prompt=user_prompt,
-                    message_history=message_history,
+                    message_history=message_history + new_message,
                     baml_options=baml_options,
                 )
                 if collector:
@@ -61,9 +65,9 @@ class SyntheticAgent:
                         ),
                     )
                 new_message.append(
-                    BAMLMessage(role="assistant", content=agent_response)
+                    BAMLMessage(role="assistant", content=dump_json(agent_response))
                 )
-                return BAMLAgentRunResult[str](
+                return BAMLAgentRunResult[list[ChatResponseItem]](
                     output=agent_response,
                     new_message=new_message,
                     message_history=message_history,

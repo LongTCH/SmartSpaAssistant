@@ -7,6 +7,7 @@ client<llm> Gemini2Flash {
     api_key env.GEMINI_API_KEY
     generationConfig {
       temperature 0
+      maxOutputTokens 2000
     }
   }
 }
@@ -18,6 +19,7 @@ client<llm> Gemma3 {
     model "google/gemma-3-27b-it:free"
     api_key env.OPENROUTER_API_KEY
     base_url https://openrouter.ai/api/v1
+    max_tokens 2000
   }
 }
 
@@ -28,6 +30,7 @@ client<llm> GPT4oMini {
     model "gpt-4o-mini"
     api_key env.OPENAI_API_KEY
     temperature 0
+    max_tokens 2000
   }
 }
 
@@ -39,6 +42,7 @@ client<llm> DeepSeek {
     api_key env.DEEPSEEK_API_KEY
     base_url https://api.deepseek.com
     temperature 0 
+    max_tokens 2000
   }
 }
 
@@ -49,6 +53,7 @@ client<llm> QwQ3 {
     model "qwen/qwen3-32b:free"
     api_key env.OPENROUTER_API_KEY
     base_url https://openrouter.ai/api/v1
+    max_tokens 2000
   }
 }
 

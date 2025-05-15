@@ -6,7 +6,7 @@ from langfuse.decorators import langfuse_context, observe
 
 class MemoryAgent:
     CONFIG = {
-        "model_retries": 2,
+        "model_retries": 0,
     }
 
     @observe(as_type="generation", name="memory_agent")

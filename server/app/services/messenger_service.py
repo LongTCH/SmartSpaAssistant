@@ -15,10 +15,11 @@ from app.services import chat_service, interest_service
 from app.stores.store import LOCAL_DATA
 from app.utils.message_utils import (
     get_attachment_type_name,
+    markdown_to_messenger,
     messenger_to_markdown,
-    parse_and_format_message,
     send_message_to_ws,
 )
+from baml_client.types import ChatResponseItem
 from sqlalchemy.ext.asyncio import AsyncSession
 
 SENDER_ACTION = {
@@ -126,13 +127,14 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
 
                 # Ensure we explicitly handle the case when guest is None
                 guest = await guest_repository.get_conversation_by_provider(
-                    db, PROVIDERS.MESSENGER, receipient_psid
+                    db, PROVIDERS.MESSENGER, sender_psid
                 )
                 if not guest:
                     guest = await insert_guest(db, sender_psid)
                     if not guest:
                         print(f"Failed to create guest for sender_psid: {sender_psid}")
                         return
+                    await db.commit()
 
                 await chat_service.insert_chat(
                     db, guest.id, CHAT_SIDES.CLIENT, text, attachments, created_at
@@ -229,20 +231,24 @@ async def handle_chat(sender_psid, message, guest: Guest):
             typing_task = asyncio.create_task(keep_typing(sender_psid))
 
             # Handle the message
-            response_text = await invoke_agent(guest.id, message)
-
-            message_parts = parse_and_format_message(response_text, 1000)
+            message_parts: list[ChatResponseItem] = await invoke_agent(
+                guest.id, message
+            )
 
             for part in message_parts:
-                if part.get("text"):
-                    response = {"text": part["text"]}
-                elif part.get("type"):
+                if part.type == "text":
+                    part.payload = markdown_to_messenger(part.payload)
+
+            for part in message_parts:
+                if part.type == "text" or part.type == "link":
+                    response = {"text": part.payload}
+                else:
                     response = {
                         "attachments": [
                             {
-                                "type": part["type"],
+                                "type": part.type,
                                 "payload": {
-                                    "url": part["url"],
+                                    "url": part.payload,
                                 },
                             }
                         ]

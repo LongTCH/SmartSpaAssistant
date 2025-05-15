@@ -1,23 +1,20 @@
 import { Bot, User } from "lucide-react";
 import { motion } from "framer-motion";
-import { marked } from "marked";
+// marked is imported but not used, consider removing if not needed elsewhere.
+// import { marked } from "marked";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MarkdownContent } from "@/components/markdown-content";
-
-interface Message {
-  id: string;
-  sender: "You" | "Assistant";
-  text: string;
-  type: "human" | "ai";
-}
+import { Chat, ChatAttachment } from "@/types/conversation"; // Import Chat type
+import { AttachmentViewer } from "@/components/attachment-viewer"; // Import AttachmentViewer
 
 interface ChatMessageProps {
-  message: Message;
+  message: Chat; // Changed from Message to Chat
   index: number;
 }
 
 export function ChatMessage({ message, index }: ChatMessageProps) {
-  const timestamp = new Date().toLocaleString("vi-VN", {
+  const timestamp = new Date(message.created_at).toLocaleString("vi-VN", {
+    // Use message.created_at
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -25,17 +22,18 @@ export function ChatMessage({ message, index }: ChatMessageProps) {
     minute: "2-digit",
   });
 
+  const isSenderClient = message.content.side === "client";
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3, delay: index * 0.05 }}
       className={`flex ${
-        message.type === "human" ? "justify-end" : "justify-start"
+        isSenderClient ? "justify-end" : "justify-start" // Use isSenderClient
       }`}
     >
-      {message.type === "ai" ? (
-        // Staff/Bot Message (Light Theme)
+      {!isSenderClient ? ( // Staff/Bot Message (Light Theme) - if side is not 'client'
         <div className="flex items-start space-x-2 max-w-[80%]">
           <Avatar className="w-8 h-8">
             <AvatarImage src="/placeholder.svg?height=40&width=40" />
@@ -44,10 +42,19 @@ export function ChatMessage({ message, index }: ChatMessageProps) {
           <div>
             <div className="bg-gray-200 p-3 rounded-lg shadow-sm">
               <MarkdownContent
-                content={message.text}
+                content={message.content.message.text} // Use message.content.message.text
                 className="text-sm"
                 isDarkTheme={false}
               />
+              {message.content.message.attachments &&
+                message.content.message.attachments.length > 0 && (
+                  <div className="mt-2">
+                    <AttachmentViewer
+                      attachments={message.content.message.attachments}
+                      isDarkTheme={false}
+                    />
+                  </div>
+                )}
             </div>
             <div className="text-xs text-gray-500 mt-1">{timestamp}</div>
           </div>
@@ -58,10 +65,19 @@ export function ChatMessage({ message, index }: ChatMessageProps) {
           <div>
             <div className="bg-indigo-500 p-3 rounded-lg shadow-sm">
               <MarkdownContent
-                content={message.text}
+                content={message.content.message.text} // Use message.content.message.text
                 className="text-sm"
                 isDarkTheme={true}
               />
+              {message.content.message.attachments &&
+                message.content.message.attachments.length > 0 && (
+                  <div className="mt-2">
+                    <AttachmentViewer
+                      attachments={message.content.message.attachments}
+                      isDarkTheme={true}
+                    />
+                  </div>
+                )}
             </div>
             <div className="text-xs text-gray-500 mt-1 text-right">
               {timestamp}

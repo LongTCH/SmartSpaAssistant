@@ -30,6 +30,8 @@ class SheetAgentDeps:
 class SQLExecutionMessage(BaseModel):
     sql_query: str
     result: list[dict[str, Any]]
+    sheet_id: str
+    limit: int
 
     def __str__(self):
         return self.model_dump_json()
@@ -39,8 +41,8 @@ class SheetAgent:
 
     # Constants for model and SQL retry configuration
     CONFIG = {
-        "model_retries": 3,
-        "sql_empty_data_retries": 2,
+        "model_retries": 2,
+        "sql_empty_data_retries": 1,
     }
 
     @observe(as_type="generation", name="sheet_agent")
@@ -65,7 +67,7 @@ class SheetAgent:
                 agent_response: SheetAgentOutput = await b.SheetAgent(
                     dynamic_system_prompt=dynamic_prompt,
                     user_prompt=user_prompt,
-                    message_history=message_history,
+                    message_history=message_history + new_messages,
                     baml_options=baml_options,
                 )
                 if collector:
@@ -83,6 +85,7 @@ class SheetAgent:
                             collector, last_log.raw_llm_response
                         ),
                     )
+
                 sql_query = agent_response.sql_query
                 new_messages.append(
                     BAMLMessage(
@@ -104,10 +107,13 @@ class SheetAgent:
                 except Exception as e:
                     print(f"Error executing query: {e}")
                     raise BAMLModelRetry(
-                        f"Error executing query: {str(e)}. Please check your query again."
+                        f"Error executing query: {e}. Please check your query again."
                     )
                 sql_execution_message = SQLExecutionMessage(
-                    sql_query=sql_query, result=rows
+                    sql_query=sql_query,
+                    result=rows,
+                    sheet_id=agent_response.sheet_id,
+                    limit=agent_response.limit,
                 )
                 new_messages.append(
                     BAMLMessage(

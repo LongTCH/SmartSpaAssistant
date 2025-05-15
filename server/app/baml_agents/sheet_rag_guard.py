@@ -12,42 +12,47 @@ from app.configs.database import with_session
 from app.repositories import sheet_repository
 from app.services.integrations import sheet_rag_service
 from baml_client.async_client import BamlCallOptions, b
-from baml_client.types import BAMLMessage, SheetRAGAgentOutput
+from baml_client.types import BAMLMessage
 from fuzzywuzzy import process
 from langfuse.decorators import langfuse_context, observe
 
 
 @dataclass
-class SheetRAGAgentDeps:
+class SheetRAGGuardAgentDeps:
     script_context: str
+    rag_items: list[str]
     timezone: str = "Asia/Ho_Chi_Minh"
 
 
-class SheetRAGAgent:
+class SheetRAGGuardAgent:
 
     CONFIG = {
-        "model_retries": 3,
+        "model_retries": 0,
     }
 
-    @observe(as_type="generation", name="sheet_rag_agent")
+    @observe(as_type="generation", name="sheet_rag_guard_agent")
     async def run(
         self,
         user_prompt: str,
-        deps: SheetRAGAgentDeps,
+        deps: SheetRAGGuardAgentDeps,
         message_history: list[BAMLMessage] = [],
         baml_options: BamlCallOptions = {},
     ) -> BAMLAgentRunResult[str]:
         collector = baml_options.get("collector", None)
-        dynamic_prompt = self.get_current_local_time(deps)
-        dynamic_prompt += self.get_scripts_context(deps)
-        dynamic_prompt += await self.get_all_available_sheets()
+        dynamic_prompt = self.get_scripts_context(deps)
+        dynamic_prompt += (
+            "\nBecause can not find the appropriate data matching with customer's message by SQL query.\n"
+            "We retrieved relevant information items. Please carefully review the items and response with actual useful ones or ignore all and say I don't know:\n\n"
+        )
+        for i, item in enumerate(deps.rag_items):
+            dynamic_prompt += f"Item {i + 1}:\n{item}\n\n"
         new_messages = [
             BAMLMessage(role="user", content=user_prompt),
         ]
         model_retries = self.CONFIG["model_retries"]
         while True:
             try:
-                agent_response: SheetRAGAgentOutput = await b.SheetRAGAgent(
+                agent_response: str = await b.SheetRAGGuardAgent(
                     dynamic_system_prompt=dynamic_prompt,
                     user_prompt=user_prompt,
                     message_history=message_history + new_messages,
@@ -69,27 +74,11 @@ class SheetRAGAgent:
                         ),
                     )
                 new_messages.append(
-                    BAMLMessage(
-                        role="assistant", content=agent_response.model_dump_json()
-                    )
-                )
-                rag_query = agent_response.rag_query
-                sheet_id = agent_response.sheet_id
-                limit = agent_response.limit
-                rag_result = await self.rag_hybrid_search(
-                    sheet_id=sheet_id,
-                    query=rag_query,
-                    limit=limit,
-                )
-                rag_context = (
-                    f"\nBecause can not find the appropriate data matching with customer's message by SQL query.\n"
-                    f"We retrieved relevant information. Please carefully review the results and make decision to use this information or response that you cannot find any data:\n\n"
-                    + "\n".join(rag_result)
+                    BAMLMessage(role="assistant", content=agent_response)
                 )
 
-                new_messages.append(BAMLMessage(role="assistant", content=rag_context))
                 return BAMLAgentRunResult[str](
-                    output=rag_context,
+                    output=agent_response,
                     new_message=new_messages,
                     message_history=message_history,
                 )
@@ -126,13 +115,13 @@ class SheetRAGAgent:
         )
         return [sheet_chunk.chunk for sheet_chunk in sheet_chunks]
 
-    def get_scripts_context(self, deps: SheetRAGAgentDeps) -> str:
+    def get_scripts_context(self, deps: SheetRAGGuardAgentDeps) -> str:
         script_context = deps.script_context
         if not script_context:
             return ""
         return f"\nRelevant information from scripts:\n{script_context}"
 
-    def get_current_local_time(self, deps: SheetRAGAgentDeps) -> str:
+    def get_current_local_time(self, deps: SheetRAGGuardAgentDeps) -> str:
         """
         Get the current local time.
         """
@@ -164,4 +153,4 @@ class SheetRAGAgent:
             return f"Error fetching sheets: {str(e)}"
 
 
-sheet_rag_agent = SheetRAGAgent()
+sheet_rag_guard_agent = SheetRAGGuardAgent()

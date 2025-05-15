@@ -208,6 +208,33 @@ class BamlAsyncClient:
       )
       return cast(types.SheetAgentOutput, raw.cast_to(types, types, partial_types, False))
     
+    async def SheetGuardAgent(
+        self,
+        dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
+        baml_options: BamlCallOptions = {},
+    ) -> bool:
+      options: BamlCallOptions = {**self.__baml_options, **(baml_options or {})}
+
+      __tb__ = options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = options.get("client_registry", None)
+      collector = options.get("collector", None)
+      collectors = collector if isinstance(collector, list) else [collector] if collector is not None else []
+      raw = await self.__runtime.call_function(
+        "SheetGuardAgent",
+        {
+          "dynamic_system_prompt": dynamic_system_prompt,"user_prompt": user_prompt,"message_history": message_history,
+        },
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        collectors,
+      )
+      return cast(bool, raw.cast_to(types, types, partial_types, False))
+    
     async def SheetRAGAgent(
         self,
         dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
@@ -235,11 +262,38 @@ class BamlAsyncClient:
       )
       return cast(types.SheetRAGAgentOutput, raw.cast_to(types, types, partial_types, False))
     
-    async def SyntheticAgent(
+    async def SheetRAGGuardAgent(
         self,
         dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
         baml_options: BamlCallOptions = {},
     ) -> str:
+      options: BamlCallOptions = {**self.__baml_options, **(baml_options or {})}
+
+      __tb__ = options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = options.get("client_registry", None)
+      collector = options.get("collector", None)
+      collectors = collector if isinstance(collector, list) else [collector] if collector is not None else []
+      raw = await self.__runtime.call_function(
+        "SheetRAGGuardAgent",
+        {
+          "dynamic_system_prompt": dynamic_system_prompt,"user_prompt": user_prompt,"message_history": message_history,
+        },
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        collectors,
+      )
+      return cast(str, raw.cast_to(types, types, partial_types, False))
+    
+    async def SyntheticAgent(
+        self,
+        dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
+        baml_options: BamlCallOptions = {},
+    ) -> List[types.ChatResponseItem]:
       options: BamlCallOptions = {**self.__baml_options, **(baml_options or {})}
 
       __tb__ = options.get("tb", None)
@@ -260,7 +314,7 @@ class BamlAsyncClient:
         __cr__,
         collectors,
       )
-      return cast(str, raw.cast_to(types, types, partial_types, False))
+      return cast(List[types.ChatResponseItem], raw.cast_to(types, types, partial_types, False))
     
 
 
@@ -410,6 +464,41 @@ class BamlStreamClient:
         self.__ctx_manager.get(),
       )
     
+    def SheetGuardAgent(
+        self,
+        dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[Optional[bool], bool]:
+      options: BamlCallOptions = {**self.__baml_options, **(baml_options or {})}
+      __tb__ = options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = options.get("client_registry", None)
+      collector = options.get("collector", None)
+      collectors = collector if isinstance(collector, list) else [collector] if collector is not None else []
+      raw = self.__runtime.stream_function(
+        "SheetGuardAgent",
+        {
+          "dynamic_system_prompt": dynamic_system_prompt,
+          "user_prompt": user_prompt,
+          "message_history": message_history,
+        },
+        None,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        collectors,
+      )
+
+      return baml_py.BamlStream[Optional[bool], bool](
+        raw,
+        lambda x: cast(Optional[bool], x.cast_to(types, types, partial_types, True)),
+        lambda x: cast(bool, x.cast_to(types, types, partial_types, False)),
+        self.__ctx_manager.get(),
+      )
+    
     def SheetRAGAgent(
         self,
         dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
@@ -445,11 +534,46 @@ class BamlStreamClient:
         self.__ctx_manager.get(),
       )
     
-    def SyntheticAgent(
+    def SheetRAGGuardAgent(
         self,
         dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
         baml_options: BamlCallOptions = {},
     ) -> baml_py.BamlStream[Optional[str], str]:
+      options: BamlCallOptions = {**self.__baml_options, **(baml_options or {})}
+      __tb__ = options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = options.get("client_registry", None)
+      collector = options.get("collector", None)
+      collectors = collector if isinstance(collector, list) else [collector] if collector is not None else []
+      raw = self.__runtime.stream_function(
+        "SheetRAGGuardAgent",
+        {
+          "dynamic_system_prompt": dynamic_system_prompt,
+          "user_prompt": user_prompt,
+          "message_history": message_history,
+        },
+        None,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        collectors,
+      )
+
+      return baml_py.BamlStream[Optional[str], str](
+        raw,
+        lambda x: cast(Optional[str], x.cast_to(types, types, partial_types, True)),
+        lambda x: cast(str, x.cast_to(types, types, partial_types, False)),
+        self.__ctx_manager.get(),
+      )
+    
+    def SyntheticAgent(
+        self,
+        dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.BamlStream[List[partial_types.ChatResponseItem], List[types.ChatResponseItem]]:
       options: BamlCallOptions = {**self.__baml_options, **(baml_options or {})}
       __tb__ = options.get("tb", None)
       if __tb__ is not None:
@@ -473,10 +597,10 @@ class BamlStreamClient:
         collectors,
       )
 
-      return baml_py.BamlStream[Optional[str], str](
+      return baml_py.BamlStream[List[partial_types.ChatResponseItem], List[types.ChatResponseItem]](
         raw,
-        lambda x: cast(Optional[str], x.cast_to(types, types, partial_types, True)),
-        lambda x: cast(str, x.cast_to(types, types, partial_types, False)),
+        lambda x: cast(List[partial_types.ChatResponseItem], x.cast_to(types, types, partial_types, True)),
+        lambda x: cast(List[types.ChatResponseItem], x.cast_to(types, types, partial_types, False)),
         self.__ctx_manager.get(),
       )
     

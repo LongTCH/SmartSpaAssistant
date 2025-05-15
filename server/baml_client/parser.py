@@ -13,7 +13,7 @@
 # flake8: noqa: E501,F401
 # pylint: disable=unused-import,line-too-long
 # fmt: off
-from typing import Optional, TypedDict, cast
+from typing import List, Optional, TypedDict, cast
 
 import baml_py
 from typing_extensions import NotRequired
@@ -140,6 +140,32 @@ class LlmResponseParser:
 
       return cast(types.SheetAgentOutput, parsed)
     
+    def SheetGuardAgent(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> bool:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "SheetGuardAgent",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        False,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(bool, parsed)
+    
     def SheetRAGAgent(
         self,
         llm_response: str,
@@ -166,11 +192,37 @@ class LlmResponseParser:
 
       return cast(types.SheetRAGAgentOutput, parsed)
     
-    def SyntheticAgent(
+    def SheetRAGGuardAgent(
         self,
         llm_response: str,
         baml_options: BamlCallOptions = {},
     ) -> str:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "SheetRAGGuardAgent",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        False,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(str, parsed)
+    
+    def SyntheticAgent(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> List[types.ChatResponseItem]:
       __tb__ = baml_options.get("tb", None)
       if __tb__ is not None:
         tb = __tb__._tb # type: ignore (we know how to use this private attribute)
@@ -190,7 +242,7 @@ class LlmResponseParser:
         __cr__,
       )
 
-      return cast(str, parsed)
+      return cast(List[types.ChatResponseItem], parsed)
     
 
 
@@ -307,6 +359,32 @@ class LlmStreamParser:
 
       return cast(partial_types.SheetAgentOutput, parsed)
     
+    def SheetGuardAgent(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> Optional[bool]:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "SheetGuardAgent",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        True,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(Optional[bool], parsed)
+    
     def SheetRAGAgent(
         self,
         llm_response: str,
@@ -333,11 +411,37 @@ class LlmStreamParser:
 
       return cast(partial_types.SheetRAGAgentOutput, parsed)
     
-    def SyntheticAgent(
+    def SheetRAGGuardAgent(
         self,
         llm_response: str,
         baml_options: BamlCallOptions = {},
     ) -> Optional[str]:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "SheetRAGGuardAgent",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        True,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(Optional[str], parsed)
+    
+    def SyntheticAgent(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> List[partial_types.ChatResponseItem]:
       __tb__ = baml_options.get("tb", None)
       if __tb__ is not None:
         tb = __tb__._tb # type: ignore (we know how to use this private attribute)
@@ -357,7 +461,7 @@ class LlmStreamParser:
         __cr__,
       )
 
-      return cast(Optional[str], parsed)
+      return cast(List[partial_types.ChatResponseItem], parsed)
     
 
 

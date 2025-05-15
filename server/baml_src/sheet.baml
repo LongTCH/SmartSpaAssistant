@@ -7,7 +7,7 @@ template_string SheetSystemPrompt(dynamic_system_prompt: string) #"
     Below are instructions for the you to write sql query:
     Query from {sheet.table_name} when you know the table_name via the sheet you are querying. FROM "{sheet.table_name}" is the table name you need to query from.
     You can use other fields of {table_name} specified in {sheet.column_config}, with normal operations to filter the query.
-    You should use &@~ instead of LIKE, ILIKE against string, text field of "{sheet.table_name}" to perform fulltext search, examine 'sheet.column_config' field of that sheet in 'sheets' table to know about these columns.
+    You should use &@~ instead of = ,LIKE, ILIKE against string, text field of "{sheet.table_name}" to perform fulltext search, examine 'sheet.column_config' field of that sheet in 'sheets' table to know about these columns.
     In SQL, the correct order of statement is:
     SELECT …
     FROM …
@@ -59,9 +59,13 @@ template_string SheetSystemPrompt(dynamic_system_prompt: string) #"
       "discounted_price"
     FROM "some_table_name" as tb
     WHERE tb."product_price" > 100
+
+    NOTE: Also return the sheet_id and limit for the RAG vector database query if not found any data by sql_query.
 "#
 class SheetAgentOutput {
-    sql_query string
+    sql_query string @description("The valid sql query to query from the sheet.")
+    sheet_id string @description("The sheet_id to query from.")
+    limit int @description("The maximum number of items to return by using RAG.")
 }
 function SheetAgent(dynamic_system_prompt: string,
                     user_prompt: string, 

@@ -41,12 +41,17 @@ class BAMLMessage(BaseModel):
     role: Union[Literal["user"], Literal["assistant"]]
     content: str
 
+class ChatResponseItem(BaseModel):
+    type: Union[Literal["text"], Literal["image"], Literal["video"], Literal["audio"], Literal["file"], Literal["link"]]
+    payload: str
+
 class ScriptRetrieveAgentOutput(BaseModel):
-    should_query_sheet: bool
     pieces_of_information: List[str]
 
 class SheetAgentOutput(BaseModel):
     sql_query: str
+    sheet_id: str
+    limit: int
 
 class SheetRAGAgentOutput(BaseModel):
     sheet_id: str

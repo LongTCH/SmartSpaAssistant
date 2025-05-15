@@ -4,41 +4,41 @@ from app.baml_agents.utils import BAMLAgentRunResult, construct_output_langfuse
 from app.configs.database import with_session
 from app.repositories import sheet_repository
 from baml_client.async_client import BamlCallOptions, b
-from baml_client.types import BAMLMessage, ScriptRetrieveAgentOutput
+from baml_client.types import BAMLMessage
 from langfuse.decorators import langfuse_context, observe
 
 
 @dataclass
-class ScriptRetrieveAgentDeps:
+class SheetGuardAgentDeps:
     script_context: str
 
 
-class ScriptRetrieveAgent:
+class SheetGuardAgent:
     CONFIG = {
         "model_retries": 0,
     }
 
-    @observe(as_type="generation", name="script_retrieve_agent")
+    @observe(as_type="generation", name="sheet_guard_agent")
     async def run(
         self,
         user_prompt: str,
-        deps: ScriptRetrieveAgentDeps,
+        deps: SheetGuardAgentDeps,
         message_history: list[BAMLMessage] = [],
         baml_options: BamlCallOptions = {},
-    ) -> BAMLAgentRunResult[ScriptRetrieveAgentOutput]:
+    ) -> BAMLAgentRunResult[bool]:
         collector = baml_options.get("collector", None)
-        dynamic_prompt = self.get_scripts_context(deps)
-        dynamic_prompt += await self.get_all_available_sheets()
+        model_retries = self.CONFIG["model_retries"]
         new_message = [
             BAMLMessage(role="user", content=user_prompt),
         ]
-        model_retries = self.CONFIG["model_retries"]
+        dynamic_prompt = self.get_scripts_context(deps)
+        dynamic_prompt += await self.get_all_available_sheets()
         while True:
             try:
-                agent_response: ScriptRetrieveAgentOutput = await b.ScriptRetrieveAgent(
-                    dynamic_system_prompt=dynamic_prompt,
-                    user_prompt=user_prompt,
-                    message_history=message_history + new_message,
+                agent_response: str = await b.SheetGuardAgent(
+                    dynamic_prompt,
+                    user_prompt,
+                    message_history=[],
                     baml_options=baml_options,
                 )
                 if collector:
@@ -58,12 +58,18 @@ class ScriptRetrieveAgent:
                     )
                 new_message.append(
                     BAMLMessage(
-                        role="assistant", content=agent_response.model_dump_json()
+                        role="assistant",
+                        content=(
+                            "Should query from sheets"
+                            if agent_response
+                            else "Should not query from sheets"
+                        ),
                     )
                 )
-                return BAMLAgentRunResult[ScriptRetrieveAgentOutput](
+                return BAMLAgentRunResult[bool](
                     output=agent_response,
                     new_message=new_message,
+                    message_history=message_history,
                 )
             except Exception as e:
                 if model_retries > 0:
@@ -72,7 +78,7 @@ class ScriptRetrieveAgent:
                 else:
                     raise e
 
-    def get_scripts_context(self, deps: ScriptRetrieveAgentDeps) -> str:
+    def get_scripts_context(self, deps: SheetGuardAgentDeps) -> str:
         script_context = deps.script_context
         if not script_context:
             return ""
@@ -109,4 +115,4 @@ class ScriptRetrieveAgent:
             return f"Error fetching sheets: {str(e)}"
 
 
-script_retrieve_agent = ScriptRetrieveAgent()
+sheet_guard_agent = SheetGuardAgent()

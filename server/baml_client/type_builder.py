@@ -25,7 +25,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(_TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["BAMLMessage","ScriptRetrieveAgentOutput","SheetAgentOutput","SheetRAGAgentOutput",]
+          ["BAMLMessage","ChatResponseItem","ScriptRetrieveAgentOutput","SheetAgentOutput","SheetRAGAgentOutput",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -34,6 +34,10 @@ class TypeBuilder(_TypeBuilder):
     @property
     def BAMLMessage(self) -> "BAMLMessageAst":
         return BAMLMessageAst(self)
+
+    @property
+    def ChatResponseItem(self) -> "ChatResponseItemAst":
+        return ChatResponseItemAst(self)
 
     @property
     def ScriptRetrieveAgentOutput(self) -> "ScriptRetrieveAgentOutputAst":
@@ -93,11 +97,53 @@ class BAMLMessageProperties:
 
     
 
+class ChatResponseItemAst:
+    def __init__(self, tb: _TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("ChatResponseItem")
+        self._properties: typing.Set[str] = set([ "type",  "payload", ])
+        self._props = ChatResponseItemProperties(self._bldr, self._properties)
+
+    def type(self) -> FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "ChatResponseItemProperties":
+        return self._props
+
+
+class ChatResponseItemViewer(ChatResponseItemAst):
+    def __init__(self, tb: _TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, ClassPropertyViewer]]:
+        return [(name, ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+
+
+
+class ChatResponseItemProperties:
+    def __init__(self, bldr: ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties
+
+    
+
+    @property
+    def type(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("type"))
+
+    @property
+    def payload(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("payload"))
+
+    
+
 class ScriptRetrieveAgentOutputAst:
     def __init__(self, tb: _TypeBuilder):
         _tb = tb._tb # type: ignore (we know how to use this private attribute)
         self._bldr = _tb.class_("ScriptRetrieveAgentOutput")
-        self._properties: typing.Set[str] = set([ "should_query_sheet",  "pieces_of_information", ])
+        self._properties: typing.Set[str] = set([ "pieces_of_information", ])
         self._props = ScriptRetrieveAgentOutputProperties(self._bldr, self._properties)
 
     def type(self) -> FieldType:
@@ -126,10 +172,6 @@ class ScriptRetrieveAgentOutputProperties:
     
 
     @property
-    def should_query_sheet(self) -> ClassPropertyViewer:
-        return ClassPropertyViewer(self.__bldr.property("should_query_sheet"))
-
-    @property
     def pieces_of_information(self) -> ClassPropertyViewer:
         return ClassPropertyViewer(self.__bldr.property("pieces_of_information"))
 
@@ -139,7 +181,7 @@ class SheetAgentOutputAst:
     def __init__(self, tb: _TypeBuilder):
         _tb = tb._tb # type: ignore (we know how to use this private attribute)
         self._bldr = _tb.class_("SheetAgentOutput")
-        self._properties: typing.Set[str] = set([ "sql_query", ])
+        self._properties: typing.Set[str] = set([ "sql_query",  "sheet_id",  "limit", ])
         self._props = SheetAgentOutputProperties(self._bldr, self._properties)
 
     def type(self) -> FieldType:
@@ -170,6 +212,14 @@ class SheetAgentOutputProperties:
     @property
     def sql_query(self) -> ClassPropertyViewer:
         return ClassPropertyViewer(self.__bldr.property("sql_query"))
+
+    @property
+    def sheet_id(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("sheet_id"))
+
+    @property
+    def limit(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("limit"))
 
     
 

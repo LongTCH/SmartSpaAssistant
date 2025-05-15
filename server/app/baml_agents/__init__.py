@@ -5,14 +5,18 @@ from app.baml_agents.script_retrieve import (
     script_retrieve_agent,
 )
 from app.baml_agents.sheet import SheetAgentDeps, SQLExecutionMessage, sheet_agent
-from app.baml_agents.sheet_rag import SheetRAGAgentDeps, sheet_rag_agent
+from app.baml_agents.sheet_guard import SheetGuardAgentDeps, sheet_guard_agent
+from app.baml_agents.sheet_rag_guard import (
+    SheetRAGGuardAgentDeps,
+    sheet_rag_guard_agent,
+)
 from app.baml_agents.synthetic import SyntheticAgentDeps, synthetic_agent
 from app.baml_agents.utils import BAMLAgentRunResult, BAMLMessagesTypeAdapter, dump_json
 from app.configs.database import with_session
 from app.dtos import ScriptChunkDto
 from app.repositories import chat_history_repository
-from app.services.integrations import script_rag_service
-from baml_client.types import BAMLMessage, ScriptRetrieveAgentOutput
+from app.services.integrations import script_rag_service, sheet_rag_service
+from baml_client.types import BAMLMessage, ChatResponseItem, ScriptRetrieveAgentOutput
 from baml_py import Collector
 from langfuse.decorators import langfuse_context, observe
 
@@ -21,7 +25,7 @@ LONG_TERM_MEMORY_LIMIT = 50
 
 
 @observe(as_type="generation", name="agent_system")
-async def invoke_agent(user_id, user_input: str) -> str:
+async def invoke_agent(user_id, user_input: str) -> list[ChatResponseItem]:
     try:
         chat_histories = await with_session(
             lambda session: chat_history_repository.get_latest_chat_histories(
@@ -39,10 +43,9 @@ async def invoke_agent(user_id, user_input: str) -> str:
         message_rewrite_agent_output: BAMLAgentRunResult[str] = (
             await message_rewrite_agent.run(user_input, baml_options=baml_options)
         )
+        user_input = message_rewrite_agent_output.output
         script_chunks: list[ScriptChunkDto] = (
-            await script_rag_service.search_script_chunks(
-                message_rewrite_agent_output.output, limit=5
-            )
+            await script_rag_service.search_script_chunks(user_input, limit=5)
         )
         script_context = "\n".join([chunk.chunk for chunk in script_chunks])
         script_retrieve_agent_deps = ScriptRetrieveAgentDeps(
@@ -57,7 +60,17 @@ async def invoke_agent(user_id, user_input: str) -> str:
             )
         )
         script_context = "\n".join(retrieve_scripts_result.output.pieces_of_information)
-        should_query_sheet = retrieve_scripts_result.output.should_query_sheet
+        sheet_guard_agent_deps = SheetGuardAgentDeps(
+            script_context=script_context,
+        )
+        sheet_guard_agent_result: BAMLAgentRunResult[bool] = (
+            await sheet_guard_agent.run(
+                user_input,
+                deps=sheet_guard_agent_deps,
+                baml_options=baml_options,
+            )
+        )
+        should_query_sheet = sheet_guard_agent_result.output
 
         chat_summaries = await with_session(
             lambda db: chat_history_repository.get_long_term_memory(
@@ -68,45 +81,83 @@ async def invoke_agent(user_id, user_input: str) -> str:
 
         sheet_context = None
         if should_query_sheet:
-            sheet_agent_deps = SheetAgentDeps(
-                script_context=script_context,
-            )
-            sheet_result: BAMLAgentRunResult[SQLExecutionMessage] = (
-                await sheet_agent.run(
-                    user_input, deps=sheet_agent_deps, baml_options=baml_options
+            rows = None
+            sheet_id = None
+            limit = None
+            try:
+                sheet_agent_deps = SheetAgentDeps(
+                    script_context=script_context,
                 )
-            )
-            rows = sheet_result.output.result
+                sheet_result: BAMLAgentRunResult[SQLExecutionMessage] = (
+                    await sheet_agent.run(
+                        user_input, deps=sheet_agent_deps, baml_options=baml_options
+                    )
+                )
+
+                rows = sheet_result.output.result
+                sheet_id = sheet_result.output.sheet_id
+                limit = sheet_result.output.limit
+            except Exception as e:
+                pass
             sheet_context = ""
+
             if not rows:
-                sheet_messages = sheet_result.new_messages
-                sheet_rag_agent_deps = SheetRAGAgentDeps(script_context=script_context)
-                sheet_rag_result: BAMLAgentRunResult[str] = await sheet_rag_agent.run(
-                    user_input,
-                    message_history=sheet_messages,
-                    deps=sheet_rag_agent_deps,
-                    baml_options=baml_options,
+                # sheet_messages = sheet_result.new_messages
+                # sheet_rag_agent_deps = SheetRAGAgentDeps(
+                #     script_context=script_context)
+                # sheet_rag_result: BAMLAgentRunResult[list[str]] = await sheet_rag_agent.run(
+                #     user_input,
+                #     message_history=sheet_messages,
+                #     deps=sheet_rag_agent_deps,
+                #     baml_options=baml_options,
+                # )
+                # rag_items = sheet_rag_result.output
+                rag_items = await sheet_rag_service.search_chunks_by_sheet_id(
+                    sheet_id=sheet_id,
+                    query=user_input,
+                    limit=limit,
                 )
-                sheet_context = sheet_rag_result.output
+                rag_items = [rag_item.chunk for rag_item in rag_items]
+                sheet_rag_guard_agent_deps = SheetRAGGuardAgentDeps(
+                    script_context="",
+                    rag_items=rag_items,
+                )
+                sheet_rag_guard_result: BAMLAgentRunResult[str] = (
+                    await sheet_rag_guard_agent.run(
+                        user_input,
+                        message_history=message_history,
+                        deps=sheet_rag_guard_agent_deps,
+                        baml_options=baml_options,
+                    )
+                )
+                sheet_context = sheet_rag_guard_result.output
             else:
-                sheet_context = (
-                    "Queried data from the sheet:\n"
-                    f"{dump_json(sheet_result.output.result)}\n"
-                )
+                sheet_context = "Queried data from the sheet:\n"
+                for row in rows:
+                    sheet_context += "\n".join(
+                        [f"{key}: {value}" for key, value in row.items()]
+                    )
+                    sheet_context += (
+                        "\n----------------------------------------------\n"
+                    )
 
         synthetic_agent_deps = SyntheticAgentDeps(
             script_context=script_context,
             context_memory=memory,
             sheet_context=sheet_context,
         )
-        synthetic_result: BAMLAgentRunResult[str] = await synthetic_agent.run(
-            user_input,
-            message_history=message_history,
-            deps=synthetic_agent_deps,
-            baml_options=baml_options,
+        synthetic_result: BAMLAgentRunResult[list[ChatResponseItem]] = (
+            await synthetic_agent.run(
+                user_input,
+                message_history=message_history,
+                deps=synthetic_agent_deps,
+                baml_options=baml_options,
+            )
         )
 
-        chat_content = f"Customer: {user_input}\nAssistant: {synthetic_result.output}"
+        chat_content = (
+            f"Customer: {user_input}\nAssistant: {dump_json(synthetic_result.output)}"
+        )
         memory_agent_output = await memory_agent.run(
             chat_content,
             baml_options=baml_options,

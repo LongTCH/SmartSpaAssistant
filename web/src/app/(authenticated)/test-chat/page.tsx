@@ -12,7 +12,6 @@ import {
 } from "./components/ChatMessage";
 import {
   ConversationSidebar,
-  Conversation,
   saveConversation,
   loadConversations,
   deleteAllConversations,
@@ -21,6 +20,13 @@ import {
 } from "./components/ConversationSidebar";
 import { ChatHeader } from "./components/ChatHeader";
 import { ChatInput } from "./components/ChatInput";
+// Use a type alias to distinguish local Conversation from global Conversation
+import {
+  Conversation as GlobalConversation,
+  Chat,
+  ChatAttachment,
+} from "@/types/conversation"; // Added ChatAttachment
+import { Conversation as LocalConversation } from "./components/ConversationSidebar";
 
 // Define WebSocket message types
 const WS_MESSAGES = {
@@ -30,26 +36,18 @@ const WS_MESSAGES = {
   PONG: "PONG",
 };
 
-interface Message {
-  id: string;
-  sender: "You" | "Assistant";
-  text: string;
-  type: "human" | "ai";
-}
-
-interface ChatResponse {
-  id: string; // This is conversationId
-  message: string;
-}
+// interface ChatResponse { // REMOVED
+//   id: string; // This is conversationId
+//   message: string;
+// }
 
 export default function TestChatPage() {
   // State
-  // const [userId, setUserId] = useState<string | null>(null); // REMOVED
-  const [messages, setMessages] = useState<Message[]>([]);
+  const [messages, setMessages] = useState<Chat[]>([]); // Use global Chat type
   const [processingConversationId, setProcessingConversationId] = useState<
     string | null
   >(null);
-  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [conversations, setConversations] = useState<LocalConversation[]>([]); // Use LocalConversation for sidebar
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentConversationId, setCurrentConversationId] =
     useState<string>(""); // ID of the currently active conversation
@@ -64,7 +62,7 @@ export default function TestChatPage() {
     Record<
       string,
       {
-        resolve: (data: ChatResponse) => void;
+        resolve: (data: Chat) => void; // Changed from ChatResponse to Chat
         reject: (error: Error) => void;
         timeoutId: NodeJS.Timeout;
       }
@@ -90,13 +88,14 @@ export default function TestChatPage() {
       const newId = crypto.randomUUID();
       setCurrentConversationId(newId);
       localStorage.setItem("test-chat-last-opened-id", newId);
-      setMessages([]);
+      setMessages([]); // messages are global Chat objects
 
-      const newConversationEntry: Conversation = {
+      const newConversationEntry: LocalConversation = {
+        // For sidebar storage
         id: newId,
         title: title,
         date: new Date().toISOString(),
-        messages: [],
+        messages: [], // Will store global Chat objects
       };
       saveConversation(newConversationEntry);
       setConversations(loadConversations()); // Reload to get the new list
@@ -108,16 +107,17 @@ export default function TestChatPage() {
 
   // Initialize conversations and set active conversation
   useEffect(() => {
-    const loadedConvos = loadConversations();
+    const loadedConvos: LocalConversation[] = loadConversations();
 
     if (loadedConvos.length === 0) {
       // No conversations exist, create a new one.
       const newInitialConversationId = crypto.randomUUID();
-      const newInitialConversation: Conversation = {
+      const newInitialConversation: LocalConversation = {
+        // For sidebar storage
         id: newInitialConversationId,
         title: "New Conversation", // Default title
         date: new Date().toISOString(),
-        messages: [],
+        messages: [], // Will store global Chat objects
       };
       saveConversation(newInitialConversation);
       localStorage.setItem(
@@ -133,7 +133,7 @@ export default function TestChatPage() {
       setConversations(loadedConvos);
 
       let activeConversationIdToSet = "";
-      let activeMessagesToSet: Message[] = [];
+      let activeMessagesToSet: Chat[] = []; // Use global Chat type
 
       const lastOpenedConvoId = localStorage.getItem(
         "test-chat-last-opened-id"
@@ -164,30 +164,37 @@ export default function TestChatPage() {
   const addMessage = useCallback(
     (
       conversationId: string,
-      sender: "You" | "Assistant",
+      senderSide: "client" | "staff",
       text: string,
-      type: "human" | "ai"
+      attachments?: ChatAttachment[] // Added optional attachments parameter
     ) => {
-      const newMessage: Message = {
+      const newMessage: Chat = {
         id: crypto.randomUUID(),
-        sender,
-        text,
-        type,
+        guest_id: conversationId,
+        content: {
+          side: senderSide,
+          message: {
+            text: text,
+            attachments: attachments || [], // Use provided attachments or default to empty array
+          },
+        },
+        created_at: new Date().toISOString(),
       };
 
       // Load the latest conversations from storage to avoid stale state
-      const currentStoredConversations = loadConversations();
+      const currentStoredConversations: LocalConversation[] =
+        loadConversations();
       const existingConversation = currentStoredConversations.find(
         (c) => c.id === conversationId
       );
 
-      const prevMessages = existingConversation?.messages || [];
+      const prevMessages: Chat[] = existingConversation?.messages || [];
       const updatedMessages = [...prevMessages, newMessage];
 
       let conversationTitle = existingConversation?.title || "New Conversation";
       if (
-        type === "human" &&
-        prevMessages.filter((m) => m.type === "human").length === 0 &&
+        senderSide === "client" && // Use senderSide
+        prevMessages.filter((m) => m.content.side === "client").length === 0 && // Check content.side
         (!existingConversation ||
           !existingConversation.title ||
           existingConversation.title === "New Conversation")
@@ -195,11 +202,12 @@ export default function TestChatPage() {
         conversationTitle = text.substring(0, 30) || "New Conversation";
       }
 
-      const conversationToSave: Conversation = {
+      const conversationToSave: LocalConversation = {
+        // For sidebar storage
         id: conversationId,
         title: conversationTitle,
         date: existingConversation?.date || new Date().toISOString(),
-        messages: updatedMessages,
+        messages: updatedMessages, // Store global Chat objects
       };
 
       saveConversation(conversationToSave);
@@ -217,7 +225,8 @@ export default function TestChatPage() {
     async (
       conversationId: string, // This is the conversationId
       messageText: string
-    ): Promise<ChatResponse> => {
+    ): Promise<Chat> => {
+      // Changed from ChatResponse to Chat
       if (!conversationId || !messageText || !isWebSocketConnected) {
         throw new Error("Cannot send message at this time");
       }
@@ -233,9 +242,9 @@ export default function TestChatPage() {
             // Hiển thị thông báo lỗi trong UI
             addMessage(
               conversationId,
-              "Assistant",
-              "Xin lỗi, đã xảy ra lỗi timeout khi xử lý yêu cầu của bạn. Vui lòng thử lại sau.",
-              "ai"
+              "staff", // 'staff' for Assistant messages
+              "Xin lỗi, đã xảy ra lỗi timeout khi xử lý yêu cầu của bạn. Vui lòng thử lại sau."
+              // "ai" // type removed
             );
           }
         }, 150000);
@@ -261,30 +270,45 @@ export default function TestChatPage() {
       WS_MESSAGES.TEST_CHAT,
       (data: any) => {
         console.log("Received message:", data);
-        let chatData = data as ChatResponse;
+        let chatData = data as Chat;
         try {
           // Phương pháp mới: xử lý tất cả các định dạng dữ liệu có thể có
           console.log("Raw data type:", typeof data);
 
-          // TRƯỜNG HỢP 1: Nhận thẳng object
-          if (data && typeof data === "object") {
-            chatData = { id: data.id, message: data.message };
+          if (
+            data &&
+            typeof data === "object" &&
+            data.id &&
+            data.guest_id &&
+            data.content &&
+            data.content.message // Ensure message object exists
+          ) {
+            chatData = data;
+          } else {
+            console.error("Received data is not a valid Chat object:", data);
+            return;
           }
 
-          // Dừng hiệu ứng đang xử lý với ID tương ứng
-          if (processingConversationId === chatData.id) {
+          // Dừng hiệu ứng đang xử lý với ID tương ứng (guest_id is the conversationId)
+          if (processingConversationId === chatData.guest_id) {
             setProcessingConversationId(null);
-          } // Tìm entry trong responseMapRef và giải quyết Promise
-          const entry = responseMapRef.current[chatData.id];
+          }
+          const entry = responseMapRef.current[chatData.guest_id];
           if (entry) {
-            console.log("Found pending request, clearing timeout");
+            console.log(
+              "Found pending request, clearing timeout for conversation:",
+              chatData.guest_id
+            );
             clearTimeout(entry.timeoutId);
             entry.resolve(chatData);
-            delete responseMapRef.current[chatData.id];
-          }
-          // Nếu không tìm thấy entry (không có Promise đang đợi), thì cập nhật UI trực tiếp
-          else if (chatData.id === currentConversationId) {
-            addMessage(chatData.id, "Assistant", chatData.message, "ai");
+            delete responseMapRef.current[chatData.guest_id];
+          } else if (chatData.guest_id === currentConversationId) {
+            addMessage(
+              chatData.guest_id,
+              "staff",
+              chatData.content.message.text,
+              chatData.content.message.attachments // Pass attachments
+            );
           }
         } catch (error) {
           console.error("Error processing WebSocket response:", error);
@@ -321,33 +345,38 @@ export default function TestChatPage() {
       if (!isWebSocketConnected) {
         addMessage(
           currentConversationId,
-          "Assistant",
-          "Xin lỗi, kết nối đến máy chủ đã bị mất. Vui lòng làm mới trang và thử lại.",
-          "ai"
+          "staff", // 'staff' for Assistant messages
+          "Xin lỗi, kết nối đến máy chủ đã bị mất. Vui lòng làm mới trang và thử lại."
+          // "ai" // type removed
         );
         return;
       }
 
       const convoIdToSendMessageTo = currentConversationId;
 
-      addMessage(convoIdToSendMessageTo, "You", messageText, "human");
+      // User sends a message (typically text only from input)
+      addMessage(convoIdToSendMessageTo, "client", messageText);
 
       try {
         setProcessingConversationId(convoIdToSendMessageTo);
-        const chatRes = await getChatResponse(
+        const chatRes: Chat = await getChatResponse(
           convoIdToSendMessageTo,
           messageText
         );
-        // The response 'chatRes.id' should match 'convoIdToSendMessageTo'
-        // if the backend correctly uses the ID it received.
-        addMessage(chatRes.id, "Assistant", chatRes.message, "ai");
+        // Add assistant's response, which might include text and attachments
+        addMessage(
+          chatRes.guest_id,
+          "staff",
+          chatRes.content.message.text,
+          chatRes.content.message.attachments // Pass attachments
+        );
       } catch (error) {
         console.error("Error getting chat response:", error);
         addMessage(
           convoIdToSendMessageTo,
-          "Assistant",
-          "Xin lỗi, tôi không thể xử lý yêu cầu của bạn lúc này. Vui lòng thử lại sau.",
-          "ai"
+          "staff", // 'staff' for Assistant messages
+          "Xin lỗi, tôi không thể xử lý yêu cầu của bạn lúc này. Vui lòng thử lại sau."
+          // "ai" // type removed
         );
       } finally {
         setProcessingConversationId(null);
@@ -368,9 +397,9 @@ export default function TestChatPage() {
       localStorage.setItem("test-chat-last-opened-id", id);
       setProcessingConversationId(null);
 
-      const allConvos = loadConversations(); // Load fresh conversations
+      const allConvos: LocalConversation[] = loadConversations(); // Load fresh conversations
       const selectedConversation = allConvos.find((conv) => conv.id === id);
-      setMessages(selectedConversation?.messages || []);
+      setMessages(selectedConversation?.messages || []); // messages are global Chat objects
     },
     [] // loadConversations is stable, state setters are stable
   );

@@ -178,6 +178,7 @@ async def search_chunks_by_sheet_id(
             must=[FieldCondition(key="sheet_id", match=MatchValue(value=sheet_id))]
         ),
         limit=limit,
+        score_threshold=0.9,
     )
     search_result = search_result.points
     return [

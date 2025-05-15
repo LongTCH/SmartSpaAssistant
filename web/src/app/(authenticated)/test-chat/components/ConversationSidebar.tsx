@@ -20,12 +20,13 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"; // DialogClose removed as it's not used directly here, Button is used instead.
 import { Button } from "@/components/ui/button";
+import { Chat } from "@/types/conversation"; // Import global Chat type
 
 export interface Conversation {
   id: string;
   title: string;
   date: string;
-  messages: any[];
+  messages: Chat[]; // Changed from any[] to Chat[]
 }
 
 interface ConversationSidebarProps {
