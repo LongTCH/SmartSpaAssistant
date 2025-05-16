@@ -1,7 +1,29 @@
 import json
 import re
+from typing import Literal
 
 import sqlparse
+from pydantic import BaseModel, Field
+
+
+class MessagePart(BaseModel):
+    type: Literal["text", "image", "video", "audio", "file", "link"] = Field(
+        description="""
+        The type of the message part. Possible values are:
+        'text': Plain text message.
+        'image': URL pointing to an image.
+        'video': URL pointing to a video.
+        'audio': URL pointing to an audio file.
+        'file': URL pointing to a file.
+        'link': URL to a web resource. A preceding 'text' message content must describe the link
+        """,
+    )
+    payload: str = Field(
+        description="""
+        The content is a string if the type is "text".
+        The content is a URL if the type is "image", "video", "audio", or "file".
+        """,
+    )
 
 
 def is_read_only_sql(sql_text: str) -> bool:

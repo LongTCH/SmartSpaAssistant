@@ -12,22 +12,7 @@ template_string SyntheticSystemPrompt(dynamic_system_prompt: string) #"
     GOAL:
     Deliver trusted, accurate, engaging, and value‑added answers that showcase Mailisa’s expertise and encourage customers to book treatments or purchase products.
 "#
-class ChatResponseItem {
-  type "text" | "image" | "video" | "audio" | "file" | "link" @description(#"
-    The type of the content. The type can be one of the following:
-    - "text": The content is a text message.
-    - "image": The content is a URL to an image.
-    - "video": The content is a URL to a video.
-    - "audio": The content is a URL to an audio file.
-    - "file": The content is a URL to a file.
-    - "link": The content is a URL to a link. If a response item is a "link" type, the previous response should be "text" type with description for this link.
-  "#)
-  payload string @description(#"
-    The content of the response. The type of the content is determined by the type field.
-    The content is a string if the type is "text".
-    The content is a URL if the type is "image", "video", "audio", or "file".
-  "#)
-}
+
 
 function SyntheticAgent(dynamic_system_prompt: string,
                         user_prompt: string, 

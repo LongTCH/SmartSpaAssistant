@@ -13,7 +13,7 @@
 # flake8: noqa: E501,F401
 # pylint: disable=unused-import,line-too-long
 # fmt: off
-from typing import List, Optional, TypedDict, cast
+from typing import List, Optional, TypedDict, Union, cast
 
 import baml_py
 from typing_extensions import NotRequired
@@ -35,6 +35,58 @@ class LlmResponseParser:
       self.__runtime = runtime
       self.__ctx_manager = ctx_manager
 
+    
+    def ChooseTool(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> List[Union[types.GetLocation, types.GetTimezone]]:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "ChooseTool",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        False,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(List[Union[types.GetLocation, types.GetTimezone]], parsed)
+    
+    def MasterAgent(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> List[Union[types.GetAllSheetsTool, types.SQLQueryTool, types.OutputTool]]:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "MasterAgent",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        False,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(List[Union[types.GetAllSheetsTool, types.SQLQueryTool, types.OutputTool]], parsed)
     
     def MemoryAgent(
         self,
@@ -87,6 +139,32 @@ class LlmResponseParser:
       )
 
       return cast(str, parsed)
+    
+    def MessageSplitAgent(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> List[types.ChatResponseItem]:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "MessageSplitAgent",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        False,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(List[types.ChatResponseItem], parsed)
     
     def ScriptRetrieveAgent(
         self,
@@ -166,32 +244,6 @@ class LlmResponseParser:
 
       return cast(types.SheetGuardAgentOutput, parsed)
     
-    def SheetRAGAgent(
-        self,
-        llm_response: str,
-        baml_options: BamlCallOptions = {},
-    ) -> types.SheetRAGAgentOutput:
-      __tb__ = baml_options.get("tb", None)
-      if __tb__ is not None:
-        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
-      else:
-        tb = None
-      __cr__ = baml_options.get("client_registry", None)
-
-      parsed = self.__runtime.parse_llm_response(
-        "SheetRAGAgent",
-        llm_response,
-        types,
-        types,
-        partial_types,
-        False,
-        self.__ctx_manager.get(),
-        tb,
-        __cr__,
-      )
-
-      return cast(types.SheetRAGAgentOutput, parsed)
-    
     def SheetRAGGuardAgent(
         self,
         llm_response: str,
@@ -255,6 +307,58 @@ class LlmStreamParser:
       self.__ctx_manager = ctx_manager
 
     
+    def ChooseTool(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> List[Optional[Union[partial_types.GetLocation, partial_types.GetTimezone]]]:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "ChooseTool",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        True,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(List[Optional[Union[partial_types.GetLocation, partial_types.GetTimezone]]], parsed)
+    
+    def MasterAgent(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> List[Optional[Union[partial_types.GetAllSheetsTool, partial_types.SQLQueryTool, partial_types.OutputTool]]]:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "MasterAgent",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        True,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(List[Optional[Union[partial_types.GetAllSheetsTool, partial_types.SQLQueryTool, partial_types.OutputTool]]], parsed)
+    
     def MemoryAgent(
         self,
         llm_response: str,
@@ -306,6 +410,32 @@ class LlmStreamParser:
       )
 
       return cast(Optional[str], parsed)
+    
+    def MessageSplitAgent(
+        self,
+        llm_response: str,
+        baml_options: BamlCallOptions = {},
+    ) -> List[partial_types.ChatResponseItem]:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      parsed = self.__runtime.parse_llm_response(
+        "MessageSplitAgent",
+        llm_response,
+        types,
+        types,
+        partial_types,
+        True,
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+      )
+
+      return cast(List[partial_types.ChatResponseItem], parsed)
     
     def ScriptRetrieveAgent(
         self,
@@ -384,32 +514,6 @@ class LlmStreamParser:
       )
 
       return cast(partial_types.SheetGuardAgentOutput, parsed)
-    
-    def SheetRAGAgent(
-        self,
-        llm_response: str,
-        baml_options: BamlCallOptions = {},
-    ) -> partial_types.SheetRAGAgentOutput:
-      __tb__ = baml_options.get("tb", None)
-      if __tb__ is not None:
-        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
-      else:
-        tb = None
-      __cr__ = baml_options.get("client_registry", None)
-
-      parsed = self.__runtime.parse_llm_response(
-        "SheetRAGAgent",
-        llm_response,
-        types,
-        types,
-        partial_types,
-        True,
-        self.__ctx_manager.get(),
-        tb,
-        __cr__,
-      )
-
-      return cast(partial_types.SheetRAGAgentOutput, parsed)
     
     def SheetRAGGuardAgent(
         self,

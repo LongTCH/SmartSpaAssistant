@@ -25,7 +25,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(_TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["BAMLMessage","ChatResponseItem","ScriptRetrieveAgentOutput","SheetAgentOutput","SheetGuardAgentOutput","SheetRAGAgentOutput",]
+          ["BAMLMessage","ChatResponseItem","GetAllSheetsTool","GetLocation","GetTimezone","OutputTool","SQLQueryTool","ScriptRetrieveAgentOutput","SheetAgentOutput","SheetGuardAgentOutput",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -40,6 +40,26 @@ class TypeBuilder(_TypeBuilder):
         return ChatResponseItemAst(self)
 
     @property
+    def GetAllSheetsTool(self) -> "GetAllSheetsToolAst":
+        return GetAllSheetsToolAst(self)
+
+    @property
+    def GetLocation(self) -> "GetLocationAst":
+        return GetLocationAst(self)
+
+    @property
+    def GetTimezone(self) -> "GetTimezoneAst":
+        return GetTimezoneAst(self)
+
+    @property
+    def OutputTool(self) -> "OutputToolAst":
+        return OutputToolAst(self)
+
+    @property
+    def SQLQueryTool(self) -> "SQLQueryToolAst":
+        return SQLQueryToolAst(self)
+
+    @property
     def ScriptRetrieveAgentOutput(self) -> "ScriptRetrieveAgentOutputAst":
         return ScriptRetrieveAgentOutputAst(self)
 
@@ -50,10 +70,6 @@ class TypeBuilder(_TypeBuilder):
     @property
     def SheetGuardAgentOutput(self) -> "SheetGuardAgentOutputAst":
         return SheetGuardAgentOutputAst(self)
-
-    @property
-    def SheetRAGAgentOutput(self) -> "SheetRAGAgentOutputAst":
-        return SheetRAGAgentOutputAst(self)
 
 
 
@@ -140,6 +156,208 @@ class ChatResponseItemProperties:
     @property
     def payload(self) -> ClassPropertyViewer:
         return ClassPropertyViewer(self.__bldr.property("payload"))
+
+    
+
+class GetAllSheetsToolAst:
+    def __init__(self, tb: _TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("GetAllSheetsTool")
+        self._properties: typing.Set[str] = set([ "tool_name", ])
+        self._props = GetAllSheetsToolProperties(self._bldr, self._properties)
+
+    def type(self) -> FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "GetAllSheetsToolProperties":
+        return self._props
+
+
+class GetAllSheetsToolViewer(GetAllSheetsToolAst):
+    def __init__(self, tb: _TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, ClassPropertyViewer]]:
+        return [(name, ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+
+
+
+class GetAllSheetsToolProperties:
+    def __init__(self, bldr: ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties
+
+    
+
+    @property
+    def tool_name(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("tool_name"))
+
+    
+
+class GetLocationAst:
+    def __init__(self, tb: _TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("GetLocation")
+        self._properties: typing.Set[str] = set([ "tool_name", ])
+        self._props = GetLocationProperties(self._bldr, self._properties)
+
+    def type(self) -> FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "GetLocationProperties":
+        return self._props
+
+
+class GetLocationViewer(GetLocationAst):
+    def __init__(self, tb: _TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, ClassPropertyViewer]]:
+        return [(name, ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+
+
+
+class GetLocationProperties:
+    def __init__(self, bldr: ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties
+
+    
+
+    @property
+    def tool_name(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("tool_name"))
+
+    
+
+class GetTimezoneAst:
+    def __init__(self, tb: _TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("GetTimezone")
+        self._properties: typing.Set[str] = set([ "tool_name",  "city", ])
+        self._props = GetTimezoneProperties(self._bldr, self._properties)
+
+    def type(self) -> FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "GetTimezoneProperties":
+        return self._props
+
+
+class GetTimezoneViewer(GetTimezoneAst):
+    def __init__(self, tb: _TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, ClassPropertyViewer]]:
+        return [(name, ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+
+
+
+class GetTimezoneProperties:
+    def __init__(self, bldr: ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties
+
+    
+
+    @property
+    def tool_name(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("tool_name"))
+
+    @property
+    def city(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("city"))
+
+    
+
+class OutputToolAst:
+    def __init__(self, tb: _TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("OutputTool")
+        self._properties: typing.Set[str] = set([ "tool_name",  "message_parts", ])
+        self._props = OutputToolProperties(self._bldr, self._properties)
+
+    def type(self) -> FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "OutputToolProperties":
+        return self._props
+
+
+class OutputToolViewer(OutputToolAst):
+    def __init__(self, tb: _TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, ClassPropertyViewer]]:
+        return [(name, ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+
+
+
+class OutputToolProperties:
+    def __init__(self, bldr: ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties
+
+    
+
+    @property
+    def tool_name(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("tool_name"))
+
+    @property
+    def message_parts(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("message_parts"))
+
+    
+
+class SQLQueryToolAst:
+    def __init__(self, tb: _TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("SQLQueryTool")
+        self._properties: typing.Set[str] = set([ "tool_name",  "query", ])
+        self._props = SQLQueryToolProperties(self._bldr, self._properties)
+
+    def type(self) -> FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "SQLQueryToolProperties":
+        return self._props
+
+
+class SQLQueryToolViewer(SQLQueryToolAst):
+    def __init__(self, tb: _TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, ClassPropertyViewer]]:
+        return [(name, ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+
+
+
+class SQLQueryToolProperties:
+    def __init__(self, bldr: ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties
+
+    
+
+    @property
+    def tool_name(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("tool_name"))
+
+    @property
+    def query(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("query"))
 
     
 
@@ -266,52 +484,6 @@ class SheetGuardAgentOutputProperties:
     @property
     def should_query_sheet(self) -> ClassPropertyViewer:
         return ClassPropertyViewer(self.__bldr.property("should_query_sheet"))
-
-    
-
-class SheetRAGAgentOutputAst:
-    def __init__(self, tb: _TypeBuilder):
-        _tb = tb._tb # type: ignore (we know how to use this private attribute)
-        self._bldr = _tb.class_("SheetRAGAgentOutput")
-        self._properties: typing.Set[str] = set([ "sheet_id",  "limit",  "rag_query", ])
-        self._props = SheetRAGAgentOutputProperties(self._bldr, self._properties)
-
-    def type(self) -> FieldType:
-        return self._bldr.field()
-
-    @property
-    def props(self) -> "SheetRAGAgentOutputProperties":
-        return self._props
-
-
-class SheetRAGAgentOutputViewer(SheetRAGAgentOutputAst):
-    def __init__(self, tb: _TypeBuilder):
-        super().__init__(tb)
-
-    
-    def list_properties(self) -> typing.List[typing.Tuple[str, ClassPropertyViewer]]:
-        return [(name, ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
-
-
-
-class SheetRAGAgentOutputProperties:
-    def __init__(self, bldr: ClassBuilder, properties: typing.Set[str]):
-        self.__bldr = bldr
-        self.__properties = properties
-
-    
-
-    @property
-    def sheet_id(self) -> ClassPropertyViewer:
-        return ClassPropertyViewer(self.__bldr.property("sheet_id"))
-
-    @property
-    def limit(self) -> ClassPropertyViewer:
-        return ClassPropertyViewer(self.__bldr.property("limit"))
-
-    @property
-    def rag_query(self) -> ClassPropertyViewer:
-        return ClassPropertyViewer(self.__bldr.property("rag_query"))
 
     
 

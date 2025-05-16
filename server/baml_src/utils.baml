@@ -2,7 +2,22 @@ class BAMLMessage {
   role "user" | "assistant"
   content string
 }
-
+class ChatResponseItem {
+  type "text" | "image" | "video" | "audio" | "file" | "link" @description(#"
+    The type of the content. The type can be one of the following:
+    - "text": The content is a text message.
+    - "image": The content is a URL to an image.
+    - "video": The content is a URL to a video.
+    - "audio": The content is a URL to an audio file.
+    - "file": The content is a URL to a file.
+    - "link": The content is a URL to a link. If a response item is a "link" type, the previous response should be "text" type with description for this link.
+  "#)
+  payload string @description(#"
+    The content of the response. The type of the content is determined by the type field.
+    The content is a string if the type is "text".
+    The content is a URL if the type is "image", "video", "audio", or "file".
+  "#)
+}
 // Inject a list of "assistant" or "user" messages into the prompt.
 template_string PrintMessageHistory(messages: BAMLMessage[]) #"
   {% if messages|length > 0 %}
@@ -55,7 +70,7 @@ template_string PrintUserPrompt(user_prompt: string) #"
       {{ user_prompt }}<end_of_turn>\n
     {% else %}
       {{ _.role("user") }}
-      \n\nCurrent customer's message:
+      \n\Answer customer's message:
       {{ user_prompt }}
     {% endif %}
   {% endif %}

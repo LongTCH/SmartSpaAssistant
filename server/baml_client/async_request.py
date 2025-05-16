@@ -36,6 +36,54 @@ class AsyncHttpRequest:
       self.__ctx_manager = ctx_manager
 
     
+    async def ChooseTool(
+        self,
+        query: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.HTTPRequest:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      return await self.__runtime.build_request(
+        "ChooseTool",
+        {
+          "query": query,
+        },
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        False,
+      )
+    
+    async def MasterAgent(
+        self,
+        dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.HTTPRequest:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      return await self.__runtime.build_request(
+        "MasterAgent",
+        {
+          "dynamic_system_prompt": dynamic_system_prompt,
+          "user_prompt": user_prompt,
+          "message_history": message_history,
+        },
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        False,
+      )
+    
     async def MemoryAgent(
         self,
         user_prompt: str,
@@ -73,6 +121,29 @@ class AsyncHttpRequest:
 
       return await self.__runtime.build_request(
         "MessageRewriteAgent",
+        {
+          "user_prompt": user_prompt,
+        },
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        False,
+      )
+    
+    async def MessageSplitAgent(
+        self,
+        user_prompt: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.HTTPRequest:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      return await self.__runtime.build_request(
+        "MessageSplitAgent",
         {
           "user_prompt": user_prompt,
         },
@@ -146,31 +217,6 @@ class AsyncHttpRequest:
 
       return await self.__runtime.build_request(
         "SheetGuardAgent",
-        {
-          "dynamic_system_prompt": dynamic_system_prompt,
-          "user_prompt": user_prompt,
-          "message_history": message_history,
-        },
-        self.__ctx_manager.get(),
-        tb,
-        __cr__,
-        False,
-      )
-    
-    async def SheetRAGAgent(
-        self,
-        dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.HTTPRequest:
-      __tb__ = baml_options.get("tb", None)
-      if __tb__ is not None:
-        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
-      else:
-        tb = None
-      __cr__ = baml_options.get("client_registry", None)
-
-      return await self.__runtime.build_request(
-        "SheetRAGAgent",
         {
           "dynamic_system_prompt": dynamic_system_prompt,
           "user_prompt": user_prompt,
@@ -243,6 +289,54 @@ class AsyncHttpStreamRequest:
       self.__ctx_manager = ctx_manager
 
     
+    async def ChooseTool(
+        self,
+        query: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.HTTPRequest:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      return await self.__runtime.build_request(
+        "ChooseTool",
+        {
+          "query": query,
+        },
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        True,
+      )
+    
+    async def MasterAgent(
+        self,
+        dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.HTTPRequest:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      return await self.__runtime.build_request(
+        "MasterAgent",
+        {
+          "dynamic_system_prompt": dynamic_system_prompt,
+          "user_prompt": user_prompt,
+          "message_history": message_history,
+        },
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        True,
+      )
+    
     async def MemoryAgent(
         self,
         user_prompt: str,
@@ -280,6 +374,29 @@ class AsyncHttpStreamRequest:
 
       return await self.__runtime.build_request(
         "MessageRewriteAgent",
+        {
+          "user_prompt": user_prompt,
+        },
+        self.__ctx_manager.get(),
+        tb,
+        __cr__,
+        True,
+      )
+    
+    async def MessageSplitAgent(
+        self,
+        user_prompt: str,
+        baml_options: BamlCallOptions = {},
+    ) -> baml_py.HTTPRequest:
+      __tb__ = baml_options.get("tb", None)
+      if __tb__ is not None:
+        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
+      else:
+        tb = None
+      __cr__ = baml_options.get("client_registry", None)
+
+      return await self.__runtime.build_request(
+        "MessageSplitAgent",
         {
           "user_prompt": user_prompt,
         },
@@ -353,31 +470,6 @@ class AsyncHttpStreamRequest:
 
       return await self.__runtime.build_request(
         "SheetGuardAgent",
-        {
-          "dynamic_system_prompt": dynamic_system_prompt,
-          "user_prompt": user_prompt,
-          "message_history": message_history,
-        },
-        self.__ctx_manager.get(),
-        tb,
-        __cr__,
-        True,
-      )
-    
-    async def SheetRAGAgent(
-        self,
-        dynamic_system_prompt: str,user_prompt: str,message_history: List[types.BAMLMessage],
-        baml_options: BamlCallOptions = {},
-    ) -> baml_py.HTTPRequest:
-      __tb__ = baml_options.get("tb", None)
-      if __tb__ is not None:
-        tb = __tb__._tb # type: ignore (we know how to use this private attribute)
-      else:
-        tb = None
-      __cr__ = baml_options.get("client_registry", None)
-
-      return await self.__runtime.build_request(
-        "SheetRAGAgent",
         {
           "dynamic_system_prompt": dynamic_system_prompt,
           "user_prompt": user_prompt,

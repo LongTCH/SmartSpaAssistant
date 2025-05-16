@@ -14,5 +14,5 @@ message_rewrite_agent = Agent(
     model=model,
     instructions=instructions,
     retries=2,
-    model_settings=ModelSettings(temperature=0, timeout=120),
+    model_settings=ModelSettings(temperature=0),
 )

@@ -1,12 +1,12 @@
 from datetime import datetime
 from uuid import uuid4
 
-from app.baml_agents import invoke_agent
+from app.agents import invoke_agent
 from app.configs.constants import WS_MESSAGES
 from app.dtos import WsMessageDto
 from app.services.connection_manager import manager
+from app.utils.agent_utils import MessagePart
 from app.utils.asyncio_utils import run_background
-from baml_client.types import ChatResponseItem
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
@@ -22,7 +22,7 @@ class ChatResponse(BaseModel):
 
 async def handle_test_chat(websocket: WebSocket, data: dict):
     try:
-        message_parts: list[ChatResponseItem] = await invoke_agent(
+        message_parts: list[MessagePart] = await invoke_agent(
             data["id"], data["message"]
         )
     except Exception as e:

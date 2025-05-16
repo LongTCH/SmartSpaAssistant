@@ -1,49 +1,35 @@
-template_string SheetRAGSystemPrompt(dynamic_system_prompt: string) #"
-    Know that previous SQL queries do not return any results.
-    From the user's message and provided context, construct RAG query more information with sheet data.
-    Carefully study the user's message, the context of scripts, sheet columns to provide more information about the customer's needs.
-    From published sheets available from database, you need to analyze the sheets including their names, descriptions, especially column's type, description, example data.
-    After analyzing the sheets, you can define the sheet_id, number of items and RAG query to use.
-    {{dynamic_system_prompt}}
-    NOTICE: You will query the RAG (Retrieval-Augmented Generation) database.
-    Your input query will be converted into sparse embeddings.
-    Sparse vector (BM25) captures exact keyword matches and term importance based on token frequency.
-    It is effective for precise matches on specific terms or phrases.
-    Each row of the knowledge sheet is represented as a vector in the RAG database
-    identified by 'sheet.id' in the 'sheet' table of database.
-"#
-class SheetRAGAgentOutput {
-    sheet_id string
-    limit int @description(#"Maximum number of items to be returned from the RAG query"#)
-    rag_query string
-}
-function SheetRAGAgent(dynamic_system_prompt: string,
-                    user_prompt: string,
-                    message_history: BAMLMessage[]
-                    ) -> SheetRAGAgentOutput {
-  client OpenaiFallback
-  prompt #"
-    {{ PrintSystemPrompt(SheetRAGSystemPrompt(dynamic_system_prompt)) }}
-    
-    {{ PrintMessageHistory(message_history) }}
-    {{ PrintUserPrompt(GetUserPrompt(user_prompt, "JSON:")) }}
-  "#
+class GetLocation {
+  tool_name "get_location" @description("Use this tool to get the current location including city.")
 }
 
-test TestSheetRAGAgent {
-  functions [SheetRAGAgent]
+class GetTimezone {
+  tool_name "get_timezone" @description("Use this tool to find the current timezone of a specific city.")
+  city string @description("The city for which to find the timezone.")
+}
+
+function ChooseTool(query: string) -> (GetLocation | GetTimezone)[] {
+  client "openai/gpt-4o"
+  prompt #"
+    Given the user query, determine the primary intent and select the appropriate tool to call.
+
+    {# special macro to add tool structures + descriptions here #}
+    {{ ctx.output_format }} 
+
+    {{ _.role('user') }}
+    {{ query }}
+    {{ _.role('assistant') }}
+    Executed tool: [get_location]
+    Result: ["Current location: Da Nang, Vietnam"]
+
+    {{ CommonChainOfThoughts() }}
+    {{ OutputStructureChainOfThought() }}
+  "#
+}
+test TestName {
+  functions [ChooseTool]
   args {
-    dynamic_system_prompt "Khi khách hàng cần mua hàng, hãy truy vấn Bảng sản phẩm để lấy giá, đồng thời giới thiệu khuyến mãi 20% cho khách hàng mới."
-    user_prompt #"
-      tôi cần mua 1 bộ M66
+    query #"
+      What's the weather like and current time here?
     "#
-    message_history [{
-      role "user"
-      content "xin chào"
-    },
-    {
-      role "assistant",
-      content "Chào bạn, tôi có thể giúp gì cho bạn?"
-    }]
   }
 }

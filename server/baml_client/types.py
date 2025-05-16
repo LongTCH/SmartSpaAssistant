@@ -45,6 +45,24 @@ class ChatResponseItem(BaseModel):
     type: Union[Literal["text"], Literal["image"], Literal["video"], Literal["audio"], Literal["file"], Literal["link"]]
     payload: str
 
+class GetAllSheetsTool(BaseModel):
+    tool_name: Literal["get_all_sheets_tool"]
+
+class GetLocation(BaseModel):
+    tool_name: Literal["get_location"]
+
+class GetTimezone(BaseModel):
+    tool_name: Literal["get_timezone"]
+    city: str
+
+class OutputTool(BaseModel):
+    tool_name: Literal["output_tool"]
+    message_parts: List["ChatResponseItem"]
+
+class SQLQueryTool(BaseModel):
+    tool_name: Literal["sql_query_tool"]
+    query: str
+
 class ScriptRetrieveAgentOutput(BaseModel):
     should_query_sheet: bool
     pieces_of_information: List[str]
@@ -56,8 +74,3 @@ class SheetAgentOutput(BaseModel):
 
 class SheetGuardAgentOutput(BaseModel):
     should_query_sheet: bool
-
-class SheetRAGAgentOutput(BaseModel):
-    sheet_id: str
-    limit: int
-    rag_query: str
