@@ -90,7 +90,7 @@ class SheetRAGAgent:
                 new_messages.append(BAMLMessage(role="assistant", content=rag_context))
                 return BAMLAgentRunResult[str](
                     output=rag_context,
-                    new_message=new_messages,
+                    new_messages=new_messages,
                     message_history=message_history,
                 )
             except Exception as e:
@@ -138,7 +138,7 @@ class SheetRAGAgent:
         """
         tz = pytz.timezone(deps.timezone)
         local_time = datetime.now(tz)
-        return f"Current local time at {deps.timezone} is: {str(local_time)}\n"
+        return f"\nCurrent local time at {deps.timezone} is: {str(local_time)}\n"
 
     async def get_all_available_sheets(self) -> str:
         """

@@ -46,12 +46,16 @@ class ChatResponseItem(BaseModel):
     payload: str
 
 class ScriptRetrieveAgentOutput(BaseModel):
+    should_query_sheet: bool
     pieces_of_information: List[str]
 
 class SheetAgentOutput(BaseModel):
     sql_query: str
     sheet_id: str
     limit: int
+
+class SheetGuardAgentOutput(BaseModel):
+    should_query_sheet: bool
 
 class SheetRAGAgentOutput(BaseModel):
     sheet_id: str

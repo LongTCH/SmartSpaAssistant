@@ -79,7 +79,7 @@ class SheetRAGGuardAgent:
 
                 return BAMLAgentRunResult[str](
                     output=agent_response,
-                    new_message=new_messages,
+                    new_messages=new_messages,
                     message_history=message_history,
                 )
             except Exception as e:
@@ -127,7 +127,7 @@ class SheetRAGGuardAgent:
         """
         tz = pytz.timezone(deps.timezone)
         local_time = datetime.now(tz)
-        return f"Current local time at {deps.timezone} is: {str(local_time)}\n"
+        return f"\nCurrent local time at {deps.timezone} is: {str(local_time)}\n"
 
     async def get_all_available_sheets(self) -> str:
         """

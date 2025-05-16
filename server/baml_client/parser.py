@@ -144,7 +144,7 @@ class LlmResponseParser:
         self,
         llm_response: str,
         baml_options: BamlCallOptions = {},
-    ) -> bool:
+    ) -> types.SheetGuardAgentOutput:
       __tb__ = baml_options.get("tb", None)
       if __tb__ is not None:
         tb = __tb__._tb # type: ignore (we know how to use this private attribute)
@@ -164,7 +164,7 @@ class LlmResponseParser:
         __cr__,
       )
 
-      return cast(bool, parsed)
+      return cast(types.SheetGuardAgentOutput, parsed)
     
     def SheetRAGAgent(
         self,
@@ -363,7 +363,7 @@ class LlmStreamParser:
         self,
         llm_response: str,
         baml_options: BamlCallOptions = {},
-    ) -> Optional[bool]:
+    ) -> partial_types.SheetGuardAgentOutput:
       __tb__ = baml_options.get("tb", None)
       if __tb__ is not None:
         tb = __tb__._tb # type: ignore (we know how to use this private attribute)
@@ -383,7 +383,7 @@ class LlmStreamParser:
         __cr__,
       )
 
-      return cast(Optional[bool], parsed)
+      return cast(partial_types.SheetGuardAgentOutput, parsed)
     
     def SheetRAGAgent(
         self,

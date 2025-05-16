@@ -1,19 +1,29 @@
 template_string SheetGuardSystemPrompt(dynamic_system_prompt: string) #"
-    Read current customer's message, previous history and provided list of items.
-    Determine if we should query more from sheets, OR send these information to next agent who will answer customer's question or ask more questions to clarify the customer's needs.
-    {{dynamic_system_prompt}}
+    You are a helpful ai routing assistant.
+    Read current customer's message, previous history and sheet information.
+    Carefully study the user's message, the context of scripts, sheet columns to provide more information about the customer's needs.
+    From published sheets available from database, you need to analyze the sheets including their names, descriptions, especially column's type, description.
+    Determine if we could find more helpful information by querying more from sheets, OR send these information to next agent who will answer customer's question.
+    Dont make too frequent queries to sheets, but also dont make customer to re ask many times.
+    
 "#
+
+class SheetGuardAgentOutput{
+    should_query_sheet bool
+}
 
 function SheetGuardAgent(dynamic_system_prompt: string,
                     user_prompt: string,
                     message_history: BAMLMessage[]
-                    ) -> bool {
+                    ) -> SheetGuardAgentOutput {
   client OpenaiFallback
   prompt #"
     {{ PrintSystemPrompt(SheetGuardSystemPrompt(dynamic_system_prompt)) }}
     
     {{ PrintMessageHistory(message_history) }}
-    {{ PrintUserPrompt(GetUserPrompt(user_prompt, "RESPONSE:")) }}
+    {{ PrintAssistantPrompt(dynamic_system_prompt) }}
+    {{ PrintUserPrompt(GetUserPrompt(user_prompt, "JSON:")) }}
+    {{ CommonChainOfThoughts() }}
   "#
 }
 

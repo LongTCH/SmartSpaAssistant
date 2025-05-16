@@ -56,7 +56,6 @@ export function ChatMessage({ message, index }: ChatMessageProps) {
                   </div>
                 )}
             </div>
-            <div className="text-xs text-gray-500 mt-1">{timestamp}</div>
           </div>
         </div>
       ) : (
@@ -78,9 +77,6 @@ export function ChatMessage({ message, index }: ChatMessageProps) {
                     />
                   </div>
                 )}
-            </div>
-            <div className="text-xs text-gray-500 mt-1 text-right">
-              {timestamp}
             </div>
           </div>
           <Avatar className="w-8 h-8">

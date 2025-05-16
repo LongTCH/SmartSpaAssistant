@@ -35,9 +35,9 @@ class SyntheticAgent:
     ) -> BAMLAgentRunResult[list[ChatResponseItem]]:
         collector = baml_options.get("collector", None)
         dynamic_prompt = self.get_current_local_time(deps)
-        dynamic_prompt += self.get_scripts_context(deps)
         dynamic_prompt += await self.get_sheet_context(deps)
-        new_message = [
+        dynamic_prompt += self.get_scripts_context(deps)
+        new_messages = [
             BAMLMessage(role="user", content=user_prompt),
         ]
         model_retries = self.CONFIG["model_retries"]
@@ -46,7 +46,7 @@ class SyntheticAgent:
                 agent_response: list[ChatResponseItem] = await b.SyntheticAgent(
                     dynamic_system_prompt=dynamic_prompt,
                     user_prompt=user_prompt,
-                    message_history=message_history + new_message,
+                    message_history=message_history,
                     baml_options=baml_options,
                 )
                 if collector:
@@ -64,12 +64,12 @@ class SyntheticAgent:
                             collector, last_log.raw_llm_response
                         ),
                     )
-                new_message.append(
+                new_messages.append(
                     BAMLMessage(role="assistant", content=dump_json(agent_response))
                 )
                 return BAMLAgentRunResult[list[ChatResponseItem]](
                     output=agent_response,
-                    new_message=new_message,
+                    new_messages=new_messages,
                     message_history=message_history,
                 )
             except Exception as e:
@@ -83,13 +83,13 @@ class SyntheticAgent:
         script_context = deps.script_context
         if not script_context:
             return ""
-        return f"\nRelevant information from scripts:\n{script_context}"
+        return f"\nStrictly follow these instructions:\n{script_context}"
 
     async def get_sheet_context(self, deps: SyntheticAgentDeps) -> str:
         sheet_context = deps.sheet_context
         if not sheet_context:
             return ""
-        return f"\n## Relevant information from sheet data:\n{sheet_context}\n"
+        return f"\n## Relevant information from sheet data, should use to response:\n{sheet_context}\n"
 
     def get_current_local_time(self, deps: SyntheticAgentDeps) -> str:
         """
@@ -97,7 +97,7 @@ class SyntheticAgent:
         """
         tz = pytz.timezone(deps.timezone)
         local_time = datetime.now(tz)
-        return f"Current local time at {deps.timezone} is: {str(local_time)}\n"
+        return f"\nCurrent local time at {deps.timezone} is: {str(local_time)}\n"
 
 
 synthetic_agent = SyntheticAgent()

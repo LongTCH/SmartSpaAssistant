@@ -4,6 +4,8 @@ template_string SheetRAGGuardSystemPrompt(dynamic_system_prompt: string) #"
     You must base on the relevance of customer's message and provided items to determine if suggest or not.
     If you cannot see any helpful information, please say "I don't know" and do not provide any information.
     {{dynamic_system_prompt}}
+    {{ CommonChainOfThoughts() }}
+    Response in customer's language.
 "#
 
 function SheetRAGGuardAgent(dynamic_system_prompt: string,

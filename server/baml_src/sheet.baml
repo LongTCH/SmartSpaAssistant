@@ -1,7 +1,8 @@
 template_string SheetSystemPrompt(dynamic_system_prompt: string) #"
     From the user's message and provided context, construct SQL query to query more information with sheet data.
     Carefully study the user's message, the context of scripts, sheet columns to provide more information about the customer's needs.
-    From published sheets available from database, you need to analyze the sheets including their names, descriptions, especially column's type, description, example data. 
+    From published sheets available from database, you need to analyze the sheets including their names, descriptions, especially column's type, description. 
+    Dont query too much information from sheets, but also dont make customer to re ask many times.
     Return the valid sql query.
     {{ dynamic_system_prompt }}
     Below are instructions for the you to write sql query:
@@ -34,13 +35,13 @@ template_string SheetSystemPrompt(dynamic_system_prompt: string) #"
     &@~ operator
     You can use &@~ operator to perform full text search by query syntax such as keyword1 OR keyword2:
 
-    SELECT * FROM memos WHERE content &@~ 'PGroonga OR PostgreSQL';
+    SELECT * FROM memos WHERE content &@~ '"PGroonga" OR "PostgreSQL"';
     --  id |                            content
     -- ----+----------------------------------------------------------------
     --   3 | PGroonga is a PostgreSQL extension that uses Groonga as index.
     --   1 | PostgreSQL is a relational database management system.
     -- (2 rows)
-    Query syntax is similar to syntax of Web search engine ( keyword1 OR keyword2 means OR search and keyword1 keyword2 means AND search ). For example, you can use OR to merge result sets of performing full text search by two or more words. In the above example, you get a merged result set. The merged result set has records that includes PGroonga or PostgreSQL.
+    Query syntax is similar to syntax of Web search engine ( "keyword1" OR "keyword2" means OR search and "keyword1" "keyword2" means AND search ). For example, you can use OR to merge result sets of performing full text search by two or more words. In the above example, you get a merged result set. The merged result set has records that includes "PGroonga" or "PostgreSQL".
     You must always enclose the pgroonga query in parentheses, for example: FROM "some_table_name" WHERE ("data_fts" &@~ 'a OR b')​
 
     Example 1:
@@ -50,7 +51,7 @@ template_string SheetSystemPrompt(dynamic_system_prompt: string) #"
       "product_name",
       "discounted_price"
     FROM "some_table_name"
-    WHERE ("description" &@~ 'tàn nhang')
+    WHERE ("description" &@~ '"tàn nhang"')
 
     Normal query without fulltext search.
     Example 2:
@@ -71,7 +72,7 @@ function SheetAgent(dynamic_system_prompt: string,
                     user_prompt: string, 
                     message_history: BAMLMessage[]
                     ) -> SheetAgentOutput {
-  client DeepSeek
+  client OpenaiFallback
   prompt #"
     {{ PrintSystemPrompt(SheetSystemPrompt(dynamic_system_prompt)) }}
     

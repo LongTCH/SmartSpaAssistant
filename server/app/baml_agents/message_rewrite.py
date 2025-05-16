@@ -19,7 +19,7 @@ class MessageRewriteAgent:
     ) -> BAMLAgentRunResult[str]:
         collector = baml_options.get("collector", None)
         model_retries = self.CONFIG["model_retries"]
-        new_message = [
+        new_messages = [
             BAMLMessage(role="user", content=user_prompt),
         ]
         while True:
@@ -42,12 +42,12 @@ class MessageRewriteAgent:
                             collector, last_log.raw_llm_response
                         ),
                     )
-                new_message.append(
+                new_messages.append(
                     BAMLMessage(role="assistant", content=agent_response)
                 )
                 return BAMLAgentRunResult[str](
                     output=agent_response,
-                    new_message=new_message,
+                    new_messages=new_messages,
                     message_history=message_history,
                 )
             except Exception as e:

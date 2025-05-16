@@ -4,7 +4,7 @@ from app.baml_agents.utils import BAMLAgentRunResult, construct_output_langfuse
 from app.configs.database import with_session
 from app.repositories import sheet_repository
 from baml_client.async_client import BamlCallOptions, b
-from baml_client.types import BAMLMessage
+from baml_client.types import BAMLMessage, SheetGuardAgentOutput
 from langfuse.decorators import langfuse_context, observe
 
 
@@ -25,17 +25,17 @@ class SheetGuardAgent:
         deps: SheetGuardAgentDeps,
         message_history: list[BAMLMessage] = [],
         baml_options: BamlCallOptions = {},
-    ) -> BAMLAgentRunResult[bool]:
+    ) -> BAMLAgentRunResult[SheetGuardAgentOutput]:
         collector = baml_options.get("collector", None)
         model_retries = self.CONFIG["model_retries"]
-        new_message = [
+        new_messages = [
             BAMLMessage(role="user", content=user_prompt),
         ]
         dynamic_prompt = self.get_scripts_context(deps)
         dynamic_prompt += await self.get_all_available_sheets()
         while True:
             try:
-                agent_response: str = await b.SheetGuardAgent(
+                agent_response: SheetGuardAgentOutput = await b.SheetGuardAgent(
                     dynamic_prompt,
                     user_prompt,
                     message_history=[],
@@ -56,7 +56,7 @@ class SheetGuardAgent:
                             collector, last_log.raw_llm_response
                         ),
                     )
-                new_message.append(
+                new_messages.append(
                     BAMLMessage(
                         role="assistant",
                         content=(
@@ -66,9 +66,9 @@ class SheetGuardAgent:
                         ),
                     )
                 )
-                return BAMLAgentRunResult[bool](
+                return BAMLAgentRunResult[SheetGuardAgentOutput](
                     output=agent_response,
-                    new_message=new_message,
+                    new_messages=new_messages,
                     message_history=message_history,
                 )
             except Exception as e:

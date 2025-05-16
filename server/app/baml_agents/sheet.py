@@ -87,11 +87,11 @@ class SheetAgent:
                     )
 
                 sql_query = agent_response.sql_query
-                new_messages.append(
-                    BAMLMessage(
-                        role="assistant", content=agent_response.model_dump_json()
-                    )
-                )
+                # new_messages.append(
+                #     BAMLMessage(
+                #         role="assistant", content=agent_response.model_dump_json()
+                #     )
+                # )
                 try:
                     rows = await self.execute_query_on_sheet_rows(sql_query)
                     # if rows is empty, raise BAMLModelRetry
@@ -123,7 +123,7 @@ class SheetAgent:
                 )
                 return BAMLAgentRunResult[SQLExecutionMessage](
                     output=sql_execution_message,
-                    new_message=new_messages,
+                    new_messages=new_messages,
                     message_history=message_history,
                 )
             except Exception as e:
@@ -146,7 +146,7 @@ class SheetAgent:
         """
         tz = pytz.timezone(deps.timezone)
         local_time = datetime.now(tz)
-        return f"Current local time at {deps.timezone} is: {str(local_time)}\n"
+        return f"\nCurrent local time at {deps.timezone} is: {str(local_time)}\n"
 
     async def get_all_available_sheets(self) -> str:
         """

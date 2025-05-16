@@ -29,7 +29,7 @@ class ScriptRetrieveAgent:
         collector = baml_options.get("collector", None)
         dynamic_prompt = self.get_scripts_context(deps)
         dynamic_prompt += await self.get_all_available_sheets()
-        new_message = [
+        new_messages = [
             BAMLMessage(role="user", content=user_prompt),
         ]
         model_retries = self.CONFIG["model_retries"]
@@ -38,7 +38,7 @@ class ScriptRetrieveAgent:
                 agent_response: ScriptRetrieveAgentOutput = await b.ScriptRetrieveAgent(
                     dynamic_system_prompt=dynamic_prompt,
                     user_prompt=user_prompt,
-                    message_history=message_history + new_message,
+                    message_history=message_history + new_messages,
                     baml_options=baml_options,
                 )
                 if collector:
@@ -56,14 +56,14 @@ class ScriptRetrieveAgent:
                             collector, last_log.raw_llm_response
                         ),
                     )
-                new_message.append(
+                new_messages.append(
                     BAMLMessage(
                         role="assistant", content=agent_response.model_dump_json()
                     )
                 )
                 return BAMLAgentRunResult[ScriptRetrieveAgentOutput](
                     output=agent_response,
-                    new_message=new_message,
+                    new_messages=new_messages,
                 )
             except Exception as e:
                 if model_retries > 0:
@@ -92,17 +92,16 @@ class ScriptRetrieveAgent:
             for sheet in sheets:
                 sheets_desc += (
                     f"Sheet name: {sheet.name}\n Sheet description: {sheet.description}\n"
-                    # "Sheet columns:\n"
+                    "Sheet columns:\n"
                 )
-                # for column in sheet.column_config:
-                #     sheets_desc += (
-                #         f"Column name: {column['column_name']}\n"
-                #         f"Column description: {column['description']}\n"
-                #     )
+                for column in sheet.column_config:
+                    sheets_desc += (
+                        f"Column name: {column['column_name']}\n"
+                        f"Column description: {column['description']}\n"
+                    )
             return (
                 "\nHere is relevant sheets that help you to decide if we need query from sheets:\n"
-                # "Carefully study the description and columns description of each sheet.\n"
-                "Carefully study the description of each sheet.\n"
+                "Carefully study the description and columns description of each sheet.\n"
                 f"{sheets_desc}"
             )
         except Exception as e:

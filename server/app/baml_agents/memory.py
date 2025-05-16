@@ -18,7 +18,7 @@ class MemoryAgent:
         baml_options: BamlCallOptions = {},
     ) -> BAMLAgentRunResult[str]:
         collector = baml_options.get("collector", None)
-        new_message = [
+        new_messages = [
             BAMLMessage(role="user", content=user_prompt),
         ]
         while True:
@@ -26,7 +26,7 @@ class MemoryAgent:
                 agent_response: str = await b.MemoryAgent(
                     user_prompt, baml_options=baml_options
                 )
-                new_message.append(
+                new_messages.append(
                     BAMLMessage(role="assistant", content=agent_response)
                 )
                 if collector:
@@ -46,7 +46,7 @@ class MemoryAgent:
                     )
                 return BAMLAgentRunResult(
                     output=agent_response,
-                    new_message=new_message,
+                    new_messages=new_messages,
                     message_history=message_history,
                 )
             except Exception as e:

@@ -25,7 +25,7 @@ from .globals import DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIM
 class TypeBuilder(_TypeBuilder):
     def __init__(self):
         super().__init__(classes=set(
-          ["BAMLMessage","ChatResponseItem","ScriptRetrieveAgentOutput","SheetAgentOutput","SheetRAGAgentOutput",]
+          ["BAMLMessage","ChatResponseItem","ScriptRetrieveAgentOutput","SheetAgentOutput","SheetGuardAgentOutput","SheetRAGAgentOutput",]
         ), enums=set(
           []
         ), runtime=DO_NOT_USE_DIRECTLY_UNLESS_YOU_KNOW_WHAT_YOURE_DOING_RUNTIME)
@@ -46,6 +46,10 @@ class TypeBuilder(_TypeBuilder):
     @property
     def SheetAgentOutput(self) -> "SheetAgentOutputAst":
         return SheetAgentOutputAst(self)
+
+    @property
+    def SheetGuardAgentOutput(self) -> "SheetGuardAgentOutputAst":
+        return SheetGuardAgentOutputAst(self)
 
     @property
     def SheetRAGAgentOutput(self) -> "SheetRAGAgentOutputAst":
@@ -143,7 +147,7 @@ class ScriptRetrieveAgentOutputAst:
     def __init__(self, tb: _TypeBuilder):
         _tb = tb._tb # type: ignore (we know how to use this private attribute)
         self._bldr = _tb.class_("ScriptRetrieveAgentOutput")
-        self._properties: typing.Set[str] = set([ "pieces_of_information", ])
+        self._properties: typing.Set[str] = set([ "should_query_sheet",  "pieces_of_information", ])
         self._props = ScriptRetrieveAgentOutputProperties(self._bldr, self._properties)
 
     def type(self) -> FieldType:
@@ -170,6 +174,10 @@ class ScriptRetrieveAgentOutputProperties:
         self.__properties = properties
 
     
+
+    @property
+    def should_query_sheet(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("should_query_sheet"))
 
     @property
     def pieces_of_information(self) -> ClassPropertyViewer:
@@ -220,6 +228,44 @@ class SheetAgentOutputProperties:
     @property
     def limit(self) -> ClassPropertyViewer:
         return ClassPropertyViewer(self.__bldr.property("limit"))
+
+    
+
+class SheetGuardAgentOutputAst:
+    def __init__(self, tb: _TypeBuilder):
+        _tb = tb._tb # type: ignore (we know how to use this private attribute)
+        self._bldr = _tb.class_("SheetGuardAgentOutput")
+        self._properties: typing.Set[str] = set([ "should_query_sheet", ])
+        self._props = SheetGuardAgentOutputProperties(self._bldr, self._properties)
+
+    def type(self) -> FieldType:
+        return self._bldr.field()
+
+    @property
+    def props(self) -> "SheetGuardAgentOutputProperties":
+        return self._props
+
+
+class SheetGuardAgentOutputViewer(SheetGuardAgentOutputAst):
+    def __init__(self, tb: _TypeBuilder):
+        super().__init__(tb)
+
+    
+    def list_properties(self) -> typing.List[typing.Tuple[str, ClassPropertyViewer]]:
+        return [(name, ClassPropertyViewer(self._bldr.property(name))) for name in self._properties]
+
+
+
+class SheetGuardAgentOutputProperties:
+    def __init__(self, bldr: ClassBuilder, properties: typing.Set[str]):
+        self.__bldr = bldr
+        self.__properties = properties
+
+    
+
+    @property
+    def should_query_sheet(self) -> ClassPropertyViewer:
+        return ClassPropertyViewer(self.__bldr.property("should_query_sheet"))
 
     
 

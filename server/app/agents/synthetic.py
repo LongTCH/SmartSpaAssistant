@@ -65,7 +65,7 @@ async def get_current_local_time(context: RunContext[SyntheticAgentDeps]) -> str
     """
     tz = pytz.timezone(context.deps.timezone)
     local_time = datetime.now(tz)
-    return f"Current local time at {context.deps.timezone} is: {str(local_time)}\n"
+    return f"\nCurrent local time at {context.deps.timezone} is: {str(local_time)}\n"
 
 
 @synthetic_agent.instructions

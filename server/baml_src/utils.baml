@@ -55,7 +55,7 @@ template_string PrintUserPrompt(user_prompt: string) #"
       {{ user_prompt }}<end_of_turn>\n
     {% else %}
       {{ _.role("user") }}
-      Current customer's message:
+      \n\nCurrent customer's message:
       {{ user_prompt }}
     {% endif %}
   {% endif %}
@@ -71,6 +71,29 @@ template_string PrintAssistantPrompt(assistant_prompt: string) #"
       {{ assistant_prompt }}
     {% endif %}
   {% endif %}
+"#
+
+template_string CommonChainOfThoughts() #"
+  Outline some relevant information before you answer.
+    Example:
+    - ...
+    - ...
+    ...
+    {
+      ... // schema
+    }
+"#
+
+template_string OutputStructureChainOfThought(action: string?) #"
+    Before you answer, please explain your reasoning step-by-step.
+    {% if action %}{{ action }}{% endif %}
+    
+    For example:
+    If we think step by step we can see that ...
+    Therefore the output is:
+    {
+      ... // schema
+    }
 "#
 
 // function GenericQuery(systemPrompt: string, userPrompt: string) -> string {
