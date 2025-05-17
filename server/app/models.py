@@ -43,6 +43,17 @@ script_sheets = Table(
 
 
 class Sheet(Base):
+    """
+    column_config: [
+        {
+            "column_name": "",
+            "column_type": "",
+            "description": "",
+            "is_index": ""
+        }
+    ]
+    """
+
     __tablename__ = "sheets"
 
     id = Column(String, primary_key=True, index=True, default=lambda: str(uuid.uuid4()))
@@ -336,3 +347,69 @@ class ChatHistory(Base):
     content = Column(LargeBinary, nullable=False)
     summary = Column(Text, nullable=False)
     created_at = Column(DateTime, default=datetime.datetime.now)
+
+
+class Notification(Base):
+    """
+    params: [
+        {
+            "index": "",
+            "param_name": "",
+            "param_type": "",
+            "description": ""
+        }
+    ]
+    """
+
+    __tablename__ = "notifications"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    label = Column(String, nullable=False)
+    status = Column(String(50), default="published")
+    color = Column(String(50), default="#000000")
+    description = Column(Text, nullable=False)
+    params = Column(JSONB, nullable=True)
+    content = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+
+    # Relationship to Alert
+    alerts = relationship("Alert", back_populates="notification")
+
+    def to_dict(self, include=None):
+        if include is None:
+            include = []
+        result = {
+            "id": self.id,
+            "label": self.label,
+            "status": self.status,
+            "color": self.color,
+            "description": self.description,
+            "params": self.params,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }
+        if "alerts" in include and self.alerts:
+            result["alerts"] = [alert.to_dict() for alert in self.alerts]
+        return result
+
+
+class Alert(Base):
+    __tablename__ = "alerts"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    guest_id = Column(String, nullable=False)
+    content = Column(Text, nullable=False)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+    notification_id = Column(String, ForeignKey("notifications.id"))
+
+    # Relationship to Notification
+    notification = relationship("Notification", back_populates="alerts")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "guest_id": self.guest_id,
+            "content": self.content,
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+            "notification_id": self.notification_id,
+        }

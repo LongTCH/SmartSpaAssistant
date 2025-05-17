@@ -5,6 +5,7 @@ import { OverviewTab } from "./components/OverviewTab";
 import { ScriptsTab } from "./components/scripts/ScriptsTab";
 import { SpreadsheetsTab } from "./components/spreadsheets/SpreadsheetsTab";
 import { InterestsTab } from "./components/interests/InterestsTab";
+import { NotificationsTab } from "./components/notifications/NotificationsTab";
 import { useState, Suspense } from "react";
 import { LoadingScreen } from "@/components/loading-screen";
 
@@ -25,6 +26,7 @@ export default function SettingsInterface() {
             {activeSidebar === "scripts" && <ScriptsTab />}
             {activeSidebar === "spreadsheets" && <SpreadsheetsTab />}
             {activeSidebar === "interests" && <InterestsTab />}
+            {activeSidebar === "notifications" && <NotificationsTab />}
           </div>
         </div>
       </div>

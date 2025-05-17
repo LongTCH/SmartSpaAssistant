@@ -29,6 +29,14 @@ export const API_ROUTES = {
     UPLOAD: "/interests/upload",
     GET_ALL_PUBLISHED: "/interests/all-published",
   },
+  NOTIFICATION: {
+    GET: "/notifications",
+    DETAIL: (id: string) => `/notifications/${id}`,
+    UPDATE: (id: string) => `/notifications/${id}`,
+    DELETE: (id: string) => `/notifications/${id}`,
+    DELETE_MULTIPLE: "/notifications/delete-multiple",
+    CREATE: "/notifications",
+  },
   SHEET: {
     GET: "/sheets",
     DETAIL: (id: string) => `/sheets/${id}`,

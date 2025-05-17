@@ -5,7 +5,6 @@ from app.configs.database import with_session
 from app.dtos import ScriptChunkDto
 from app.repositories import chat_history_repository
 from app.services.integrations import script_rag_service
-from app.utils.agent_utils import MessagePart
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
 
@@ -95,7 +94,7 @@ async def invoke_agent(user_id, user_input: str) -> str:
             )
         )
 
-        return [MessagePart(type="text", payload=synthetic_result.output)]
+        return synthetic_result.output
     except Exception as e:
         print(e)
         return "Sorry, I can't answer that question right now."

@@ -12,6 +12,7 @@ from app.repositories import sheet_repository
 from openpyxl.styles import Alignment
 from sqlalchemy import Boolean, Column, DateTime, Integer, Numeric, String, Text, text
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm.attributes import flag_modified
 
 
 async def get_sheets(db: AsyncSession, page: int, limit: int) -> PaginationDto:
@@ -326,19 +327,16 @@ async def update_sheet(db: AsyncSession, sheet_id: str, sheet: dict) -> None:
 
             # Only update if we have valid descriptions to update
             if column_descriptions:
-                # Create a deep copy of the existing column config to modify
-                updated_column_config = existing_sheet.column_config.copy()
+                updated_column_config = existing_sheet.column_config
 
                 # Update descriptions for matching columns
                 for col in updated_column_config:
                     if col["column_name"] in column_descriptions:
                         col["description"] = column_descriptions[col["column_name"]]
 
-                # Set the updated config in update_data
-                update_data["column_config"] = updated_column_config
-
+            flag_modified(existing_sheet, "column_config")
         # Update the sheet using repository function
-        await sheet_repository.update_sheet(db, sheet_id, update_data)
+        await sheet_repository.update_sheet(db, existing_sheet)
 
         # Commit the changes
         await db.commit()

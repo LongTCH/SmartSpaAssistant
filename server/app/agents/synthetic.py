@@ -8,11 +8,15 @@ from app.agents.model_hub import model_hub
 from app.configs.database import async_session, with_session
 from app.repositories import sheet_repository
 from app.services.integrations import sheet_rag_service
-from app.utils.agent_utils import is_read_only_sql, normalize_postgres_query
+from app.utils.agent_utils import (
+    MessagePart,
+    is_read_only_sql,
+    limit_sample_rows_content,
+    normalize_postgres_query,
+)
 from fuzzywuzzy import process
 from pydantic_ai import Agent, RunContext
 from pydantic_ai.exceptions import ModelRetry
-from pydantic_ai.settings import ModelSettings
 from sqlalchemy import text
 
 
@@ -32,13 +36,14 @@ instructions = """
 """
 
 
-model = model_hub["deepseek-chat"]
+model = model_hub["gemini-2.5-flash"]
 synthetic_agent = Agent(
     model=model,
     instructions=instructions,
     retries=2,
-    model_settings=ModelSettings(temperature=0),
-    output_type=str,
+    # model_settings=ModelSettings(temperature=0),
+    output_type=list[MessagePart],
+    output_retries=2,
 )
 
 
@@ -68,6 +73,7 @@ async def get_characteristics(context: RunContext[SyntheticAgentDeps]) -> str:
     2. Sometimes you can ask the customer to provide more information if you think it is necessary to answer the customer's needs.
     3. Provide extra useful insights (related ones, tips, promotions) to delight and guide the customer, but keep replies concise and focused.
     4. Limit the use of emojis to 2-3 per message. Use them to enhance the message, not to clutter it.
+    5. **Important Output Formatting:** Your response will be structured as a list of `MessagePart` objects. If your complete answer is long (e.g., would naturally exceed 50 words), you **MUST** divide it into multiple, logically connected `MessagePart` objects. Each individual `MessagePart` in the list should have its `payload` (the text content) be less than 50 words. For instance, a 120-word answer should result in a list containing approximately three `MessagePart` objects, each with a payload under 50 words. Group related information into sequential messages to maintain coherence.
     GOAL:
     Deliver trusted, accurate, engaging, and value‑added answers that showcase Mailisa’s expertise and encourage customers to book treatments or purchase products.
 """
@@ -159,12 +165,13 @@ async def get_all_available_sheets(
             }
             for sheet in sheets
         ]
-        # for i, sheet in enumerate(sheets):
-        #     example = await with_session(
-        #         lambda session: sheet_repository.get_example_rows_by_sheet_id(
-        #             session, sheet.id)
-        #     )
-        #     sheet_list[i]["example_rows"] = limit_sample_rows_content(example)
+        for i, sheet in enumerate(sheets):
+            example = await with_session(
+                lambda session: sheet_repository.get_example_rows_by_sheet_id(
+                    session, sheet.id
+                )
+            )
+            sheet_list[i]["example_rows"] = limit_sample_rows_content(example)
         return sheet_list
     except Exception as e:
         print(f"Error fetching sheets: {e}")

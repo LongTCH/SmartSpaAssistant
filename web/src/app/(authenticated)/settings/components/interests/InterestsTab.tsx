@@ -556,6 +556,18 @@ export function InterestsTab() {
           </div>
 
           <div className="flex items-center space-x-2">
+            {/* Nút First Page */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10"
+              onClick={() => handlePageChange(1)}
+              disabled={currentPage === 1}
+            >
+              <ChevronLeft className="h-4 w-4 mr-1" />
+              <ChevronLeft className="h-4 w-4 -ml-3" />
+            </Button>
+
             <Button
               variant="outline"
               size="icon"
@@ -608,6 +620,18 @@ export function InterestsTab() {
               disabled={currentPage === totalPages}
             >
               <ChevronRight className="h-4 w-4" />
+            </Button>
+
+            {/* Nút Last Page */}
+            <Button
+              variant="outline"
+              size="icon"
+              className="h-10 w-10"
+              onClick={() => handlePageChange(totalPages)}
+              disabled={currentPage === totalPages}
+            >
+              <ChevronRight className="h-4 w-4 mr-1" />
+              <ChevronRight className="h-4 w-4 -ml-3" />
             </Button>
           </div>
         </div>

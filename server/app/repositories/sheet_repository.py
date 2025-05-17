@@ -3,7 +3,6 @@ import json
 from app.models import Sheet, script_sheets
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
-from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.sql import text
 
 
@@ -63,46 +62,13 @@ async def insert_sheet(db: AsyncSession, sheet: Sheet) -> Sheet:
     return sheet
 
 
-async def update_sheet(db: AsyncSession, sheet_id: str, update_data: dict) -> Sheet:
+async def update_sheet(db: AsyncSession, sheet: Sheet) -> Sheet:
     """
-    Update specific fields of an existing sheet in the database.
-    Only name, description, status, and column descriptions in column_config can be updated.
-
-    Args:
-        db: Database session
-        sheet_id: ID of the sheet to update
-        update_data: Dictionary containing fields to update
-
-    Returns:
-        Updated Sheet object
+    Update an existing sheet in the database.
     """
-    # Get the existing sheet
-    existing_sheet = await get_sheet_by_id(db, sheet_id)
-    if not existing_sheet:
-        return None
-
-    # Update allowed fields if they exist in the update_data
-    if "name" in update_data:
-        existing_sheet.name = update_data["name"]
-
-    if "description" in update_data:
-        existing_sheet.description = update_data["description"]
-
-    if "status" in update_data and update_data["status"] in ["published", "draft"]:
-        existing_sheet.status = update_data["status"]
-
-    # Update column descriptions in column_config if provided
-    if "column_config" in update_data:
-        # Directly assign the column_config (it should already be a list or dict)
-        existing_sheet.column_config = update_data["column_config"]
-
-        # Đánh dấu cụ thể thuộc tính này đã thay đổi để SQLAlchemy cập nhật
-        flag_modified(existing_sheet, "column_config")
-
-    # Add the sheet to the session to mark it for update
-    db.add(existing_sheet)
-
-    return existing_sheet
+    db.add(sheet)
+    await db.flush()
+    return sheet
 
 
 async def delete_sheet(db: AsyncSession, sheet_id: str) -> None:
