@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
@@ -9,6 +8,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import {
   Table,
   TableBody,
@@ -20,11 +20,11 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Upload, AlertTriangle, FileDown } from "lucide-react";
 import { toast } from "sonner";
-import { scriptService } from "@/services/api/script.service";
+import { interestService } from "@/services/api/interest.service";
 import * as XLSX from "xlsx";
 import { downloadFile } from "@/lib/file-utils";
 
-interface UploadScriptModalProps {
+interface UploadInterestModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void; // Callback when upload is successful
@@ -35,11 +35,11 @@ interface SheetData {
   rows: any[][];
 }
 
-export function UploadScriptModal({
+export function UploadInterestModal({
   open,
   onOpenChange,
   onSuccess,
-}: UploadScriptModalProps) {
+}: UploadInterestModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -166,9 +166,9 @@ export function UploadScriptModal({
 
   const handleDownloadTemplate = async () => {
     try {
-      const templateBlob = await scriptService.downloadScriptTemplate();
-      await downloadFile(templateBlob, "script_template.xlsx");
-      toast.success("Mẫu Excel đã được tải xuống");
+      const templateBlob = await interestService.downloadInterestTemplate();
+      await downloadFile(templateBlob, "interest_template.xlsx");
+      toast.success("Mẫu Excel từ khóa đã được tải xuống");
     } catch (error) {
       console.error("Template download error:", error);
       toast.error("Không thể tải xuống mẫu Excel");
@@ -183,12 +183,12 @@ export function UploadScriptModal({
 
     try {
       setIsUploading(true);
-      await scriptService.uploadScriptFile(file);
-      toast.success("Tải lên kịch bản thành công");
+      await interestService.uploadInterestFile(file);
+      toast.success("Tải lên danh sách từ khóa thành công");
       onOpenChange(false);
       if (onSuccess) onSuccess();
     } catch (error) {
-      toast.error("Có lỗi xảy ra khi tải lên file Excel");
+      toast.error("Có lỗi xảy ra khi tải lên từ khóa");
       console.error("Upload error:", error);
     } finally {
       setIsUploading(false);
@@ -200,7 +200,7 @@ export function UploadScriptModal({
       <DialogContent className="sm:max-w-[80vw] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
-            Tải lên kịch bản
+            Tải lên danh sách từ khóa
           </DialogTitle>
         </DialogHeader>
 
@@ -228,7 +228,7 @@ export function UploadScriptModal({
 
               <input
                 type="file"
-                id="file-upload-script"
+                id="file-upload-interest"
                 accept=".xlsx,.xls"
                 className="hidden"
                 onChange={handleFileSelect}
@@ -238,7 +238,7 @@ export function UploadScriptModal({
                 variant="outline"
                 size="sm"
                 onClick={() =>
-                  document.getElementById("file-upload-script")?.click()
+                  document.getElementById("file-upload-interest")?.click()
                 }
                 className="mt-4"
               >
@@ -263,7 +263,7 @@ export function UploadScriptModal({
                     setActiveSheet(null);
                     setSheetNames([]);
                     const fileInput = document.getElementById(
-                      "file-upload-script"
+                      "file-upload-interest"
                     ) as HTMLInputElement;
                     if (fileInput) fileInput.value = "";
                   }}
@@ -311,6 +311,9 @@ export function UploadScriptModal({
                               <Table>
                                 <TableHeader>
                                   <TableRow>
+                                    <TableHead className="w-12 border-r sticky top-0 bg-background z-10">
+                                      #
+                                    </TableHead>
                                     {excelData[sheetName].headers.map(
                                       (header, index) => (
                                         <TableHead
@@ -335,7 +338,8 @@ export function UploadScriptModal({
                                     <TableRow>
                                       <TableCell
                                         colSpan={
-                                          excelData[sheetName].headers.length
+                                          excelData[sheetName].headers.length +
+                                          1
                                         }
                                         className="text-center py-4 text-gray-500"
                                       >
@@ -346,6 +350,9 @@ export function UploadScriptModal({
                                     excelData[sheetName].rows.map(
                                       (row, rowIndex) => (
                                         <TableRow key={rowIndex}>
+                                          <TableCell className="border-r">
+                                            {rowIndex + 1}
+                                          </TableCell>
                                           {excelData[sheetName].headers.map(
                                             (_, cellIndex) => (
                                               <TableCell
@@ -396,9 +403,10 @@ export function UploadScriptModal({
               <p className="font-medium mb-1">Định dạng file Excel yêu cầu:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  Đảm bảo file Excel của bạn có định dạng đúng với mẫu tải xuống
+                  Hãy đảm bảo file Excel của bạn có các cột: Nhãn, Các từ khóa,
+                  Trạng thái và Mã màu
                 </li>
-                <li>Mỗi kịch bản cần có đầy đủ thông tin theo yêu cầu</li>
+                <li>Mỗi từ khóa cần được nhập đầy đủ thông tin</li>
               </ul>
             </div>
           </div>

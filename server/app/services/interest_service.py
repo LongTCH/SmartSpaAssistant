@@ -6,6 +6,7 @@ import pandas as pd
 from app.dtos import PaginationDto
 from app.models import Interest
 from app.repositories import interest_repository
+from app.utils.excel_utils import adjust_column_widths_in_worksheet
 from fastapi import HTTPException
 from openpyxl.styles import Alignment
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -137,8 +138,8 @@ async def download_interests_as_excel(db: AsyncSession) -> str:
     file_path = os.path.join(temp_dir, filename)
 
     headers_map = {
-        "name": "Từ khóa",
-        "related_terms": "Các từ liên quan",
+        "name": "Nhãn",
+        "related_terms": "Các từ khóa",
         "status": "Trạng thái",
         "color": "Mã màu",
     }
@@ -156,8 +157,8 @@ async def download_interests_as_excel(db: AsyncSession) -> str:
 
     df = pd.DataFrame(data, columns=headers)
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Xu hướng")
-        worksheet = writer.sheets["Xu hướng"]
+        df.to_excel(writer, index=False, sheet_name="data")
+        worksheet = writer.sheets["data"]
         # Set headers alignment to left
         for cell in worksheet[1]:
             cell.alignment = Alignment(horizontal="left")
@@ -176,7 +177,7 @@ async def insert_interests_from_excel(db: AsyncSession, sheet_file) -> None:
     # Read the Excel file
     try:
         excel_data = pd.read_excel(BytesIO(sheet_file), engine="openpyxl")
-        headers = ["Từ khóa", "Các từ liên quan", "Trạng thái", "Mã màu"]
+        headers = ["Nhãn", "Các từ khóa", "Trạng thái", "Mã màu"]
 
         interests: list[Interest] = []
         for _, row in excel_data.iterrows():
@@ -193,6 +194,56 @@ async def insert_interests_from_excel(db: AsyncSession, sheet_file) -> None:
     except Exception as e:
         await db.rollback()
         raise e
+
+
+async def get_interest_template() -> str:
+    """
+    Generate a template Excel file for interests.
+    The template will contain sample data with required columns.
+
+    Returns:
+        str: Path to the template Excel file
+    """
+    try:
+        # Create temp directory if it doesn't exist
+        temp_dir = os.path.join(os.getcwd(), "temp")
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
+
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"interest_template_{timestamp}.xlsx"
+        file_path = os.path.join(temp_dir, filename)
+
+        # Sample data
+        data_list = [
+            {
+                "Nhãn": "Sản phẩm tiết kiệm",
+                "Các từ khóa": "tiết kiệm, lãi suất, kỳ hạn",
+                "Trạng thái": "published",
+                "Mã màu": "#3498db",
+            },
+            {
+                "Nhãn": "Vay mua nhà",
+                "Các từ khóa": "thế chấp, lãi suất vay, bất động sản",
+                "Trạng thái": "draft",
+                "Mã màu": "#e74c3c",
+            },
+        ]
+        df_data = pd.DataFrame(data_list)
+
+        # Write to Excel file
+        with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+            # Write data sheet
+            df_data.to_excel(writer, index=False, sheet_name="data")
+            worksheet_data = writer.sheets["data"]
+            for cell in worksheet_data[1]:  # Header row
+                cell.alignment = Alignment(horizontal="left")
+            adjust_column_widths_in_worksheet(worksheet_data, df_data)
+
+        return file_path
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 async def get_all_interests_by_status(db: AsyncSession, status: str) -> list:

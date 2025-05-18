@@ -1,8 +1,11 @@
+import os
+
 from app.configs.database import get_session
 from app.services import notification_service
-from fastapi import APIRouter, Depends, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
+from fastapi.responses import FileResponse
+from fastapi.responses import Response as HttpResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import Response as HttpResponse
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
 
@@ -22,6 +25,63 @@ async def get_notifications(request: Request, db: AsyncSession = Depends(get_ses
         db, page, limit, status
     )
     return notifications
+
+
+@router.get("/download-template")
+async def get_notification_template(
+    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
+):
+    """
+    Download an Excel template file for notifications.
+
+    Returns:
+        Excel template file as a FileResponse
+    """
+    try:
+        # Get the template file path
+        file_path = await notification_service.get_notification_template()
+
+        # Schedule file cleanup after sending
+        background_tasks.add_task(os.remove, file_path)
+
+        return FileResponse(
+            path=file_path,
+            filename="notification_template.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as e:
+        print(f"Error generating notification template: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error generating notification template"
+        )
+
+
+@router.get("/download")
+async def download_notifications_as_excel(
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_session),
+):
+    """
+    Download all notifications as Excel file.
+
+    Returns:
+        Excel file as a FileResponse
+    """
+    try:
+        # Get the file path from the service
+        file_path = await notification_service.download_notifications_as_excel(db)
+
+        # Schedule file cleanup after sending
+        background_tasks.add_task(os.remove, file_path)
+
+        return FileResponse(
+            path=file_path,
+            filename="Cài đặt thông báo.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as e:
+        print(f"Error downloading notifications: {e}")
+        raise HTTPException(status_code=500, detail=f"Error downloading notifications")
 
 
 @router.get("/{id}")
@@ -75,3 +135,55 @@ async def delete_multiple_notifications(
     notification_ids = body.get("notification_ids", [])
     await notification_service.delete_multiple_notifications(db, notification_ids)
     return HttpResponse(status_code=204)
+
+
+@router.post("/upload")
+async def upload_notifications_excel(
+    request: Request, db: AsyncSession = Depends(get_session)
+):
+    """
+    Upload notifications from Excel file.
+    The Excel file should have:
+    1. 'data' sheet: Contains notifications with id, label, color, status, description, content
+    2. 'n_{id}' sheets: One sheet per notification with its parameters
+
+    Returns:
+        Success message
+    """
+    try:
+        # Parse the multipart form data
+        form = await request.form()
+
+        # Get the uploaded file
+        file = form.get("file")
+
+        if not file:
+            raise HTTPException(status_code=400, detail="Missing required file")
+
+        # Validate file is an Excel file
+        content_type = file.content_type
+        if content_type not in [
+            "application/vnd.ms-excel",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        ]:
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid file type. Only Excel files are supported.",
+            )
+
+        # Read file contents
+        file_contents = await file.read()
+
+        # Process the file directly without saving to disk
+        result = await notification_service.upload_notifications_from_excel(
+            db, file_contents
+        )
+
+        return {"message": "Notifications uploaded successfully", "result": result}
+    except HTTPException as e:
+        raise e
+    except Exception as e:
+        print(f"Error uploading notifications: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error uploading notifications: {str(e)}"
+        )

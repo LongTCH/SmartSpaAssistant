@@ -1,19 +1,19 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
-import { Dialog, DialogContent } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ChatAttachment } from "@/types";
+import { downloadFile } from "@/lib/file-utils";
 import {
-  Download,
-  Share2,
   X,
   ChevronLeft,
   ChevronRight,
-  Play,
+  Download,
+  Share2,
   Pause,
-  Volume2,
+  Play,
   VolumeX,
+  Volume2,
 } from "lucide-react";
-import { DialogTitle } from "@radix-ui/react-dialog";
 
 interface MediaViewerProps {
   attachment: ChatAttachment;
@@ -82,12 +82,10 @@ export function MediaViewer({
 
   const handleDownload = () => {
     if (attachment.payload?.url) {
-      const link = document.createElement("a");
-      link.href = attachment.payload.url;
-      link.download = attachment.payload.url.split("/").pop() || "download";
-      document.body.appendChild(link);
-      link.click();
-      document.body.removeChild(link);
+      const fileName = attachment.payload.url.split("/").pop() || "download";
+      downloadFile(attachment.payload.url, fileName).catch((error) =>
+        console.error("Error downloading file:", error)
+      );
     }
   };
 

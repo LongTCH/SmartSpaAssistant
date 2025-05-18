@@ -23,19 +23,19 @@ import { Interest } from "@/types";
 import { toast } from "sonner";
 import { interestService } from "@/services/api/interest.service";
 
-interface EditKeywordModalProps {
+interface EditInterestModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   interestId: string | null;
   onSuccess?: () => void;
 }
 
-export function EditKeywordModal({
+export function EditInterestModal({
   open,
   onOpenChange,
   interestId,
   onSuccess,
-}: EditKeywordModalProps) {
+}: EditInterestModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [interestData, setInterestData] = useState<Partial<Interest>>({
@@ -165,7 +165,7 @@ export function EditKeywordModal({
             </div>
 
             <div className="space-y-2">
-              <label className="text-sm font-medium">Mô tả:</label>
+              <label className="text-sm font-medium">Các từ khóa:</label>
               <Textarea
                 className="min-h-[120px]"
                 placeholder="nám, trị nám, nám mảng, nám đỉnh, chữa nám, nám lâu năm, làm mờ nám"

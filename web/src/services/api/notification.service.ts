@@ -65,4 +65,34 @@ export const notificationService = {
       notification_ids: notification_ids,
     });
   },
+  async downloadNotifications(): Promise<Blob> {
+    const response = await apiClient.instance.get(
+      API_ROUTES.NOTIFICATION.DOWNLOAD,
+      {
+        responseType: "blob",
+      }
+    );
+    return response.data;
+  },
+
+  async downloadNotificationTemplate(): Promise<Blob> {
+    const response = await apiClient.instance.get(
+      API_ROUTES.NOTIFICATION.DOWNLOAD_TEMPLATE,
+      {
+        responseType: "blob",
+      }
+    );
+    return response.data;
+  },
+
+  async uploadNotifications(file: File): Promise<void> {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    await apiClient.instance.post(API_ROUTES.NOTIFICATION.UPLOAD, formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
+      },
+    });
+  },
 };

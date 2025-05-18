@@ -72,6 +72,16 @@ export const interestService = {
     return response.data;
   },
 
+  async downloadInterestTemplate(): Promise<Blob> {
+    const response = await apiClient.instance.get(
+      API_ROUTES.INTEREST.DOWNLOAD_TEMPLATE,
+      {
+        responseType: "blob",
+      }
+    );
+    return response.data;
+  },
+
   async uploadInterestFile(file: File): Promise<void> {
     const formData = new FormData();
     formData.append("file", file);
@@ -84,7 +94,9 @@ export const interestService = {
   },
 
   async getAllPublishedInterests(): Promise<Interest[]> {
-    const response = await apiClient.instance.get(API_ROUTES.INTEREST.GET_ALL_PUBLISHED);
+    const response = await apiClient.instance.get(
+      API_ROUTES.INTEREST.GET_ALL_PUBLISHED
+    );
     return response.data as Interest[];
-  }
+  },
 };

@@ -59,7 +59,7 @@ export function InfoStep({
               <SelectItem value="draft">Bản nháp</SelectItem>
             </SelectContent>
           </Select>
-        </div>{" "}
+        </div>
       </div>
       <div className="space-y-2">
         <label className="text-sm font-medium">Màu sắc:</label>

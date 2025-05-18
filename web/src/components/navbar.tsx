@@ -158,7 +158,7 @@ export function Navbar() {
               >
                 QL Khách hàng
               </Link>
-            </TabsTrigger>{" "}
+            </TabsTrigger>
             <TabsTrigger
               value="analysis"
               disabled={isPageLoading}
@@ -178,9 +178,8 @@ export function Navbar() {
             </TabsTrigger>
           </TabsList>
         </Tabs>
-      </div>{" "}
+      </div>
       <div className="flex items-center space-x-4">
-        {" "}
         <Button
           variant="ghost"
           size="icon"

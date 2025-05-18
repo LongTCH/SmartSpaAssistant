@@ -6,6 +6,7 @@ import pandas as pd
 from app.dtos import PaginationDto
 from app.models import Script
 from app.repositories import script_repository
+from app.utils.excel_utils import adjust_column_widths_in_worksheet
 from fastapi import HTTPException
 from openpyxl.styles import Alignment
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -251,8 +252,8 @@ async def download_scripts_as_excel(db: AsyncSession) -> str:
 
     df = pd.DataFrame(data, columns=headers)
     with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
-        df.to_excel(writer, index=False, sheet_name="Kịch bản")
-        worksheet = writer.sheets["Kịch bản"]
+        df.to_excel(writer, index=False, sheet_name="data")
+        worksheet = writer.sheets["data"]
         # Set headers alignment to left
         for cell in worksheet[1]:
             cell.alignment = Alignment(horizontal="left")
@@ -367,3 +368,65 @@ async def get_all_published_scripts(db: AsyncSession) -> list[Script]:
     """
     scripts = await script_repository.get_all_scripts_by_status(db, "published")
     return [script.to_dict() for script in scripts] if scripts else []
+
+
+async def get_script_template() -> str:
+    """
+    Generate a template Excel file for scripts.
+    The template will contain sample data with required columns.
+
+    Returns:
+        str: Path to the template Excel file
+    """
+    try:
+        # Create temp directory if it doesn't exist
+        temp_dir = os.path.join(os.getcwd(), "temp")
+        if not os.path.exists(temp_dir):
+            os.makedirs(temp_dir)
+
+        # Create filename with timestamp
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        filename = f"script_template_{timestamp}.xlsx"
+        file_path = os.path.join(temp_dir, filename)
+
+        # Sample data
+        data_list = [
+            {
+                "ID": 1,
+                "Tên kịch bản": "Thông tin sản phẩm vay",
+                "ID các kịch bản liên quan": "",
+                "Trạng thái": "published",
+                "Mô tả": '"lãi suất", "thời hạn vay", "điều kiện vay"',
+                "Hướng dẫn trả lời": "Giải thích về lãi suất, thời hạn vay và điều kiện vay.",
+            },
+            {
+                "ID": 2,
+                "Tên kịch bản": "Thủ tục đăng ký thẻ tín dụng",
+                "ID các kịch bản liên quan": "1",
+                "Trạng thái": "published",
+                "Mô tả": '"đăng ký như thế nào", "cần giấy tờ gì"',
+                "Hướng dẫn trả lời": "Hướng dẫn khách hàng cách đăng ký thẻ tín dụng, giấy tờ cần thiết và thời gian xử lý.",
+            },
+            {
+                "ID": 3,
+                "Tên kịch bản": "Chính sách ưu đãi khách hàng mới",
+                "ID các kịch bản liên quan": "1,2",
+                "Trạng thái": "draft",
+                "Mô tả": '"có giảm giá không", "có ưu đãi gì không"',
+                "Hướng dẫn trả lời": "Giới thiệu các chương trình ưu đãi hiện tại, thời gian áp dụng và điều kiện.",
+            },
+        ]
+        df_data = pd.DataFrame(data_list)
+
+        # Write to Excel file
+        with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+            # Write data sheet
+            df_data.to_excel(writer, index=False, sheet_name="data")
+            worksheet_data = writer.sheets["data"]
+            for cell in worksheet_data[1]:  # Header row
+                cell.alignment = Alignment(horizontal="left")
+            adjust_column_widths_in_worksheet(worksheet_data, df_data)
+
+        return file_path
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))

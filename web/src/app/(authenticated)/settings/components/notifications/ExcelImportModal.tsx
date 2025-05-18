@@ -1,13 +1,12 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { Button } from "@/components/ui/button";
 import {
   Dialog,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogFooter,
 } from "@/components/ui/dialog";
 import {
   Table,
@@ -18,16 +17,17 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Upload, AlertTriangle, FileDown } from "lucide-react";
+import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { scriptService } from "@/services/api/script.service";
-import * as XLSX from "xlsx";
+import { notificationService } from "@/services/api/notification.service";
+import { Upload, AlertTriangle, FileDown } from "lucide-react";
 import { downloadFile } from "@/lib/file-utils";
+import * as XLSX from "xlsx";
 
-interface UploadScriptModalProps {
+interface ExcelImportModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onSuccess?: () => void; // Callback when upload is successful
+  onSuccess?: () => void;
 }
 
 interface SheetData {
@@ -35,11 +35,11 @@ interface SheetData {
   rows: any[][];
 }
 
-export function UploadScriptModal({
+export function ExcelImportModal({
   open,
   onOpenChange,
   onSuccess,
-}: UploadScriptModalProps) {
+}: ExcelImportModalProps) {
   const [file, setFile] = useState<File | null>(null);
   const [isUploading, setIsUploading] = useState(false);
   const [dragActive, setDragActive] = useState(false);
@@ -166,8 +166,9 @@ export function UploadScriptModal({
 
   const handleDownloadTemplate = async () => {
     try {
-      const templateBlob = await scriptService.downloadScriptTemplate();
-      await downloadFile(templateBlob, "script_template.xlsx");
+      const templateBlob =
+        await notificationService.downloadNotificationTemplate();
+      await downloadFile(templateBlob, "notification_template.xlsx");
       toast.success("Mẫu Excel đã được tải xuống");
     } catch (error) {
       console.error("Template download error:", error);
@@ -183,8 +184,8 @@ export function UploadScriptModal({
 
     try {
       setIsUploading(true);
-      await scriptService.uploadScriptFile(file);
-      toast.success("Tải lên kịch bản thành công");
+      await notificationService.uploadNotifications(file);
+      toast.success("Tải lên thông báo thành công");
       onOpenChange(false);
       if (onSuccess) onSuccess();
     } catch (error) {
@@ -200,7 +201,7 @@ export function UploadScriptModal({
       <DialogContent className="sm:max-w-[80vw] max-h-[90vh] overflow-hidden flex flex-col">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">
-            Tải lên kịch bản
+            Nhập thông báo từ Excel
           </DialogTitle>
         </DialogHeader>
 
@@ -228,7 +229,7 @@ export function UploadScriptModal({
 
               <input
                 type="file"
-                id="file-upload-script"
+                id="file-upload"
                 accept=".xlsx,.xls"
                 className="hidden"
                 onChange={handleFileSelect}
@@ -237,9 +238,7 @@ export function UploadScriptModal({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() =>
-                  document.getElementById("file-upload-script")?.click()
-                }
+                onClick={() => document.getElementById("file-upload")?.click()}
                 className="mt-4"
               >
                 Chọn file
@@ -263,7 +262,7 @@ export function UploadScriptModal({
                     setActiveSheet(null);
                     setSheetNames([]);
                     const fileInput = document.getElementById(
-                      "file-upload-script"
+                      "file-upload"
                     ) as HTMLInputElement;
                     if (fileInput) fileInput.value = "";
                   }}
@@ -311,6 +310,9 @@ export function UploadScriptModal({
                               <Table>
                                 <TableHeader>
                                   <TableRow>
+                                    <TableHead className="w-12 border-r sticky top-0 bg-background z-10">
+                                      #
+                                    </TableHead>
                                     {excelData[sheetName].headers.map(
                                       (header, index) => (
                                         <TableHead
@@ -335,7 +337,8 @@ export function UploadScriptModal({
                                     <TableRow>
                                       <TableCell
                                         colSpan={
-                                          excelData[sheetName].headers.length
+                                          excelData[sheetName].headers.length +
+                                          1
                                         }
                                         className="text-center py-4 text-gray-500"
                                       >
@@ -346,6 +349,9 @@ export function UploadScriptModal({
                                     excelData[sheetName].rows.map(
                                       (row, rowIndex) => (
                                         <TableRow key={rowIndex}>
+                                          <TableCell className="border-r">
+                                            {rowIndex + 1}
+                                          </TableCell>
                                           {excelData[sheetName].headers.map(
                                             (_, cellIndex) => (
                                               <TableCell
@@ -396,9 +402,17 @@ export function UploadScriptModal({
               <p className="font-medium mb-1">Định dạng file Excel yêu cầu:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  Đảm bảo file Excel của bạn có định dạng đúng với mẫu tải xuống
+                  Sheet "data" chứa các cột: id, label, color, status,
+                  description, content
                 </li>
-                <li>Mỗi kịch bản cần có đầy đủ thông tin theo yêu cầu</li>
+                <li>
+                  Mỗi thông báo cần có sheet riêng "n_[id]" (ví dụ: n_1, n_2) để
+                  chứa thông tin params
+                </li>
+                <li>
+                  Mỗi sheet params có các cột: index, param_name, param_type,
+                  description
+                </li>
               </ul>
             </div>
           </div>
@@ -426,9 +440,9 @@ export function UploadScriptModal({
           <Button
             onClick={handleSubmit}
             disabled={!file || isUploading || isProcessing}
-            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white"
+            className="bg-green-600 hover:bg-green-700 text-white"
           >
-            {isUploading ? "Đang tải lên..." : "Xác nhận"}
+            {isUploading ? "Đang tải lên..." : "Tải lên"}
           </Button>
         </DialogFooter>
       </DialogContent>

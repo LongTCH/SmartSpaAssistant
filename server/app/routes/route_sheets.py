@@ -6,8 +6,8 @@ from app.services.integrations import sheet_rag_service
 from app.utils import asyncio_utils
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
+from fastapi.responses import Response as HttpResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import Response as HttpResponse
 
 router = APIRouter(prefix="/sheets", tags=["Sheets"])
 

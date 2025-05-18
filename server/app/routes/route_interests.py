@@ -2,11 +2,10 @@ import os
 
 from app.configs.database import get_session
 from app.services import interest_service
-from app.utils import asyncio_utils
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
+from fastapi.responses import Response as HttpResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import Response as HttpResponse
 
 router = APIRouter(prefix="/interests", tags=["Interests"])
 
@@ -38,7 +37,9 @@ async def get_all_published_interests(
 
 
 @router.get("/download")
-async def download_interests(db: AsyncSession = Depends(get_session)):
+async def download_interests(
+    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
+):
     """
     Download all interests as an Excel file.
 
@@ -51,7 +52,7 @@ async def download_interests(db: AsyncSession = Depends(get_session)):
         if not file_path:
             raise HTTPException(status_code=404, detail="No interests found")
 
-        asyncio_utils.run_background(os.remove, file_path)
+        background_tasks.add_task(os.remove, file_path)
         return FileResponse(
             path=file_path,
             filename="Xu hướng Khách hàng.xlsx",
@@ -60,6 +61,35 @@ async def download_interests(db: AsyncSession = Depends(get_session)):
     except Exception as e:
         print(f"Error downloading interests: {e}")
         raise HTTPException(status_code=500, detail=f"Error downloading interests")
+
+
+@router.get("/download-template")
+async def get_interest_template(
+    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
+):
+    """
+    Download an Excel template file for interests.
+
+    Returns:
+        Excel template file as a FileResponse
+    """
+    try:
+        # Get the template file path
+        file_path = await interest_service.get_interest_template()
+
+        # Schedule file cleanup after sending
+        background_tasks.add_task(os.remove, file_path)
+
+        return FileResponse(
+            path=file_path,
+            filename="xu_huong_template.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as e:
+        print(f"Error generating interest template: {e}")
+        raise HTTPException(
+            status_code=500, detail=f"Error generating interest template"
+        )
 
 
 @router.get("/{interest_id}")

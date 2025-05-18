@@ -23,17 +23,17 @@ import { InterestData } from "@/types";
 import { toast } from "sonner";
 import { interestService } from "@/services/api/interest.service";
 
-interface AddKeywordModalProps {
+interface AddInterestModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onSuccess?: () => void;
 }
 
-export function AddKeywordModal({
+export function AddInterestModal({
   open,
   onOpenChange,
   onSuccess,
-}: AddKeywordModalProps) {
+}: AddInterestModalProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [interestData, setInterestData] = useState<InterestData>({
     name: "",
@@ -131,7 +131,7 @@ export function AddKeywordModal({
           </div>
 
           <div className="space-y-2">
-            <label className="text-sm font-medium">Mô tả:</label>
+            <label className="text-sm font-medium">Các từ khóa:</label>
             <Textarea
               className="min-h-[120px]"
               placeholder="nám, trị nám, nám mảng, nám đỉnh, chữa nám, nám lâu năm, làm mờ nám"

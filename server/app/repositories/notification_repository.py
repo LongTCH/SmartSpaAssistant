@@ -82,3 +82,9 @@ async def delete_multiple_notifications(
     for notification in notifications:
         await db.delete(notification)
     return None
+
+
+async def get_all_notifications(db: AsyncSession) -> list[Notification]:
+    stmt = select(Notification)
+    result = await db.execute(stmt)
+    return result.scalars().all()

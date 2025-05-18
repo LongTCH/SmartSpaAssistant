@@ -471,7 +471,6 @@ export default function TestChatPage() {
 
   return (
     <div className="h-[calc(100vh-4rem)] relative flex flex-col">
-      {" "}
       {/* Sidebar for conversations */}
       <ConversationSidebar
         conversations={conversations}
@@ -484,14 +483,13 @@ export default function TestChatPage() {
         sidebarOpen={sidebarOpen}
         toggleSidebar={toggleSidebar}
         isMobile={isMobile}
-      />{" "}
+      />
       {/* Main chat area */}
       <div
         className={`flex-1 flex flex-col transition-all duration-300 ${
           !isMobile && sidebarOpen ? "ml-72" : "ml-0"
         }`}
       >
-        {" "}
         {/* Chat header - made sticky */}
         <div className="sticky top-0 z-10 bg-white border-b">
           <ChatHeader
@@ -499,7 +497,7 @@ export default function TestChatPage() {
             toggleMobileSidebar={toggleSidebar}
             isMobile={isMobile}
           />
-        </div>{" "}
+        </div>
         {/* Messages container - only this scrolls */}
         <div
           ref={chatBoxRef}

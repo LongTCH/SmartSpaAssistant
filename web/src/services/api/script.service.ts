@@ -66,6 +66,16 @@ export const scriptService = {
     return response.data;
   },
 
+  async downloadScriptTemplate(): Promise<Blob> {
+    const response = await apiClient.instance.get(
+      API_ROUTES.SCRIPT.DOWNLOAD_TEMPLATE,
+      {
+        responseType: "blob",
+      }
+    );
+    return response.data;
+  },
+
   async uploadScriptFile(file: File): Promise<void> {
     const formData = new FormData();
     formData.append("file", file);

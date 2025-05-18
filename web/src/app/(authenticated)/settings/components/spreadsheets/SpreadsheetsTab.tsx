@@ -1,8 +1,9 @@
 "use client";
 
-import { useState, useEffect, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { downloadFile } from "@/lib/file-utils";
 import {
   Table,
   TableBody,
@@ -44,7 +45,9 @@ import { PreviewSheetModal } from "./PreviewSheetModal";
 import { toast } from "sonner";
 import { Sheet } from "@/types";
 import { sheetService } from "@/services/api/sheet.service";
-
+import { PaginationSetting } from "../PaginationSetting";
+import { StatusFilter } from "../StatusFilter";
+import { SpreadSheetTable } from "./SpreadSheetTable";
 // Constants
 const ITEMS_PER_PAGE = 10;
 
@@ -242,32 +245,19 @@ export function SpreadsheetsTab() {
   const handleDownloadSheet = async (sheetId: string, sheetName: string) => {
     const loadingToast = toast.loading("Đang tải bảng tính...");
     try {
-      // Show loading toast
-
       // Get the file blob using our service
       const blob = await sheetService.downloadSheet(sheetId);
 
-      // Create a URL for the blob
-      const url = URL.createObjectURL(blob);
-
-      // Create a temporary anchor element to trigger download
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = `${sheetName}.xlsx`;
-      document.body.appendChild(link);
-      link.click();
-
-      // Clean up
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Use the downloadFile utility
+      await downloadFile(blob, `${sheetName}.xlsx`);
 
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success("Tải bảng tính thành công");
-    } catch {
-      // console.error("Error downloading sheet:", error);
+    } catch (error) {
       toast.dismiss(loadingToast);
       toast.error("Không thể tải bảng tính");
+      console.error("Error downloading sheet:", error);
     }
   };
 
@@ -320,243 +310,31 @@ export function SpreadsheetsTab() {
           </Button>
         </div>
 
-        <div className="flex items-center space-x-2">
-          <Filter className="h-4 w-4 text-gray-500" />
-          <Select value={status} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Lọc theo trạng thái" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả</SelectItem>
-              <SelectItem value="published">Xuất bản</SelectItem>
-              <SelectItem value="draft">Bản nháp</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <StatusFilter status={status} handleStatusChange={handleStatusChange} />
       </div>
 
-      <div className="border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12 border-r">
-                <Checkbox
-                  checked={allCurrentPageSelected}
-                  onCheckedChange={handleSelectAllOnPage}
-                  disabled={sheets.length === 0}
-                />
-              </TableHead>
-              <TableHead className="text-[#6366F1] border-r">
-                Tên bảng tính
-              </TableHead>
-              <TableHead className="text-[#6366F1] border-r w-24">
-                Trạng thái
-              </TableHead>
-              <TableHead className="text-right text-[#6366F1] w-36">
-                Thao tác
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              // Loading state
-              Array(ITEMS_PER_PAGE)
-                .fill(0)
-                .map((_, index) => (
-                  <TableRow key={`loading-${index}`}>
-                    <TableCell className="border-r">
-                      <div className="w-4 h-4 bg-gray-200 animate-pulse rounded"></div>
-                    </TableCell>
-                    <TableCell className="border-r">
-                      <div className="w-full h-4 bg-gray-200 animate-pulse rounded"></div>
-                    </TableCell>
-                    <TableCell className="border-r">
-                      <div className="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <div className="w-8 h-8 bg-gray-200 animate-pulse rounded"></div>
-                        <div className="w-8 h-8 bg-gray-200 animate-pulse rounded"></div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-            ) : sheets.length > 0 ? (
-              sheets.map((sheet) => (
-                <TableRow key={sheet.id}>
-                  <TableCell className="border-r">
-                    <Checkbox
-                      checked={selectedSheetIds.has(sheet.id)}
-                      onCheckedChange={(checked) =>
-                        handleSelectSheet(sheet.id, checked === true)
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="border-r">{sheet.name}</TableCell>
-                  <TableCell className="border-r">
-                    <div
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        sheet.status === "published"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}
-                    >
-                      {sheet.status === "published" ? "Xuất bản" : "Bản nháp"}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Xem trước"
-                        onClick={() => handlePreviewSheet(sheet)}
-                      >
-                        <Eye className="h-4 w-4 text-green-500" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Tải về"
-                        onClick={() =>
-                          handleDownloadSheet(sheet.id, sheet.name)
-                        }
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Chỉnh sửa"
-                        onClick={() => handleEditSheet(sheet)}
-                      >
-                        <Pencil className="h-4 w-4 text-blue-500" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Xóa"
-                        onClick={() => handleSingleSheetDelete(sheet.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="text-center py-8 text-gray-500"
-                >
-                  Không có bảng tính nào{" "}
-                  {status !== "all" &&
-                    `có trạng thái "${
-                      status === "published" ? "Xuất bản" : "Bản nháp"
-                    }"`}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
+      <SpreadSheetTable
+        ITEMS_PER_PAGE={ITEMS_PER_PAGE}
+        sheets={sheets}
+        isLoading={isLoading}
+        status={status}
+        selectedSheetIds={selectedSheetIds}
+        allCurrentPageSelected={allCurrentPageSelected}
+        handleSelectSheet={handleSelectSheet}
+        handleSelectAllOnPage={handleSelectAllOnPage}
+        handlePreviewSheet={handlePreviewSheet}
+        handleDownloadSheet={handleDownloadSheet}
+        handleEditSheet={handleEditSheet}
+        handleSingleSheetDelete={handleSingleSheetDelete}
+      />
       {/* Pagination */}
-      {totalPages > 0 && (
-        <div className="flex justify-between items-center mt-6">
-          <div className="text-sm text-gray-500">
-            {totalItems > 0
-              ? `Hiển thị ${
-                  (currentPage - 1) * ITEMS_PER_PAGE + 1
-                } - ${Math.min(
-                  currentPage * ITEMS_PER_PAGE,
-                  totalItems
-                )} trong số ${totalItems} bảng tính`
-              : "Không có bảng tính nào"}
-          </div>
-
-          <div className="flex items-center space-x-2">
-            {/* Nút First Page */}
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              <ChevronLeft className="h-4 w-4 -ml-3" />
-            </Button>
-
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-
-            {/* Generate page buttons */}
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              // Show at most 5 page buttons
-              let pageNum;
-              if (totalPages <= 5) {
-                // If 5 or fewer pages, show all
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                // If near the start, show 1,2,3,4,5
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                // If near the end, show last 5 pages
-                pageNum = totalPages - 4 + i;
-              } else {
-                // Otherwise, show current page and 2 on each side
-                pageNum = currentPage - 2 + i;
-              }
-
-              return (
-                <Button
-                  key={pageNum}
-                  variant={pageNum === currentPage ? "default" : "outline"}
-                  className={
-                    pageNum === currentPage
-                      ? "bg-[#6366F1] text-white h-10 w-10"
-                      : "h-10 w-10"
-                  }
-                  onClick={() => handlePageChange(pageNum)}
-                >
-                  {pageNum}
-                </Button>
-              );
-            })}
-
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-
-            {/* Nút Last Page */}
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4 mr-1" />
-              <ChevronRight className="h-4 w-4 -ml-3" />
-            </Button>
-          </div>
-        </div>
-      )}
+      <PaginationSetting
+        totalItems={totalItems}
+        currentPage={currentPage}
+        ITEMS_PER_PAGE={ITEMS_PER_PAGE}
+        totalPages={totalPages}
+        handlePageChange={handlePageChange}
+      />
 
       {/* Delete Confirmation Modal */}
       <Dialog

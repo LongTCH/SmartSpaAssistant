@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
+import { downloadFile } from "@/lib/file-utils";
 import {
   Table,
   TableBody,
@@ -37,6 +38,8 @@ import {
   ChevronRight,
   Filter,
   AlertTriangle,
+  FileDown,
+  FileUp,
 } from "lucide-react";
 import { AddScriptModal } from "./AddScriptModal";
 import { EditScriptModal } from "./EditScriptModal";
@@ -44,7 +47,9 @@ import { UploadScriptModal } from "./UploadScriptModal";
 import { Script } from "@/types";
 import { toast } from "sonner";
 import { scriptService } from "@/services/api/script.service";
-
+import { PaginationSetting } from "../PaginationSetting";
+import { ScriptTable } from "./ScriptTable";
+import { StatusFilter } from "../StatusFilter";
 // Constants
 const ITEMS_PER_PAGE = 10;
 let oldPage = 1;
@@ -66,11 +71,8 @@ export function ScriptsTab() {
   const [status, setStatus] = useState<string>("all");
   const [totalItems, setTotalItems] = useState(0);
   const [isDeleting, setIsDeleting] = useState(false);
-  const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null);
-  // New state for file upload
+  const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null); // State for file upload modal
   const [showUploadModal, setShowUploadModal] = useState(false);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Sử dụng useRef để theo dõi trạng thái đã tải
   const hasInitialFetch = useRef(false);
@@ -256,68 +258,22 @@ export function ScriptsTab() {
       // Get the file blob using our service
       const blob = await scriptService.downloadScripts();
 
-      // Create a URL for the blob
-      const url = URL.createObjectURL(blob);
-
-      // Create a temporary anchor element to trigger download
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "Kịch bản.xlsx";
-      document.body.appendChild(link);
-      link.click();
-
-      // Clean up
-      document.body.removeChild(link);
-      URL.revokeObjectURL(url);
+      // Use the downloadFile utility
+      await downloadFile(blob, "Kịch bản.xlsx");
 
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success("Tải xuống kịch bản thành công");
-    } catch {
+    } catch (error) {
       toast.dismiss(loadingToast);
       toast.error("Không thể tải xuống kịch bản");
+      console.error("Download error:", error);
     }
-  };
-
-  // Handle file upload button click
-  const handleUploadButtonClick = () => {
-    fileInputRef.current?.click();
-  };
-
-  // Handle file selection
-  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-
-    if (!file) {
-      return;
-    }
-
-    // Check if the file is Excel
-    const validExcelTypes = [
-      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", // .xlsx
-      "application/vnd.ms-excel", // .xls
-    ];
-
-    if (!validExcelTypes.includes(file.type)) {
-      toast.error("Chỉ chấp nhận file Excel (.xlsx, .xls)");
-      event.target.value = "";
-      return;
-    }
-
-    setSelectedFile(file);
-    setShowUploadModal(true);
   };
 
   // Handle modal close
   const handleUploadModalClose = (open: boolean) => {
     setShowUploadModal(open);
-    if (!open) {
-      // Reset selected file on close
-      setSelectedFile(null);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = "";
-      }
-    }
   };
 
   // Handle refetch after successful edit or add
@@ -331,16 +287,6 @@ export function ScriptsTab() {
   return (
     <div>
       <h1 className="text-2xl font-bold mb-6">KỊCH BẢN</h1>
-
-      {/* Hidden file input */}
-      <input
-        type="file"
-        ref={fileInputRef}
-        onChange={handleFileChange}
-        accept=".xlsx,.xls"
-        className="hidden"
-      />
-
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center space-x-4">
           <Button
@@ -362,251 +308,58 @@ export function ScriptsTab() {
               }`}
             />
           </Button>
-          <Button
-            variant="outline"
-            className="space-x-2"
-            onClick={handleDownloadScripts}
-          >
-            <Download className="h-4 w-4" />
-            <span>Export file</span>
-          </Button>
-          <Button
-            variant="outline"
-            className="space-x-2"
-            onClick={handleUploadButtonClick}
-          >
-            <Upload className="h-4 w-4" />
-            <span>Upload file</span>
-          </Button>
-          <Button
-            className="bg-[#6366F1] hover:bg-[#4F46E5] text-white space-x-2"
-            onClick={() => setShowAddModal(true)}
-          >
-            <Plus className="h-4 w-4" />
-            <span>Thêm kịch bản mới</span>
-          </Button>
-        </div>
-
-        <div className="flex items-center space-x-2">
-          <Filter className="h-4 w-4 text-gray-500" />
-          <Select value={status} onValueChange={handleStatusChange}>
-            <SelectTrigger className="w-[180px]">
-              <SelectValue placeholder="Lọc theo trạng thái" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">Tất cả</SelectItem>
-              <SelectItem value="published">Xuất bản</SelectItem>
-              <SelectItem value="draft">Bản nháp</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      <div className="border rounded-md">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead className="w-12 border-r">
-                <Checkbox
-                  checked={allCurrentPageSelected}
-                  onCheckedChange={handleSelectAllOnPage}
-                  disabled={scripts.length === 0}
-                />
-              </TableHead>
-              <TableHead className="text-[#6366F1] border-r">
-                Tên kịch bản
-              </TableHead>
-              <TableHead className="text-[#6366F1] border-r w-24">
-                Trạng thái
-              </TableHead>
-              <TableHead className="text-right text-[#6366F1] w-36">
-                Thao tác
-              </TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {isLoading ? (
-              // Loading state
-              Array(ITEMS_PER_PAGE)
-                .fill(0)
-                .map((_, index) => (
-                  <TableRow key={`loading-${index}`}>
-                    <TableCell className="border-r">
-                      <div className="w-4 h-4 bg-gray-200 animate-pulse rounded"></div>
-                    </TableCell>
-                    <TableCell className="border-r">
-                      <div className="w-full h-4 bg-gray-200 animate-pulse rounded"></div>
-                    </TableCell>
-                    <TableCell className="border-r">
-                      <div className="w-24 h-4 bg-gray-200 animate-pulse rounded"></div>
-                    </TableCell>
-                    <TableCell className="text-right">
-                      <div className="flex justify-end space-x-2">
-                        <div className="w-8 h-8 bg-gray-200 animate-pulse rounded"></div>
-                        <div className="w-8 h-8 bg-gray-200 animate-pulse rounded"></div>
-                      </div>
-                    </TableCell>
-                  </TableRow>
-                ))
-            ) : scripts.length > 0 ? (
-              scripts.map((script) => (
-                <TableRow key={script.id}>
-                  <TableCell className="border-r">
-                    <Checkbox
-                      checked={selectedScriptIds.has(script.id)}
-                      onCheckedChange={(checked) =>
-                        handleSelectScript(script.id, checked === true)
-                      }
-                    />
-                  </TableCell>
-                  <TableCell className="border-r">{script.name}</TableCell>
-                  <TableCell className="border-r">
-                    <div
-                      className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                        script.status === "published"
-                          ? "bg-green-100 text-green-800"
-                          : "bg-yellow-100 text-yellow-800"
-                      }`}
-                    >
-                      {script.status === "published" ? "Xuất bản" : "Bản nháp"}
-                    </div>
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <div className="flex justify-end space-x-2">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Chỉnh sửa"
-                        onClick={() => handleEditScript(script.id)}
-                      >
-                        <Pencil className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        title="Xóa"
-                        onClick={() => handleSingleScriptDelete(script.id)}
-                      >
-                        <Trash2 className="h-4 w-4 text-red-500" />
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ))
-            ) : (
-              <TableRow>
-                <TableCell
-                  colSpan={4}
-                  className="text-center py-8 text-gray-500"
-                >
-                  Không có kịch bản nào{" "}
-                  {status !== "all" &&
-                    `có trạng thái "${
-                      status === "published" ? "Xuất bản" : "Bản nháp"
-                    }"`}
-                </TableCell>
-              </TableRow>
-            )}
-          </TableBody>
-        </Table>
-      </div>
-
-      {/* Pagination */}
-      {totalPages > 0 && (
-        <div className="flex justify-between items-center mt-6">
-          <div className="text-sm text-gray-500">
-            {totalItems > 0
-              ? `Hiển thị ${
-                  (currentPage - 1) * ITEMS_PER_PAGE + 1
-                } - ${Math.min(
-                  currentPage * ITEMS_PER_PAGE,
-                  totalItems
-                )} trong số ${totalItems} kịch bản`
-              : "Không có kịch bản nào"}
-          </div>
-
           <div className="flex items-center space-x-2">
-            {/* Nút First Page */}
             <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => handlePageChange(1)}
-              disabled={currentPage === 1}
+              className="bg-[#6366F1] hover:bg-[#4F46E5] text-white space-x-2"
+              onClick={() => setShowAddModal(true)}
             >
-              <ChevronLeft className="h-4 w-4 mr-1" />
-              <ChevronLeft className="h-4 w-4 -ml-3" />
+              <Plus className="h-4 w-4" />
+              <span>Thêm kịch bản mới</span>
             </Button>
 
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => handlePageChange(currentPage - 1)}
-              disabled={currentPage === 1}
-            >
-              <ChevronLeft className="h-4 w-4" />
-            </Button>
-
-            {/* Generate page buttons */}
-            {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
-              // Show at most 5 page buttons
-              let pageNum;
-              if (totalPages <= 5) {
-                // If 5 or fewer pages, show all
-                pageNum = i + 1;
-              } else if (currentPage <= 3) {
-                // If near the start, show 1,2,3,4,5
-                pageNum = i + 1;
-              } else if (currentPage >= totalPages - 2) {
-                // If near the end, show last 5 pages
-                pageNum = totalPages - 4 + i;
-              } else {
-                // Otherwise, show current page and 2 on each side
-                pageNum = currentPage - 2 + i;
-              }
-
-              return (
-                <Button
-                  key={pageNum}
-                  variant={pageNum === currentPage ? "default" : "outline"}
-                  className={
-                    pageNum === currentPage
-                      ? "bg-[#6366F1] text-white h-10 w-10"
-                      : "h-10 w-10"
-                  }
-                  onClick={() => handlePageChange(pageNum)}
-                >
-                  {pageNum}
-                </Button>
-              );
-            })}
-
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => handlePageChange(currentPage + 1)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4" />
-            </Button>
-
-            {/* Nút Last Page */}
-            <Button
-              variant="outline"
-              size="icon"
-              className="h-10 w-10"
-              onClick={() => handlePageChange(totalPages)}
-              disabled={currentPage === totalPages}
-            >
-              <ChevronRight className="h-4 w-4 mr-1" />
-              <ChevronRight className="h-4 w-4 -ml-3" />
-            </Button>
+            <div className="flex items-center space-x-2 ml-2">
+              <Button
+                variant="outline"
+                className="space-x-2 border-blue-200 text-blue-600"
+                onClick={handleDownloadScripts}
+              >
+                <FileDown className="h-4 w-4" />
+                <span>Xuất Excel</span>
+              </Button>
+              <Button
+                variant="outline"
+                className="space-x-2 border-green-200 text-green-600"
+                onClick={() => setShowUploadModal(true)}
+              >
+                <FileUp className="h-4 w-4" />
+                <span>Nhập Excel</span>
+              </Button>
+            </div>
           </div>
         </div>
-      )}
 
+        <StatusFilter status={status} handleStatusChange={handleStatusChange} />
+      </div>
+      <ScriptTable
+        ITEMS_PER_PAGE={ITEMS_PER_PAGE}
+        scripts={scripts}
+        isLoading={isLoading}
+        status={status}
+        selectedScriptIds={selectedScriptIds}
+        allCurrentPageSelected={allCurrentPageSelected}
+        handleSelectScript={handleSelectScript}
+        handleSelectAllOnPage={handleSelectAllOnPage}
+        handleSingleScriptDelete={handleSingleScriptDelete}
+        handleEditScript={handleEditScript}
+      />
+      {/* Pagination */}
+      <PaginationSetting
+        totalItems={totalItems}
+        currentPage={currentPage}
+        ITEMS_PER_PAGE={ITEMS_PER_PAGE}
+        totalPages={totalPages}
+        handlePageChange={handlePageChange}
+      />
       {/* Delete Confirmation Modal */}
       <Dialog
         open={showDeleteConfirmation}
@@ -668,26 +421,22 @@ export function ScriptsTab() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
-
       {/* Modals */}
       <AddScriptModal
         open={showAddModal}
         onOpenChange={setShowAddModal}
         onSuccess={handleScriptUpdated}
       />
-
       <EditScriptModal
         open={showEditModal}
         onOpenChange={setShowEditModal}
         scriptId={editScriptId}
         onSuccess={handleScriptUpdated}
       />
-
       {/* File Upload Modal */}
       <UploadScriptModal
         open={showUploadModal}
         onOpenChange={handleUploadModalClose}
-        selectedFile={selectedFile}
         onSuccess={handleScriptUpdated}
       />
     </div>

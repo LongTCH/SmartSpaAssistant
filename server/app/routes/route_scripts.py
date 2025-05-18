@@ -6,8 +6,8 @@ from app.services.integrations import script_rag_service
 from app.utils import asyncio_utils
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from fastapi.responses import FileResponse
+from fastapi.responses import Response as HttpResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from starlette.responses import Response as HttpResponse
 
 router = APIRouter(prefix="/scripts", tags=["Scripts"])
 
@@ -64,6 +64,33 @@ async def download_scripts(
     except Exception as e:
         print(f"Error downloading scripts: {e}")
         raise HTTPException(status_code=500, detail=f"Error downloading scripts")
+
+
+@router.get("/download-template")
+async def get_script_template(
+    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
+):
+    """
+    Download an Excel template file for scripts.
+
+    Returns:
+        Excel template file as a FileResponse
+    """
+    try:
+        # Get the template file path
+        file_path = await script_service.get_script_template()
+
+        # Schedule file cleanup after sending
+        background_tasks.add_task(os.remove, file_path)
+
+        return FileResponse(
+            path=file_path,
+            filename="kich_ban_template.xlsx",
+            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        )
+    except Exception as e:
+        print(f"Error generating script template: {e}")
+        raise HTTPException(status_code=500, detail=f"Error generating script template")
 
 
 @router.get("/{script_id}")
