@@ -17,4 +17,5 @@ langchain
 pandas
 sqlparse
 langfuse
-
+unidecode
+Jinja2

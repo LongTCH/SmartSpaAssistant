@@ -42,6 +42,9 @@ export const API_ROUTES = {
     DOWNLOAD_TEMPLATE: "/notifications/download-template",
     UPLOAD: "/notifications/upload",
   },
+  ALERT: {
+    GET: "/alerts",
+  },
   SHEET: {
     GET: "/sheets",
     DETAIL: (id: string) => `/sheets/${id}`,
@@ -84,6 +87,7 @@ export const APP_ROUTES = {
   ANALYSIS: "/analysis",
   CUSTOMERS: "/customers",
   TEST_CHAT: "/test-chat",
+  ALERTS: "/alerts",
 };
 
 export const WS_MESSAGES = {

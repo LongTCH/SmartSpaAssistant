@@ -88,3 +88,11 @@ async def get_all_notifications(db: AsyncSession) -> list[Notification]:
     stmt = select(Notification)
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def get_all_notifications_by_status(
+    db: AsyncSession, status: str
+) -> list[Notification]:
+    stmt = select(Notification).where(Notification.status == status)
+    result = await db.execute(stmt)
+    return result.scalars().all()

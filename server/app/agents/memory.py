@@ -21,7 +21,7 @@ Please write in customer's language.
 This string will be stored in database as long-term memory, so keep it short, concise and relevant.
 """
 
-model = model_hub["gemini-2.0-flash-lite"]
+model = model_hub["gemini-2.0-flash"]
 memory_agent = Agent(
     model=model,
     instructions=instructions,

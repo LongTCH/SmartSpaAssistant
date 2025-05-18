@@ -1,5 +1,3 @@
-import json
-
 from app.models import Sheet, script_sheets
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
@@ -119,12 +117,11 @@ async def get_example_rows_by_sheet_id(db: AsyncSession, sheet_id: str) -> list[
     """
     sheet = await get_sheet_by_id(db, sheet_id)
     if not sheet:
-        return None
+        return []
     table_name = sheet.table_name
-    stmt = text(f'SELECT data_fts::text FROM "{table_name}" LIMIT 2')
-    result = await db.execute(stmt)
-    rows = result.mappings().all()
-    return [json.loads(row["data_fts"]) for row in rows]
+    query = text(f'SELECT * FROM "{table_name}" LIMIT 2')
+    result = await db.execute(query)
+    return result.mappings().all()
 
 
 async def get_sheet_ids_by_script_ids(

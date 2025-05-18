@@ -55,15 +55,14 @@ export function Navbar() {
       case "test-chat":
         router.push("/test-chat");
         break;
-      case "notifications":
-        router.push("/notifications");
+      case "alerts":
+        router.push("/alerts");
         break;
       default:
         setPageLoading(false); // Ensure loading is stopped for unhandled cases
         break;
     }
   };
-
   // Helper function to get URL from tab value
   const getTabUrl = (tab: string) => {
     switch (tab) {
@@ -77,8 +76,8 @@ export function Navbar() {
         return "/customers";
       case "test-chat":
         return "/test-chat";
-      case "notifications": // Added new case for notifications
-        return "/notifications";
+      case "alerts":
+        return "/alerts";
       default:
         return "#";
     }
@@ -189,11 +188,7 @@ export function Navbar() {
               : "text-white/90 hover:text-white hover:bg-white/10"
           } rounded-full`}
           disabled={isPageLoading}
-          onClick={() => {
-            if (isPageLoading) return;
-            router.push("/test-chat");
-            setActiveNavTab("test-chat");
-          }}
+          onClick={() => handleTabChange("test-chat")}
           title="Test Chat"
         >
           <MessageSquare className="h-5 w-5" />
@@ -202,17 +197,13 @@ export function Navbar() {
           variant="ghost"
           size="icon"
           className={`${
-            activeNavTab === "notifications"
+            activeNavTab === "alerts"
               ? "bg-white text-[#6366F1]"
               : "text-white/90 hover:text-white hover:bg-white/10"
           } rounded-full`}
           disabled={isPageLoading}
-          onClick={() => {
-            if (isPageLoading) return;
-            router.push("/notifications");
-            setActiveNavTab("notifications");
-          }}
-          title="Notifications"
+          onClick={() => handleTabChange("alerts")}
+          title="Thông báo"
         >
           <Bell className="h-5 w-5" />
         </Button>

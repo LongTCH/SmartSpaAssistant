@@ -405,11 +405,16 @@ class Alert(Base):
     # Relationship to Notification
     notification = relationship("Notification", back_populates="alerts")
 
-    def to_dict(self):
-        return {
+    def to_dict(self, include=None):
+        if include is None:
+            include = []
+        result = {
             "id": self.id,
             "guest_id": self.guest_id,
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "notification_id": self.notification_id,
         }
+        if "notification" in include and self.notification:
+            result["notification"] = self.notification.to_dict()
+        return result

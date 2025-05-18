@@ -1,9 +1,11 @@
+import hashlib
 import json
 import re
-from typing import Literal
+from typing import Any, Literal
 
 import sqlparse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, TypeAdapter
+from unidecode import unidecode
 
 
 class MessagePart(BaseModel):
@@ -142,3 +144,36 @@ def limit_sample_rows_content(sample_rows, limit_words=500):
             data[i] = limit_sample_rows_content(item, limit_words)
 
     return data
+
+
+def dump_json(data: Any, *, indent: int = None, exclude_none: bool = False) -> str:
+    """
+    Tuần tự hóa dữ liệu thành chuỗi JSON, hỗ trợ các kiểu dữ liệu phức tạp.
+
+    :param data: Dữ liệu cần tuần tự hóa (có thể là mô hình Pydantic, danh sách, từ điển, v.v.).
+    :param indent: Số khoảng trắng để thụt lề trong chuỗi JSON (mặc định là None).
+    :param exclude_none: Loại bỏ các trường có giá trị None nếu đặt là True.
+    :return: Chuỗi JSON đại diện cho dữ liệu.
+    """
+    adapter = TypeAdapter(type(data))
+    return adapter.dump_json(data, indent=indent, exclude_none=exclude_none).decode(
+        "utf-8"
+    )
+
+
+def normalize_tool_name(text: str) -> str:
+    # Dùng unidecode để phiên âm tất cả ký tự Unicode sang Latin
+    transliterated = unidecode(text)
+
+    # Chuyển sang chữ thường và thay thế ký tự không hợp lệ bằng dấu -
+    normalized = re.sub(r"[^a-zA-Z0-9_-]+", "-", transliterated).strip("_-").lower()
+
+    # Nếu kết quả quá ngắn, dùng mã băm
+    if not normalized or len(normalized) < 3:
+        normalized = "tool_" + hashlib.sha1(text.encode("utf-8")).hexdigest()[:8]
+
+    # Nếu bắt đầu bằng số, thêm dấu gạch dưới
+    if normalized[0].isdigit():
+        normalized = "_" + normalized
+
+    return normalized[:64]

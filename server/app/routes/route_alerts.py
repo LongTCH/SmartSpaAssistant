@@ -11,9 +11,9 @@ async def get_alerts(request: Request, db: AsyncSession = Depends(get_session)):
     """
     Get all alerts from the database.
     """
-    skip = int(request.query_params.get("page", 1))
+    skip = int(request.query_params.get("skip", 0))
     limit = int(request.query_params.get("limit", 10))
-    notification_id = request.query_params.get("notification_id", "all")
+    notification_id = request.query_params.get("notification", "all")
     if notification_id == "all":
         alerts = await alert_service.get_alerts(db, skip, limit)
         return alerts

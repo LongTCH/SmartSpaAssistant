@@ -5,7 +5,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 import aiohttp
-from app.baml_agents import invoke_agent
+from app.agents import invoke_agent
 from app.configs import env_config
 from app.configs.constants import CHAT_ASSIGNMENT, CHAT_SIDES, PROVIDERS
 from app.configs.database import async_session

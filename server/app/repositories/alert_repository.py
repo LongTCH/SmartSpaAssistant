@@ -1,6 +1,7 @@
 from app.models import Alert
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
+from sqlalchemy.orm import selectinload
 
 
 async def count_alerts(db: AsyncSession) -> int:
@@ -16,7 +17,13 @@ async def get_paging_alerts(db: AsyncSession, skip: int, limit: int) -> list[Ale
     """
     Get a paginated list of alerts from the database.
     """
-    stmt = select(Alert).order_by(Alert.created_at.desc()).offset(skip).limit(limit)
+    stmt = (
+        select(Alert)
+        .options(selectinload(Alert.notification))
+        .order_by(Alert.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -40,9 +47,19 @@ async def get_paging_alerts_by_notification_id(
     """
     stmt = (
         select(Alert)
+        .options(selectinload(Alert.notification))
         .where(Alert.notification_id == notification_id)
         .offset(skip)
         .limit(limit)
     )
     result = await db.execute(stmt)
     return result.scalars().all()
+
+
+async def insert_alert(db: AsyncSession, alert: Alert) -> Alert:
+    """
+    Insert a new alert into the database.
+    """
+    db.add(alert)
+    await db.flush()
+    return alert

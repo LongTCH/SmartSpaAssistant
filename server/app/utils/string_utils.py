@@ -4,8 +4,3 @@ from jinja2 import Template
 def render_tool_template(template_str: str, **kwargs) -> str:
     template = Template(template_str)
     return template.render(**kwargs)
-
-
-print(
-    render_tool_template("Tool '{{ raw }}' => '{{ name }}'", raw="你好", name=("你好"))
-)

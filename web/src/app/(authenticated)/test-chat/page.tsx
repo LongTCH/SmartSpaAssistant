@@ -75,12 +75,19 @@ export default function TestChatPage() {
     registerMessageHandler,
     isWebSocketConnected,
     setActiveNavTab,
+    setPageLoading,
   } = useApp();
 
-  // Set active tab when component mounts
+  // Set active tab when component mounts and handle loading state
   useEffect(() => {
     setActiveNavTab("test-chat");
-  }, [setActiveNavTab]);
+    // Turn off loading after a short delay to ensure UI is ready
+    const timer = setTimeout(() => {
+      setPageLoading(false);
+    }, 500);
+
+    return () => clearTimeout(timer);
+  }, [setActiveNavTab, setPageLoading]);
 
   // Create a new conversation
   const handleNewConversation = useCallback(

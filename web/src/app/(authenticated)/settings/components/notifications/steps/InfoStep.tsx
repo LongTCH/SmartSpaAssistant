@@ -10,6 +10,13 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { ColorPicker } from "@/components/color-picker";
+import { Button } from "@/components/ui/button";
+import { Info } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface InfoStepProps {
   name: string;
@@ -36,12 +43,27 @@ export function InfoStep({
     <div className="space-y-6 p-4">
       <div className="flex flex-col md:flex-row gap-4 items-start">
         <div className="space-y-2 flex-1">
-          <label className="text-sm font-medium">
+          <label className="text-sm font-medium flex items-center gap-1">
             Nhãn: <span className="text-red-500">*</span>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 rounded-full text-[#6366F1]"
+                >
+                  <Info className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Tối đa 40 ký tự</p>
+              </TooltipContent>
+            </Tooltip>
           </label>
           <Input
             placeholder="đặt hàng"
             value={name}
+            maxLength={40}
             onChange={(e) => setName(e.target.value)}
           />
         </div>
