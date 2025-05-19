@@ -4,18 +4,30 @@ from datetime import datetime
 from typing import Any
 
 import pytz
-from agents import Agent, RunContextWrapper, default_tool_error_function, function_tool
+from agents import (
+    Agent,
+    ModelSettings,
+    RunContextWrapper,
+    default_tool_error_function,
+    function_tool,
+)
 from app.configs.database import async_session, with_session
-from app.repositories import sheet_repository
-from app.services.integrations import sheet_rag_service
+from app.dtos import ScriptChunkDto
+from app.repositories import chat_history_repository, sheet_repository
+from app.services.integrations import script_rag_service, sheet_rag_service
 from app.utils.agent_utils import (
+    CurrentTimeResponse,
     MessagePart,
+    dump_json,
     is_read_only_sql,
     limit_sample_rows_content,
     normalize_postgres_query,
 )
 from fuzzywuzzy import process
 from sqlalchemy import text
+
+MAX_HISTORY_MESSAGES = 5
+LONG_TERM_MEMORY_LIMIT = 50
 
 
 @dataclass
@@ -27,7 +39,7 @@ class SyntheticAgentDeps:
     timezone: str = "Asia/Ho_Chi_Minh"
 
 
-async def get_characteristics(context: RunContextWrapper[SyntheticAgentDeps]) -> str:
+async def get_characteristics(wrapper: RunContextWrapper[SyntheticAgentDeps]) -> str:
     return """
     CHARACTERISTICS:
     You are Nguyen Thi Phuong Thao, a 25‑year‑old female customer service specialist at Mailisa Spa (skin care). You are dynamic, polite, supportive, well‑explained, and soft‑spoken. Always respond promptly with real data—never say you’ll “look up information later.”
@@ -43,28 +55,7 @@ async def get_characteristics(context: RunContextWrapper[SyntheticAgentDeps]) ->
 """
 
 
-async def get_all_associated_scripts(
-    context: RunContextWrapper[SyntheticAgentDeps],
-) -> str:
-    """
-    Get all associated scripts from the database.
-    """
-    script_context = context.context.script_context
-    if not script_context:
-        return ""
-    return f"\n## Here are related instructions. You need to rerank and filter important ones:\n{script_context}\n"
-
-
-async def get_current_local_time(context: RunContextWrapper[SyntheticAgentDeps]) -> str:
-    """
-    Get the current local time.
-    """
-    tz = pytz.timezone(context.context.timezone)
-    local_time = datetime.now(tz)
-    return f"\nCurrent local time at {context.context.timezone} is: {str(local_time)}\n"
-
-
-async def get_tools(context: RunContextWrapper[SyntheticAgentDeps]) -> str:
+async def get_tools(wrapper: RunContextWrapper[SyntheticAgentDeps]) -> str:
     """
     Get all tools.
     """
@@ -79,20 +70,29 @@ async def get_tools(context: RunContextWrapper[SyntheticAgentDeps]) -> str:
     3. `rag_hybrid_search`: Use this tool to query from the RAG (Retrieval-Augmented Generation) database.
     You are also provided with the RAG tool to query vector database, each vector contains an entire row of sheet.
     If query SQL not return data, you can fall back to RAG tool, but notice that results from RAG are just relevant data and not the accurate data.
+    
+    4. `get_current_local_time`: Use this tool to get the current local time (ISO Format) at local timezone.
+    
+    5. `get_long_term_memory`: Use this tool to get long term memory from the database.
+
+    6. `get_all_associated_scripts`: Use this tool to get all associated QA scripts for instruction.
+
+    7. `get_all_available_sheets`: Use this tool to get all available sheets from the database to analyze structure in order to construct sql query.
     """
 
 
-async def get_context_memory(context: RunContextWrapper[SyntheticAgentDeps]) -> str:
+async def get_context_memory(wrapper: RunContextWrapper[SyntheticAgentDeps]) -> str:
     """
-    Get context memory from the database.
+    Get long-term memory about current customer from the database.
+    Always use this tool for each user input.
     """
-    context = context.context.context_memory
+    context = wrapper.context.context_memory
     if not context:
         return ""
     return f"\n## Relevant information from previous conversations:\n{context}"
 
 
-async def get_sheets_desc(context: RunContextWrapper[SyntheticAgentDeps]) -> str:
+async def get_sheets_desc(wrapper: RunContextWrapper[SyntheticAgentDeps]) -> str:
     """
     Get associated sheet from the database.
     """
@@ -131,38 +131,56 @@ instructions = """
 
 
 async def dynamic_instructions(
-    context: RunContextWrapper[SyntheticAgentDeps], agent: Agent[SyntheticAgentDeps]
+    wrapper: RunContextWrapper[SyntheticAgentDeps], agent: Agent[SyntheticAgentDeps]
 ) -> str:
-    characteristics = await get_characteristics(context)
-    script_context = await get_all_associated_scripts(context)
-    current_local_time = await get_current_local_time(context)
-    tools_context = await get_tools(context)
-    context_memory = await get_context_memory(context)
-    sheets_desc = await get_sheets_desc(context)
+    characteristics = await get_characteristics(wrapper)
+    # script_context = await get_all_associated_scripts(wrapper)
+    # current_local_time = await get_current_local_time(wrapper)
+    tools_context = await get_tools(wrapper)
+    # context_memory = await get_context_memory(wrapper)
+    # sheets_desc = await get_sheets_desc(wrapper)
     return (
         instructions
         + characteristics
-        + script_context
-        + current_local_time
+        # + script_context
+        # + current_local_time
         + tools_context
-        + context_memory
-        + sheets_desc
+        # + context_memory
+        # + sheets_desc
     )
 
 
 @function_tool(failure_error_function=default_tool_error_function)
+async def get_all_associated_scripts(
+    wrapper: RunContextWrapper[SyntheticAgentDeps], user_rewrite_input: str
+) -> str:
+    """
+    Pass the rewritten user input to get all associated QA scripts for instruction.
+    Always use this tool for each user input.
+    """
+    script_chunks: list[ScriptChunkDto] = await script_rag_service.search_script_chunks(
+        user_rewrite_input, limit=5
+    )
+    script_context = "\n".join([chunk.chunk for chunk in script_chunks])
+    if not script_context:
+        return ""
+    return f"\n## Here are related instructions. You need to rerank and filter important ones:\n{script_context}\n"
+
+
+@function_tool(failure_error_function=default_tool_error_function)
 async def get_all_available_sheets(
-    context: RunContextWrapper[SyntheticAgentDeps],
+    wrapper: RunContextWrapper[SyntheticAgentDeps],
 ) -> list[dict[str, Any]]:
     """
     Get all available sheets from the database to analyze structure in order to construct sql query.
+    Always use this tool before execute_query_on_sheet_rows tool.
     """
     try:
         sheets = await with_session(
             lambda db: sheet_repository.get_all_sheets_by_status(db, "published")
         )
         if not sheets:
-            return ""
+            return "No available sheets."
         sheet_list = [
             {
                 "id": sheet.id,
@@ -174,13 +192,21 @@ async def get_all_available_sheets(
             for sheet in sheets
         ]
         for i, sheet in enumerate(sheets):
-            example = await with_session(
+            example_rows = await with_session(
                 lambda session: sheet_repository.get_example_rows_by_sheet_id(
                     session, sheet.id
                 )
             )
-            sheet_list[i]["example_rows"] = limit_sample_rows_content(example)
-        return sheet_list
+            # Convert SQLAlchemy RowMapping objects to dictionaries
+            example_rows_dict = []
+            for row in example_rows:
+                example_rows_dict.append(dict(row))
+            sheet_list[i]["example_rows"] = limit_sample_rows_content(example_rows_dict)
+        return f"""
+            "Here is relevant sheets that help you to decide if we need query from sheets:\n"
+            "Carefully study the description description and column description of each sheet.\n"
+            {dump_json(sheet_list)}
+            """
     except Exception as e:
         print(f"Error fetching sheets: {e}")
         return f"Error fetching sheets: {str(e)}"
@@ -188,7 +214,7 @@ async def get_all_available_sheets(
 
 @function_tool(failure_error_function=default_tool_error_function)
 async def rag_hybrid_search(
-    context: RunContextWrapper[SyntheticAgentDeps],
+    wrapper: RunContextWrapper[SyntheticAgentDeps],
     sheet_id: str,
     query: str,
     limit: int,
@@ -231,9 +257,7 @@ async def rag_hybrid_search(
 
 
 @function_tool(failure_error_function=default_tool_error_function)
-async def execute_query_on_sheet_rows(
-    context: RunContextWrapper[SyntheticAgentDeps], query: str
-) -> list[dict[str, any]]:
+async def execute_query_on_sheet_rows(explain: str, query: str) -> list[dict[str, any]]:
     """
     Use this tool to query from {sheet.table_name} when you know the table_name via the sheet you are querying. FROM "{sheet.table_name}" is the table name you need to query from.
     You can use other fields of {table_name} specified in {sheet.column_config}, with normal operations to filter the query.
@@ -269,8 +293,8 @@ async def execute_query_on_sheet_rows(
     --   3 | PGroonga is a PostgreSQL extension that uses Groonga as index.
     --   1 | PostgreSQL is a relational database management system.
     -- (2 rows)
-    Query syntax is similar to syntax of Web search engine ( "keyword1" OR "keyword2" means OR search and "keyword1" "keyword2" means AND search ). For example, you can use OR to merge result sets of performing full text search by two or more words. In the above example, you get a merged result set. The merged result set has records that includes "PGroonga" or "PostgreSQL".
-    You must always enclose the pgroonga query in parentheses, for example: FROM "some_table_name" WHERE ("data_fts" &@~ '"a" OR "b")​
+    Query syntax ( "keyword1" OR "keyword2" ) means OR search and ( "keyword1" "keyword2" ) means AND search.
+    You must always enclose the pgroonga query in parentheses, for example: FROM "some_table_name" WHERE ("some_column" &@~ '"keyword1" OR "keyword2")​
 
     Example 1:
     If the input keyword string is: "tàn nhang"
@@ -288,6 +312,10 @@ async def execute_query_on_sheet_rows(
       "discounted_price"
     FROM "some_table_name" as tb
     WHERE tb."product_price" > 100
+
+    Args:
+        explain: The detailed explanation of the query.
+        query: The query string to search for.
     """
     try:
         async with async_session() as db:
@@ -311,13 +339,44 @@ async def execute_query_on_sheet_rows(
                     "Prefer using less keywords or using OR to comine them. Please check your keywords."
                 )
             return [dict(row) for row in rows]
-    except Exception as model_retry:
-        raise model_retry
     except Exception as e:
         print(f"Error executing query: {e}")
         raise Exception(
             f"Error executing query: {str(e)}. Please check your query again."
         )
+
+
+@function_tool(failure_error_function=default_tool_error_function)
+async def get_current_local_time(
+    wrapper: RunContextWrapper[SyntheticAgentDeps],
+) -> CurrentTimeResponse:
+    """
+    Get the current local time (ISO Format) at local timezone.
+    """
+    tz = pytz.timezone(wrapper.context.timezone)
+    local_time = datetime.now(tz)
+    return CurrentTimeResponse(
+        timezone=wrapper.context.timezone,
+        current_time=local_time.isoformat(),
+    )
+
+
+@function_tool(failure_error_function=default_tool_error_function)
+async def get_long_term_memory(
+    wrapper: RunContextWrapper[SyntheticAgentDeps], user_id: str
+) -> str:
+    """
+    Get long term memory from the database.
+    """
+    chat_summaries = await with_session(
+        lambda db: chat_history_repository.get_long_term_memory(
+            db, user_id, skip=MAX_HISTORY_MESSAGES, limit=LONG_TERM_MEMORY_LIMIT
+        )
+    )
+    memory = "\n".join(chat_summaries)
+    return (
+        f"\n## Here are relevant information from previous conversations:\n{memory}\n"
+    )
 
 
 def get_table_name_from_query(query: str) -> str:
@@ -370,8 +429,17 @@ def replace_table_if_needed(
 
 
 synthetic_agent = Agent[SyntheticAgentDeps](
+    name="synthetic_agent",
     model="gpt-4o-mini",
     instructions=dynamic_instructions,
-    tools=[get_all_available_sheets, rag_hybrid_search, execute_query_on_sheet_rows],
+    tools=[
+        get_all_available_sheets,
+        rag_hybrid_search,
+        execute_query_on_sheet_rows,
+        get_current_local_time,
+        get_long_term_memory,
+        get_all_associated_scripts,
+    ],
     output_type=list[MessagePart],
+    model_settings=ModelSettings(temperature=0, tool_choice="required"),
 )

@@ -5,11 +5,11 @@ from datetime import datetime
 from typing import Any, Dict
 
 import aiohttp
-from app.agents import invoke_agent
 from app.configs import env_config
 from app.configs.constants import CHAT_ASSIGNMENT, CHAT_SIDES, PROVIDERS
 from app.configs.database import async_session
 from app.models import Guest, GuestInfo
+from app.pydantic_agents import invoke_agent
 from app.repositories import guest_info_repository, guest_repository
 from app.services import chat_service, interest_service
 from app.stores.store import LOCAL_DATA

@@ -1,11 +1,12 @@
 import logfire
-from app.agents.memory import memory_agent
-from app.agents.message_rewrite import message_rewrite_agent
-from app.agents.synthetic import SyntheticAgentDeps, create_synthetic_agent
 from app.configs.database import with_session
 from app.dtos import ScriptChunkDto
+from app.pydantic_agents.memory import memory_agent
+from app.pydantic_agents.message_rewrite import message_rewrite_agent
+from app.pydantic_agents.synthetic import SyntheticAgentDeps, create_synthetic_agent
 from app.repositories import chat_history_repository
 from app.services.integrations import script_rag_service
+from app.utils import asyncio_utils
 from app.utils.agent_utils import MessagePart, dump_json
 from pydantic_ai.agent import AgentRunResult
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
@@ -24,6 +25,7 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
                 session, user_id, limit=MAX_HISTORY_MESSAGES
             )
         )
+        chat_histories = chat_histories[::-1]
         message_history: list[ModelMessage] = []
         for message in chat_histories:
             model_message = ModelMessagesTypeAdapter.validate_json(message.content)
@@ -83,16 +85,21 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
         chat_content = (
             f"Customer: {user_input}\nAssistant: {dump_json(synthetic_result.output)}"
         )
-
-        memory_agent_output = await memory_agent.run(chat_content)
-        summary = memory_agent_output.output
-        await with_session(
-            lambda session: chat_history_repository.insert_chat_history(
-                session, user_id, synthetic_result.new_messages_json(), summary
-            )
+        asyncio_utils.run_background(
+            run_memory, user_id, chat_content, synthetic_result.new_messages_json()
         )
 
         return synthetic_result.output
     except Exception as e:
         print(e)
         return "Sorry, I can't answer that question right now."
+
+
+async def run_memory(user_id, chat_content, new_messages):
+    memory_agent_output = await memory_agent.run(chat_content)
+    summary = memory_agent_output.output
+    await with_session(
+        lambda session: chat_history_repository.insert_chat_history(
+            session, user_id, new_messages, summary
+        )
+    )

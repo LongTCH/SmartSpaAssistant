@@ -303,19 +303,18 @@ async def update_sheet(db: AsyncSession, sheet_id: str, sheet: dict) -> None:
             raise Exception(f"Sheet with ID {sheet_id} not found")
 
         # Prepare update data with only allowed fields
-        update_data = {}
 
         # Allow updating name if provided
         if "name" in sheet:
-            update_data["name"] = sheet["name"]
+            existing_sheet.name = sheet["name"]
 
         # Allow updating description if provided
         if "description" in sheet:
-            update_data["description"] = sheet["description"]
+            existing_sheet.description = sheet["description"]
 
         # Allow updating status if provided
         if "status" in sheet:
-            update_data["status"] = sheet["status"]
+            existing_sheet.status = sheet["status"]
 
         # Handle column_config updates (only descriptions)
         if "column_config" in sheet and isinstance(sheet["column_config"], list):

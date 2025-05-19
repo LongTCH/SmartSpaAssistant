@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 
-from app.agents.model_hub import model_hub
 from app.configs.database import with_session
+from app.pydantic_agents.model_hub import model_hub
 from app.repositories import sheet_repository
 from pydantic import BaseModel
 from pydantic_ai import Agent, RunContext

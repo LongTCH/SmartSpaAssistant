@@ -1,4 +1,4 @@
-from app.agents.model_hub import model_hub
+from app.pydantic_agents.model_hub import model_hub
 from pydantic_ai import Agent
 from pydantic_ai.settings import ModelSettings
 

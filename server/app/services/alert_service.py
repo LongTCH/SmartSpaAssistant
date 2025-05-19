@@ -52,6 +52,7 @@ async def agent_insert_alert(notification_id: str, guest_id: str, **kwargs) -> s
         alert = await alert_repository.insert_alert(session, alert)
         await session.commit()
         return f"""
-        Aleart {notification.label} has been sent with content:
-        {alert.content}
-        """
+Aleart {notification.label} has been sent with content:
+
+{alert.content}
+"""

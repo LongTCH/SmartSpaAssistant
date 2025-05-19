@@ -4,12 +4,13 @@ from datetime import datetime
 from typing import Any, Dict
 
 import pytz
-from app.agents.model_hub import model_hub
 from app.configs.database import async_session, with_session
+from app.pydantic_agents.model_hub import model_hub
 from app.repositories import notification_repository, sheet_repository
 from app.services import alert_service
 from app.services.integrations import sheet_rag_service
 from app.utils.agent_utils import (
+    CurrentTimeResponse,
     MessagePart,
     dump_json,
     is_read_only_sql,
@@ -20,6 +21,7 @@ from app.utils.agent_utils import (
 from fuzzywuzzy import process
 from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.exceptions import ModelRetry
+from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import ToolDefinition
 from sqlalchemy import text
 
@@ -40,8 +42,23 @@ instructions = """
 """
 
 
+async def get_current_local_time(
+    context: RunContext[SyntheticAgentDeps],
+) -> CurrentTimeResponse:
+    """
+    Get the current local time (ISO Format) at local timezone.
+    """
+    tz = pytz.timezone(context.deps.timezone)
+    local_time = datetime.now(tz)
+    return CurrentTimeResponse(
+        timezone=context.deps.timezone,
+        current_time=local_time.isoformat(),
+    )
+
+
 async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> list[str]:
     """
+    Only use this tool if cannot find the data from SQL query.
     Use this tool to query from the RAG (Retrieval-Augmented Generation) database.
     Sparse vector (BM25) captures exact keyword matches and term importance based on token frequency.
     It is effective for precise matches on specific terms or phrases.
@@ -78,9 +95,50 @@ async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> list[str]:
     return [sheet_chunk.chunk for sheet_chunk in sheet_chunks]
 
 
-async def execute_query_on_sheet_rows(
-    context: RunContext[SyntheticAgentDeps], query: str
-) -> list[dict[str, any]]:
+async def get_all_available_sheets() -> str:
+    """
+    Get all available sheets from the database to analyze structure in order to construct sql query.
+    """
+    try:
+        sheets = await with_session(
+            lambda db: sheet_repository.get_all_sheets_by_status(db, "published")
+        )
+        if not sheets:
+            return ""
+        sheet_list = [
+            {
+                "id": sheet.id,
+                "name": sheet.name,
+                "description": sheet.description,
+                "column_config": sheet.column_config,
+                "table_name": sheet.table_name,
+            }
+            for sheet in sheets
+        ]
+        for i, sheet in enumerate(sheets):
+            example_rows = await with_session(
+                lambda session: sheet_repository.get_example_rows_by_sheet_id(
+                    session, sheet.id
+                )
+            )
+            # Convert SQLAlchemy RowMapping objects to dictionaries
+            example_rows_dict = []
+            for row in example_rows:
+                example_rows_dict.append(dict(row))
+            sheet_list[i]["example_rows"] = limit_sample_rows_content(
+                example_rows_dict, 255
+            )
+        return f"""
+            "Here is relevant sheets that help you to decide if we need query from sheets:\n"
+            "Carefully study the description description and column description of each sheet.\n"
+            {dump_json(sheet_list)}
+            """
+    except Exception as e:
+        print(f"Error fetching sheets: {e}")
+        return f"Error fetching sheets: {str(e)}"
+
+
+async def execute_query_on_sheet_rows(explain: str, query: str) -> list[dict[str, any]]:
     """
     Use this tool to query from {sheet.table_name} when you know the table_name via the sheet you are querying. FROM "{sheet.table_name}" is the table name you need to query from.
     You can use other fields of {table_name} specified in {sheet.column_config}, with normal operations to filter the query.
@@ -135,6 +193,10 @@ async def execute_query_on_sheet_rows(
       "discounted_price"
     FROM "some_table_name" as tb
     WHERE tb."product_price" > 100
+
+    Args:
+        explain: The detailed explanation of the query.
+        query: The query string to search for.
     """
     try:
         async with async_session() as db:
@@ -163,7 +225,7 @@ async def execute_query_on_sheet_rows(
     except Exception as e:
         print(f"Error executing query: {e}")
         raise ModelRetry(
-            f"Error executing query: {str(e)}. Please check your query again."
+            f"Error executing query: {str(e)}. Please reanalyze sheets structure using `get_all_available_sheets` tool."
         )
 
 
@@ -189,6 +251,15 @@ def get_description_from_param(param_type: str, description: str) -> str:
 
 def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) -> Tool:
     async def tool_function(**kwargs):
+        empty_params = []
+        # loop all params in kwargs to check find all empty params
+        for param in tool_info["parameters"]["properties"]:
+            if param["name"] not in kwargs or not kwargs[param["name"]]:
+                empty_params.append(param["name"])
+        if empty_params:
+            raise ModelRetry(
+                f"Missing required parameters, can't not send notification now: {', '.join(empty_params)}"
+            )
         return await alert_service.agent_insert_alert(
             notification_id=notification_id, guest_id=guest_id, **kwargs
         )
@@ -247,17 +318,26 @@ async def create_synthetic_agent(
         model=model,
         instructions=instructions,
         retries=2,
-        # model_settings=ModelSettings(temperature=0),
+        model_settings=ModelSettings(temperature=0),
         output_type=list[MessagePart],
         output_retries=2,
         tools=[
             Tool(
+                get_all_available_sheets,
+                takes_ctx=False,
+            ),
+            Tool(
                 execute_query_on_sheet_rows,
-                takes_ctx=True,
+                takes_ctx=False,
                 max_retries=3,
+                require_parameter_descriptions=True,
             ),
             Tool(
                 rag_hybrid_search, takes_ctx=False, require_parameter_descriptions=True
+            ),
+            Tool(
+                get_current_local_time,
+                takes_ctx=True,
             ),
         ]
         + extra_tools,
@@ -280,29 +360,6 @@ async def create_synthetic_agent(
     """
 
     @synthetic_agent.instructions
-    async def get_all_associated_scripts(
-        context: RunContext[SyntheticAgentDeps],
-    ) -> str:
-        """
-        Get all associated scripts from the database.
-        """
-        script_context = context.deps.script_context
-        if not script_context:
-            return ""
-        return f"\n## Here are related instructions. You need to rerank and filter important ones:\n{script_context}\n"
-
-    @synthetic_agent.instructions
-    async def get_current_local_time(context: RunContext[SyntheticAgentDeps]) -> str:
-        """
-        Get the current local time.
-        """
-        tz = pytz.timezone(context.deps.timezone)
-        local_time = datetime.now(tz)
-        return (
-            f"\nCurrent local time at {context.deps.timezone} is: {str(local_time)}\n"
-        )
-
-    @synthetic_agent.instructions
     async def get_tools(context: RunContext[SyntheticAgentDeps]) -> str:
         """
         Get all tools.
@@ -322,6 +379,8 @@ async def create_synthetic_agent(
         4. Multiple tools with name as `send_notify_{notification.label}` and description as `Call this tool in case: {notification.description}`
         Before responding to the customer, you need to check whether we need to call any or many of these tools to notify our admin.
         Please check the description of each tool to see when to call them.
+
+        5. `get_current_local_time`: Use this tool to get the current local time (ISO Format) at local timezone.
         """
 
     @synthetic_agent.instructions
@@ -335,7 +394,19 @@ async def create_synthetic_agent(
         return f"\n## Relevant information from previous conversations:\n{context}"
 
     @synthetic_agent.instructions
-    async def get_all_available_sheets(
+    async def get_all_associated_scripts(
+        context: RunContext[SyntheticAgentDeps],
+    ) -> str:
+        """
+        Get all associated scripts from the database.
+        """
+        script_context = context.deps.script_context
+        if not script_context:
+            return ""
+        return f"\n## Here are related instructions. You need to rerank and filter important ones:\n{script_context}\n"
+
+    @synthetic_agent.instructions
+    async def get_sheet_context(
         context: RunContext[SyntheticAgentDeps],
     ) -> str:
         """
@@ -368,7 +439,7 @@ async def create_synthetic_agent(
                 for row in example_rows:
                     example_rows_dict.append(dict(row))
                 sheet_list[i]["example_rows"] = limit_sample_rows_content(
-                    example_rows_dict
+                    example_rows_dict, 255
                 )
             return f"""
             "Here is relevant sheets that help you to decide if we need query from sheets:\n"
@@ -378,39 +449,6 @@ async def create_synthetic_agent(
         except Exception as e:
             print(f"Error fetching sheets: {e}")
             return f"Error fetching sheets: {str(e)}"
-
-    # @synthetic_agent.instructions
-    # async def get_sheets_desc(context: RunContext[SyntheticAgentDeps]) -> str:
-    #     """
-    #     Get associated sheet from the database.
-    #     """
-    #     try:
-    #         sheets = await with_session(
-    #             lambda db: sheet_repository.get_all_sheets_by_status(
-    #                 db, "published")
-    #         )
-    #         if not sheets:
-    #             return "No available sheets. So set should_query_sheet to False."
-    #         sheets_desc = ""
-    #         for sheet in sheets:
-    #             sheets_desc += (
-    #                 f"Sheet name: {sheet.name}\n Sheet description: {sheet.description}\n"
-    #                 "----------------------------------\n"
-    #                 "Sheet columns:\n"
-    #             )
-    #             for column in sheet.column_config:
-    #                 sheets_desc += (
-    #                     f"Column name: {column['column_name']}\n"
-    #                     f"Column description: {column['description']}\n"
-
-    #                 )
-    #         return (
-    #             "Here is relevant sheets that help you to decide if we need query from sheets:\n"
-    #             "Carefully study the description description and column description of each sheet.\n"
-    #             f"{sheets_desc}"
-    #         )
-    #     except Exception as e:
-    #         return f"Error fetching sheets: {str(e)}"
 
     return synthetic_agent
 

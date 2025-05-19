@@ -1,4 +1,4 @@
-from app.agents.model_hub import model_hub
+from app.pydantic_agents.model_hub import model_hub
 from app.utils.agent_utils import MessagePart
 from pydantic import BaseModel, Field
 from pydantic_ai import Agent

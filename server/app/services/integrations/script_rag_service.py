@@ -194,7 +194,12 @@ async def search_script_chunks(query: str, limit: int = 5) -> list[ScriptChunkDt
                 final_scripts[related_script.id] = ScriptChunkDto(
                     script_id=related_script.id,
                     script_name=related_script.name,
-                    chunk=f"{related_script.solution}",
+                    chunk=f"""
+When customer ask:
+{related_script.description}
+Then you can use this solution:
+{related_script.solution}
+-------------------------------\n""",
                 )
         i += 1
     return list(final_scripts.values())

@@ -1,9 +1,9 @@
 from datetime import datetime
 from uuid import uuid4
 
-from app.agents import invoke_agent
 from app.configs.constants import WS_MESSAGES
 from app.dtos import WsMessageDto
+from app.pydantic_agents import invoke_agent
 from app.services.connection_manager import manager
 from app.utils.agent_utils import MessagePart
 from app.utils.asyncio_utils import run_background

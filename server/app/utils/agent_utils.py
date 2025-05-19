@@ -84,42 +84,21 @@ def normalize_postgres_query(query: str) -> str:
     return query
 
 
-def limit_text_words(text, max_words=100):
-    """Limit text to a maximum number of words and add '...' if truncated.
-    Handles text with various separators commonly found in user editor content.
+def limit_text_words(text, max_characters=500):
+    """Limit text to a maximum number of characters and add '...' if truncated.
+    Returns the original text if it's shorter than max_characters.
     """
     if not text or not isinstance(text, str):
         return text
 
-    # Split text by multiple separators: spaces, newlines, tabs, commas, periods, etc.
-    # This regex will treat any sequence of whitespace or common punctuation as a word separator
-    words = re.split(r'[\s\t\n\r.,;:!?\(\)\[\]{}"\'\-_<>=/\\|]+', text)
-
-    # Filter out empty strings that might result from the split
-    words = [word for word in words if word.strip()]
-
-    if len(words) <= max_words:
+    if len(text) <= max_characters:
         return text
 
-    # Rebuild the text with original formatting up to max_words
-    # Find position where max_words ends
-    count = 0
-    position = 0
-
-    for match in re.finditer(r"[\S]+", text):
-        count += 1
-        if count > max_words:
-            position = match.start()
-            break
-
-    if position > 0:
-        return text[:position].rstrip() + "..."
-    else:
-        # Fallback if regex approach doesn't work
-        return " ".join(words[:max_words]) + "..."
+    # Chỉ cắt đến số ký tự tối đa và thêm dấu "..."
+    return text[:max_characters].rstrip() + "..."
 
 
-def limit_sample_rows_content(sample_rows, limit_words=500):
+def limit_sample_rows_content(sample_rows, max_characters=500):
     """Limit the length of text fields in sample_rows JSON content."""
     if not sample_rows:
         return sample_rows
@@ -129,19 +108,19 @@ def limit_sample_rows_content(sample_rows, limit_words=500):
             data = json.loads(sample_rows)
         except json.JSONDecodeError:
             # If it's not valid JSON, just limit the whole string
-            return limit_text_words(sample_rows)
+            return limit_text_words(sample_rows, max_characters)
     else:
         data = sample_rows
 
     if isinstance(data, dict):
         for key, value in data.items():
             if isinstance(value, str):
-                data[key] = limit_text_words(value, limit_words)
+                data[key] = limit_text_words(value, max_characters)
             elif isinstance(value, (dict, list)):
-                data[key] = limit_sample_rows_content(value, limit_words)
+                data[key] = limit_sample_rows_content(value, max_characters)
     elif isinstance(data, list):
         for i, item in enumerate(data):
-            data[i] = limit_sample_rows_content(item, limit_words)
+            data[i] = limit_sample_rows_content(item, max_characters)
 
     return data
 
@@ -177,3 +156,12 @@ def normalize_tool_name(text: str) -> str:
         normalized = "_" + normalized
 
     return normalized[:64]
+
+
+class CurrentTimeResponse(BaseModel):
+    timezone: str = Field(
+        description="The timezone in which the current time is provided."
+    )
+    current_time: str = Field(
+        description="The current time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS±HH:MM)."
+    )
