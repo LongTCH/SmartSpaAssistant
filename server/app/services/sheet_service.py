@@ -1,6 +1,7 @@
 import json
 import math
 import os
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from io import BytesIO
 
@@ -537,3 +538,28 @@ async def get_sheet_rows_by_sheet_id(
     data_list = [dict(row) for row in rows]
 
     return PagingDto(skip=skip, limit=limit, total=count, data=data_list)
+
+
+async def agent_sheets_to_xml(sheets: list[Sheet]) -> str:
+    root = ET.Element("sheets")
+
+    for sheet in sheets:
+        sheet_dict = sheet.to_dict()
+        sheet_elem = ET.SubElement(root, "sheet")
+
+        for key in ["id", "name", "description", "table_name"]:
+            child = ET.SubElement(sheet_elem, key)
+            child.text = str(sheet_dict.get(key, ""))
+
+        columns_elem = ET.SubElement(sheet_elem, "column_config")
+        for col in sheet_dict.get("column_config", []):
+            col_elem = ET.SubElement(columns_elem, "column")
+            for col_key in ["is_index", "column_name", "column_type", "description"]:
+                col_child = ET.SubElement(col_elem, col_key)
+                val = col.get(col_key, "")
+                if isinstance(val, bool):
+                    col_child.text = str(val).lower()
+                else:
+                    col_child.text = str(val)
+
+    return ET.tostring(root, encoding="unicode")

@@ -27,7 +27,7 @@ async def get_latest_chat_histories(
 
 async def get_long_term_memory(
     db: AsyncSession, guest_id: str, skip: int, limit=50
-) -> list[ChatHistory]:
+) -> list[str]:
     # get column 'summary' sorted by 'created_at' in descending order with limit
     stmt = (
         select(ChatHistory.summary)

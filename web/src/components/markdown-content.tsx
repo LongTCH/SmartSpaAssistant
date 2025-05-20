@@ -87,7 +87,7 @@ export function MarkdownContent({
             PreTag="div"
             {...props}
           >
-            {String(children).replace(/\n$/, "")}
+            {String(children).replace(/\n+$/, "")}
           </SyntaxHighlighter>
         </div>
       ) : (

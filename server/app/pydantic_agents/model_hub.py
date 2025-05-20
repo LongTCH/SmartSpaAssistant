@@ -17,6 +17,8 @@ ModelName = Literal[
     "gemini-2.5-pro",
     "qwen-2.5-coder",
     "o4-mini",
+    "gpt-4.1",
+    "gemini-1.5-flash-8b",
 ]
 ModelType = Union[OpenAIModel, GeminiModel]
 
@@ -49,6 +51,10 @@ model_hub: Dict[ModelName, ModelType] = {
             api_key=env_config.GEMINI_API_KEY,
         ),
     ),
+    "gpt-4.1": OpenAIModel(
+        "gpt-4.1",
+        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
+    ),
     "gpt-4.1-mini": OpenAIModel(
         "gpt-4.1-mini",
         provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
@@ -77,6 +83,12 @@ model_hub: Dict[ModelName, ModelType] = {
     ),
     "gemini-2.5-pro": GeminiModel(
         "gemini-2.5-pro-preview-05-06",
+        provider=GoogleGLAProvider(
+            api_key=env_config.GEMINI_API_KEY,
+        ),
+    ),
+    "gemini-1.5-flash-8b": GeminiModel(
+        "gemini-1.5-flash-8b",
         provider=GoogleGLAProvider(
             api_key=env_config.GEMINI_API_KEY,
         ),

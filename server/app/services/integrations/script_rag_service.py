@@ -1,7 +1,7 @@
 import uuid
 
 from app.configs import env_config
-from app.configs.database import with_session
+from app.configs.database import async_session, with_session
 from app.dtos import ScriptChunkDto
 from app.models import Script
 from app.repositories import script_repository
@@ -108,7 +108,7 @@ async def get_script_points_all(scripts: list[Script]):
             ScriptChunkDto(
                 script_id=script.id,
                 script_name=script.name,
-                chunk=f"{script.description}",
+                chunk=f"<script><question>{script.description}</question><answer>{script.solution}</answer></script>",
             )
         ]
         chunks.extend(script_chunks)
@@ -166,40 +166,37 @@ async def update_script(script_id) -> None:
     await insert_script(script_id)
 
 
-async def search_script_chunks(query: str, limit: int = 5) -> list[ScriptChunkDto]:
-    client = create_qdrant_client()
-    dense_embeddings = await jina.get_embeddings(query)
-    search_result = await client.query_points(
-        collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
-        query=dense_embeddings[0],
-        limit=limit,
-    )
-    search_result = search_result.points
-    script_ids = [point.payload["script_id"] for point in search_result]
-    scripts = await with_session(
-        lambda session: script_repository.get_scripts_by_ids(session, script_ids)
-    )
-    final_scripts = {}
-    i = 0
-    while i < limit:
-        script_top_i = scripts[i]
-        final_scripts[script_top_i.id] = ScriptChunkDto(
-            script_id=script_top_i.id,
-            script_name=script_top_i.name,
-            chunk=f"{script_top_i.solution}",
+async def search_script_chunks(query: str, limit: int = 5) -> list[Script]:
+    async with async_session() as session:
+        count_db_scripts = await script_repository.count_scripts(session)
+        if count_db_scripts < limit:
+            return await script_repository.get_all_scripts(session)
+        client = create_qdrant_client()
+        dense_embeddings = await jina.get_embeddings(f"<question>{query}</question>")
+        search_result = await client.query_points(
+            collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
+            query=dense_embeddings[0],
+            limit=limit,
         )
-        related_scripts = script_top_i.related_scripts
-        for related_script in related_scripts:
-            if related_script.id not in final_scripts:
-                final_scripts[related_script.id] = ScriptChunkDto(
-                    script_id=related_script.id,
-                    script_name=related_script.name,
-                    chunk=f"""
-When customer ask:
-{related_script.description}
-Then you can use this solution:
-{related_script.solution}
--------------------------------\n""",
-                )
-        i += 1
-    return list(final_scripts.values())
+        search_result = search_result.points
+        script_ids = [point.payload["script_id"] for point in search_result]
+        scripts = await with_session(
+            lambda session: script_repository.get_scripts_by_ids(session, script_ids)
+        )
+        final_scripts = {}
+        for script in scripts:
+            final_scripts[script.id] = script
+            related_scripts = script.related_scripts
+            for related_script in related_scripts:
+                if related_script.id not in final_scripts:
+                    final_scripts[related_script.id] = related_script
+        # i = 0
+        # while i < limit:
+        #     script_top_i = scripts[i]
+        #     final_scripts[script_top_i.id] = script_top_i
+        #     related_scripts = script_top_i.related_scripts
+        #     for related_script in related_scripts:
+        #         if related_script.id not in final_scripts:
+        #             final_scripts[related_script.id] = related_script
+        #     i += 1
+        return list(final_scripts.values())

@@ -31,7 +31,13 @@ async def get_embeddings(texts: str | list[str]) -> list[list[float]]:
     }
     if isinstance(texts, str):
         texts = [texts]
-    data = {"model": "jina-embeddings-v3", "task": "text-matching", "input": texts}
+    data = {
+        "model": "jina-embeddings-v3",
+        "truncate": True,
+        "dimensions": 384,
+        "task": "text-matching",
+        "input": texts,
+    }
     async with aiohttp.ClientSession() as session:
         async with session.post(
             url, headers=headers, data=json.dumps(data, ensure_ascii=False)

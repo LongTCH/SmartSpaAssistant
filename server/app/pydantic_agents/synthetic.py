@@ -1,3 +1,4 @@
+import os
 import re
 from dataclasses import dataclass
 from datetime import datetime
@@ -7,21 +8,19 @@ import pytz
 from app.configs.database import async_session, with_session
 from app.pydantic_agents.model_hub import model_hub
 from app.repositories import notification_repository, sheet_repository
-from app.services import alert_service
+from app.services import alert_service, sheet_service
 from app.services.integrations import sheet_rag_service
 from app.utils.agent_utils import (
     CurrentTimeResponse,
     MessagePart,
-    dump_json,
     is_read_only_sql,
-    limit_sample_rows_content,
     normalize_postgres_query,
     normalize_tool_name,
 )
 from fuzzywuzzy import process
+from jinja2 import Environment, FileSystemLoader
 from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.exceptions import ModelRetry
-from pydantic_ai.settings import ModelSettings
 from pydantic_ai.tools import ToolDefinition
 from sqlalchemy import text
 
@@ -35,11 +34,11 @@ class SyntheticAgentDeps:
     timezone: str = "Asia/Ho_Chi_Minh"
 
 
-instructions = """
-    From provided context and sheet description, decide whether you should query from the sheet or prompt customer for more information.
-    Think carefully when query from the sheet without LIMIT clause, it may return too much data. If information has provided in the context, you should not query from the sheet.
-    If you need to query from the sheet, carefully analyze the customer's message, provided context, the sheet description and column description to construct the SQL query.
-"""
+# instructions = """
+#     From provided context and sheet description, decide whether you should query from the sheet or prompt customer for more information.
+#     Think carefully when query from the sheet without LIMIT clause, it may return too much data. If information has provided in the context, you should not query from the sheet.
+#     If you need to query from the sheet, carefully analyze the customer's message, provided context, the sheet description and column description to construct the SQL query.
+# """
 
 
 async def get_current_local_time(
@@ -97,7 +96,7 @@ async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> list[str]:
 
 async def get_all_available_sheets() -> str:
     """
-    Get all available sheets from the database to analyze structure in order to construct sql query.
+    Get all available sheets in XML Format from the database to analyze structure in order to construct sql query.
     """
     try:
         sheets = await with_session(
@@ -105,40 +104,44 @@ async def get_all_available_sheets() -> str:
         )
         if not sheets:
             return ""
-        sheet_list = [
-            {
-                "id": sheet.id,
-                "name": sheet.name,
-                "description": sheet.description,
-                "column_config": sheet.column_config,
-                "table_name": sheet.table_name,
-            }
-            for sheet in sheets
-        ]
-        for i, sheet in enumerate(sheets):
-            example_rows = await with_session(
-                lambda session: sheet_repository.get_example_rows_by_sheet_id(
-                    session, sheet.id
-                )
-            )
-            # Convert SQLAlchemy RowMapping objects to dictionaries
-            example_rows_dict = []
-            for row in example_rows:
-                example_rows_dict.append(dict(row))
-            sheet_list[i]["example_rows"] = limit_sample_rows_content(
-                example_rows_dict, 255
-            )
-        return f"""
-            "Here is relevant sheets that help you to decide if we need query from sheets:\n"
+        context = (
+            "Here is relevant sheets in XML Format that help you to decide if we need query from sheets:\n"
             "Carefully study the description description and column description of each sheet.\n"
-            {dump_json(sheet_list)}
-            """
+        )
+        context += await sheet_service.agent_sheets_to_xml(sheets)
+        # sheet_list = [
+        #     {
+        #         "id": sheet.id,
+        #         "name": sheet.name,
+        #         "description": sheet.description,
+        #         "column_config": sheet.column_config,
+        #         "table_name": sheet.table_name,
+        #     }
+        #     for sheet in sheets
+        # ]
+        # for i, sheet in enumerate(sheets):
+        #     example_rows = await with_session(
+        #         lambda session: sheet_repository.get_example_rows_by_sheet_id(
+        #             session, sheet.id
+        #         )
+        #     )
+        #     # Convert SQLAlchemy RowMapping objects to dictionaries
+        #     example_rows_dict = []
+        #     for row in example_rows:
+        #         example_rows_dict.append(dict(row))
+        #     sheet_list[i]["example_rows"] = limit_sample_rows_content(
+        #         example_rows_dict, 255
+        #     )
+
+        return context
     except Exception as e:
         print(f"Error fetching sheets: {e}")
         return f"Error fetching sheets: {str(e)}"
 
 
-async def execute_query_on_sheet_rows(explain: str, query: str) -> list[dict[str, any]]:
+async def execute_query_on_sheet_rows(
+    explain: str, sql_query: str
+) -> list[dict[str, any]]:
     """
     Use this tool to query from {sheet.table_name} when you know the table_name via the sheet you are querying. FROM "{sheet.table_name}" is the table name you need to query from.
     You can use other fields of {table_name} specified in {sheet.column_config}, with normal operations to filter the query.
@@ -195,12 +198,12 @@ async def execute_query_on_sheet_rows(explain: str, query: str) -> list[dict[str
     WHERE tb."product_price" > 100
 
     Args:
-        explain: The detailed explanation of the query.
-        query: The query string to search for.
+        explain: The detailed explaination of the sql_query.
+        sql_query: The PostgreSQL valid query string to search for.
     """
     try:
         async with async_session() as db:
-            query = normalize_postgres_query(query)
+            query = normalize_postgres_query(sql_query)
             if not is_read_only_sql(query):
                 raise ModelRetry(
                     "Query must be read-only SQL. Please check your query again."
@@ -253,9 +256,9 @@ def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) 
     async def tool_function(**kwargs):
         empty_params = []
         # loop all params in kwargs to check find all empty params
-        for param in tool_info["parameters"]["properties"]:
-            if param["name"] not in kwargs or not kwargs[param["name"]]:
-                empty_params.append(param["name"])
+        for param_name in tool_info["parameters"]["properties"]:
+            if param_name not in kwargs or not kwargs[param_name]:
+                empty_params.append(param_name)
         if empty_params:
             raise ModelRetry(
                 f"Missing required parameters, can't not send notification now: {', '.join(empty_params)}"
@@ -281,6 +284,22 @@ def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) 
         function=tool_function,
     )
     return tool
+
+
+async def get_instruction(context: RunContext[SyntheticAgentDeps]) -> str:
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+
+    # Tạo Jinja environment từ thư mục đó
+    env = Environment(loader=FileSystemLoader(current_dir))
+
+    # Load template
+    template = env.get_template("synthetic_prompt.j2")
+    rendered = template.render(
+        memory_context=context.deps.context_memory,
+        scripts_context=context.deps.script_context,
+        sheets_context=await get_all_available_sheets(),
+    )
+    return rendered
 
 
 async def create_synthetic_agent(
@@ -313,12 +332,11 @@ async def create_synthetic_agent(
         for tool_info in extra_tools_json
     ]
 
-    model = model_hub["deepseek-chat"]
+    model = model_hub["gemini-2.5-flash"]
     synthetic_agent = Agent(
         model=model,
-        instructions=instructions,
+        instructions=get_instruction,
         retries=2,
-        model_settings=ModelSettings(temperature=0),
         output_type=list[MessagePart],
         output_retries=2,
         tools=[
@@ -343,112 +361,73 @@ async def create_synthetic_agent(
         + extra_tools,
     )
 
-    @synthetic_agent.instructions
-    async def get_characteristics(context: RunContext[SyntheticAgentDeps]) -> str:
-        return """
-        CHARACTERISTICS:
-        You are Nguyen Thi Phuong Thao, a 25‑year‑old female customer service specialist at Mailisa Spa (skin care). You are dynamic, polite, supportive, well‑explained, and soft‑spoken. Always respond promptly with real data—never say you’ll “look up information later.”
-        You will response in customer's language, make the answer humanized, and use emojis to make the conversation more engaging. You are not a bot, so avoid using technical terms or jargon.
-        BEHAVIOR:
-        1. Just provide information from trusted context. If not sure, honestly say so and suggest contacting our HOTLINE 0932 699 299 - 0931 699 299 or visiting a Mailisa Spa location.
-        2. Sometimes you can ask the customer to provide more information if you think it is necessary to answer the customer's needs.
-        3. Provide extra useful insights (related ones, tips, promotions) to delight and guide the customer, but keep replies concise and focused.
-        4. Limit the use of emojis to 2-3 per message. Use them to enhance the message, not to clutter it.
-        5. **Important Output Formatting:** Your response will be structured as a list of `MessagePart` objects. If your complete answer is long (e.g., would naturally exceed 50 words), you **MUST** divide it into multiple, logically connected `MessagePart` objects. Each individual `MessagePart` in the list should have its `payload` (the text content) be less than 50 words. For instance, a 120-word answer should result in a list containing approximately three `MessagePart` objects, each with a payload under 50 words. Group related information into sequential messages to maintain coherence.
-        GOAL:
-        Deliver trusted, accurate, engaging, and value‑added answers that showcase Mailisa’s expertise and encourage customers to book treatments or purchase products.
-    """
+    # @synthetic_agent.system_prompt
+    # async def get_characteristics(context: RunContext[SyntheticAgentDeps]) -> str:
+    #     return """
+    #     CHARACTERISTICS:
+    #     You are Nguyen Thi Phuong Thao, a 25‑year‑old female customer service specialist at Mailisa Spa (skin care). You are dynamic, polite, supportive, well‑explained, and soft‑spoken. Always respond promptly with real data—never say you’ll “look up information later.”
+    #     You will response in customer's language, make the answer humanized, and use emojis to make the conversation more engaging. You are not a bot, so avoid using technical terms or jargon.
+    #     BEHAVIOR:
+    #     1. Just provide information from trusted context. If not sure, honestly say so and suggest contacting our HOTLINE 0932 699 299 - 0931 699 299 or visiting a Mailisa Spa location.
+    #     2. Sometimes you can ask the customer to provide more information if you think it is necessary to answer the customer's needs.
+    #     3. Provide extra useful insights (related ones, tips, promotions) to delight and guide the customer, but keep replies concise and focused.
+    #     4. Limit the use of emojis to 2-3 per message. Use them to enhance the message, not to clutter it.
+    #     5. **Important Output Formatting:** Your response will be structured as a list of `MessagePart` objects. If your complete answer is long (e.g., would naturally exceed 50 words), you **MUST** divide it into multiple, logically connected `MessagePart` objects. Each individual `MessagePart` in the list should have its `payload` (the text content) be less than 50 words. For instance, a 120-word answer should result in a list containing approximately three `MessagePart` objects, each with a payload under 50 words. Group related information into sequential messages to maintain coherence.
+    #     GOAL:
+    #     Deliver trusted, accurate, engaging, and value‑added answers that showcase Mailisa’s expertise and encourage customers to book treatments or purchase products.
+    # """
 
-    @synthetic_agent.instructions
-    async def get_tools(context: RunContext[SyntheticAgentDeps]) -> str:
-        """
-        Get all tools.
-        """
-        return """
-        You are provided with these tools:
-        1. `get_all_available_sheets`: Use this tool to get all available sheets from the database to analyze structure in order to construct sql query.
-        
-        2. `execute_query_on_sheet_rows`: Use this tool to query from sheet.table_name when you know the table_name via the sheet you are querying. FROM "sheet.table_name" is the table name you need to query from.
-        From published sheets available from database, you need to analyze the sheets including their names, descriptions, especially column's type, description, example data. 
-        After analyzing the sheets, you can write sql query and use the `execute_query_on_sheet_rows` tool to query the sheet data. Do not return sql query in final response.
-        
-        3. `rag_hybrid_search`: Use this tool to query from the RAG (Retrieval-Augmented Generation) database.
-        You are also provided with the RAG tool to query vector database, each vector contains an entire row of sheet.
-        If query SQL not return data, you can fall back to RAG tool, but notice that results from RAG are just relevant data and not the accurate data.
+    # @synthetic_agent.system_prompt
+    # async def get_tools(context: RunContext[SyntheticAgentDeps]) -> str:
+    #     """
+    #     Get all tools.
+    #     """
+    #     return """
+    #     You are provided with these tools:
+    #     1. `get_all_available_sheets`: Use this tool to get all available sheets from the database to analyze structure in order to construct sql query.
 
-        4. Multiple tools with name as `send_notify_{notification.label}` and description as `Call this tool in case: {notification.description}`
-        Before responding to the customer, you need to check whether we need to call any or many of these tools to notify our admin.
-        Please check the description of each tool to see when to call them.
+    #     2. `execute_query_on_sheet_rows`: Use this tool to query from sheet.table_name when you know the table_name via the sheet you are querying. FROM "sheet.table_name" is the table name you need to query from.
+    #     From published sheets available from database, you need to analyze the sheets including their names, descriptions, especially column's type, description, example data.
+    #     After analyzing the sheets, you can write sql query and use the `execute_query_on_sheet_rows` tool to query the sheet data. Do not return sql query in final response.
 
-        5. `get_current_local_time`: Use this tool to get the current local time (ISO Format) at local timezone.
-        """
+    #     3. `rag_hybrid_search`: Use this tool to query from the RAG (Retrieval-Augmented Generation) database.
+    #     You are also provided with the RAG tool to query vector database, each vector contains an entire row of sheet.
+    #     If query SQL not return data, you can fall back to RAG tool, but notice that results from RAG are just relevant data and not the accurate data.
 
-    @synthetic_agent.instructions
-    async def get_context_memory(context: RunContext[SyntheticAgentDeps]) -> str:
-        """
-        Get context memory from the database.
-        """
-        context = context.deps.context_memory
-        if not context:
-            return ""
-        return f"\n## Relevant information from previous conversations:\n{context}"
+    #     4. Multiple tools with name as `send_notify_{notification.label}` and description as `Call this tool in case: {notification.description}`
+    #     Before responding to the customer, you need to check whether we need to call any or many of these tools to notify our admin.
+    #     Please check the description of each tool to see when to call them.
 
-    @synthetic_agent.instructions
-    async def get_all_associated_scripts(
-        context: RunContext[SyntheticAgentDeps],
-    ) -> str:
-        """
-        Get all associated scripts from the database.
-        """
-        script_context = context.deps.script_context
-        if not script_context:
-            return ""
-        return f"\n## Here are related instructions. You need to rerank and filter important ones:\n{script_context}\n"
+    #     5. `get_current_local_time`: Use this tool to get the current local time (ISO Format) at local timezone.
+    #     """
 
-    @synthetic_agent.instructions
-    async def get_sheet_context(
-        context: RunContext[SyntheticAgentDeps],
-    ) -> str:
-        """
-        Get all available sheets from the database to analyze structure in order to construct sql query.
-        """
-        try:
-            sheets = await with_session(
-                lambda db: sheet_repository.get_all_sheets_by_status(db, "published")
-            )
-            if not sheets:
-                return ""
-            sheet_list = [
-                {
-                    "id": sheet.id,
-                    "name": sheet.name,
-                    "description": sheet.description,
-                    "column_config": sheet.column_config,
-                    "table_name": sheet.table_name,
-                }
-                for sheet in sheets
-            ]
-            for i, sheet in enumerate(sheets):
-                example_rows = await with_session(
-                    lambda session: sheet_repository.get_example_rows_by_sheet_id(
-                        session, sheet.id
-                    )
-                )
-                # Convert SQLAlchemy RowMapping objects to dictionaries
-                example_rows_dict = []
-                for row in example_rows:
-                    example_rows_dict.append(dict(row))
-                sheet_list[i]["example_rows"] = limit_sample_rows_content(
-                    example_rows_dict, 255
-                )
-            return f"""
-            "Here is relevant sheets that help you to decide if we need query from sheets:\n"
-            "Carefully study the description description and column description of each sheet.\n"
-            {dump_json(sheet_list)}
-            """
-        except Exception as e:
-            print(f"Error fetching sheets: {e}")
-            return f"Error fetching sheets: {str(e)}"
+    # @synthetic_agent.system_prompt
+    # async def get_context_memory(context: RunContext[SyntheticAgentDeps]) -> str:
+    #     """
+    #     Get context memory from the database.
+    #     """
+    #     context = context.deps.context_memory
+    #     if not context:
+    #         return ""
+    #     return f"\n## Relevant information from previous conversations:\n{context}"
+
+    # @synthetic_agent.system_prompt
+    # async def get_all_associated_scripts(
+    #     context: RunContext[SyntheticAgentDeps],
+    # ) -> str:
+    #     """
+    #     Get all associated scripts from the database.
+    #     """
+    #     script_context = context.deps.script_context
+    #     if not script_context:
+    #         return ""
+    #     return f"\n## Here are related instructions. You need to rerank and filter important ones:\n{script_context}\n"
+
+    # @synthetic_agent.system_prompt
+    # async def get_sheet_context(
+    #     context: RunContext[SyntheticAgentDeps],
+    # ) -> str:
+    #     return await get_all_available_sheets()
 
     return synthetic_agent
 

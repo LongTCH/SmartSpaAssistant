@@ -1,4 +1,5 @@
 import os
+import xml.etree.ElementTree as ET
 from datetime import datetime
 from io import BytesIO
 
@@ -430,3 +431,18 @@ async def get_script_template() -> str:
         return file_path
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+async def agent_scripts_to_xml(scripts: list[Script]) -> str:
+    root = ET.Element("scripts")
+
+    for script in scripts:
+        script_elem = ET.SubElement(root, "script")
+
+        description = ET.SubElement(script_elem, "description")
+        description.text = script.description
+
+        solution = ET.SubElement(script_elem, "solution")
+        solution.text = script.solution
+
+    return ET.tostring(root, encoding="unicode")
