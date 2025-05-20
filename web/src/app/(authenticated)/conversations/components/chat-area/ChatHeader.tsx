@@ -5,23 +5,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Info, Frown, Smile } from "lucide-react";
+import { Info } from "lucide-react";
 import { Conversation, ProviderType } from "@/types";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { conversationService } from "@/services/api/conversation.service";
 import { toast } from "sonner";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
+
+
 import { useState, useEffect } from "react";
 import Image from "next/image";
 
 interface ChatHeaderProps {
   conversationData: Conversation | null;
-  setShowUserInfo: (show: boolean) => void;
+  toggleSupportPanel?: () => void; // Added
   selectedConversationId: string | null;
   onConversationUpdated?: (conversation: Conversation) => void;
 }
@@ -48,52 +45,13 @@ export default function ChatHeader(props: ChatHeaderProps) {
     }
   }, [props.conversationData]);
 
-  const getSentimentPopover = (sentiment: string) => {
-    if (sentiment === "neutral") {
-      return <></>;
-    }
-
-    return (
-      <Popover>
-        {sentiment === "negative" ? (
-          <PopoverTrigger asChild>
-            <Button variant="link" size="icon" className="w-5 h-5 rounded-full">
-              <Frown className="h-6 w-6 text-red-500" />
-            </Button>
-          </PopoverTrigger>
-        ) : (
-          <PopoverTrigger asChild>
-            <Button variant="link" size="icon" className="w-5 h-5 rounded-full">
-              <Smile className="h-6 w-6 text-green-500" />
-            </Button>
-          </PopoverTrigger>
-        )}
-        {/* Popover content */}
-        <PopoverContent className="w-80 p-4">
-          <div className="space-y-2">
-            <h4 className="font-medium">Dự đoán cảm xúc</h4>
-            <p className="text-sm text-gray-500">
-              AI dự đoán cảm xúc của người dùng trong đoạn hội thoại là{" "}
-              <strong>
-                {props.conversationData?.sentiment === "negative"
-                  ? "tiêu cực"
-                  : "tích cực"}
-              </strong>
-              .
-            </p>
-          </div>
-        </PopoverContent>
-      </Popover>
-    );
-  };
-
   return (
     <div className="p-3 border-b bg-white flex items-center gap-2">
       <div className="flex items-center justify-between flex-1">
         <div className="flex items-center space-x-2">
           <div className="relative">
             <Avatar className="w-10 h-10">
-              <AvatarImage src="/placeholder.svg?height=40&width=40" />
+              <AvatarImage src={props.conversationData?.avatar} />
               <AvatarFallback>?</AvatarFallback>
             </Avatar>
             {/* Provider icon indicator positioned in bottom right of avatar */}
@@ -116,8 +74,6 @@ export default function ChatHeader(props: ChatHeaderProps) {
           <span className="text-sm font-medium text-gray-800">
             {props.conversationData?.account_name || "Khách hàng"}
           </span>
-          {props.conversationData?.sentiment &&
-            getSentimentPopover(props.conversationData?.sentiment as string)}
         </div>
 
         <div className="flex items-center space-x-2">
@@ -169,7 +125,7 @@ export default function ChatHeader(props: ChatHeaderProps) {
           variant="ghost"
           size="icon"
           className="h-8 w-8 rounded-full bg-primary/10 text-primary hover:bg-primary/20 transition-colors"
-          onClick={() => props.setShowUserInfo(true)}
+          onClick={props.toggleSupportPanel} // Changed from onClick={() => props.setShowUserInfo(true)}
         >
           <Info className="h-4 w-4" />
           <span className="sr-only">Information</span>

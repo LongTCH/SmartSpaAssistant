@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react"; // Add useMemo
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -10,7 +10,7 @@ import {
 } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { notificationService } from "@/services/api/notification.service";
-import { Notification, NotificationData, NotificationParams } from "@/types";
+import { Notification, NotificationParams } from "@/types";
 
 // Import step components
 import { InfoStep } from "./steps/InfoStep";
@@ -41,11 +41,11 @@ export function MultiStepEditNotificationModal({
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Default parameters for reference
-  const defaultParameters: Parameter[] = [];
+  // Default parameters for reference - wrapped in useMemo
+  const defaultParameters = useMemo<Parameter[]>(() => [], []);
 
   // Default content with template variables
-  const defaultContent = ``;
+  const defaultContent = useMemo(() => ``, []);
 
   // Initialize form with existing notification or default values
   const [formName, setFormName] = useState(notification?.label || "");
@@ -118,7 +118,7 @@ export function MultiStepEditNotificationModal({
   };
 
   // Reset the form to initial values based on notification or defaults
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setCurrentStep(1);
     setIsSubmitting(false);
 
@@ -148,14 +148,14 @@ export function MultiStepEditNotificationModal({
       setFormContent(defaultContent);
       setFormParameters([...defaultParameters]);
     }
-  };
+  }, [notification, defaultContent, defaultParameters]); // Add dependencies
 
   // Reset form when modal closes or notification changes
   useEffect(() => {
     if (open && notification) {
       resetForm();
     }
-  }, [open, notification]);
+  }, [open, notification, resetForm]); // Add resetForm to dependency array
 
   // Navigation functions
   const handleNext = () => {
@@ -231,7 +231,7 @@ export function MultiStepEditNotificationModal({
       toast.success("Cập nhật thông báo thành công");
       onOpenChange(false);
       if (onSuccess) onSuccess();
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi cập nhật thông báo");
     } finally {
       setIsSubmitting(false);

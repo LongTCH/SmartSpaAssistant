@@ -17,7 +17,7 @@ export default function AlertItem({ alert, onClick }: AlertItemProps) {
 
   return (
     <div
-      className="p-4 border rounded-lg bg-white hover:bg-gray-50 cursor-pointer transition-colors"
+      className="p-4 border rounded-lg bg-white hover:bg-gray-100 cursor-pointer transition-colors"
       onClick={onClick}
     >
       <div className="flex items-start">
@@ -27,7 +27,6 @@ export default function AlertItem({ alert, onClick }: AlertItemProps) {
         />
 
         <div className="flex-1">
-          {" "}
           <div className="flex justify-between items-start">
             <h3 className="font-medium text-gray-900">
               {alert.notification.label}

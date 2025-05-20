@@ -29,31 +29,31 @@ export function EditableInputRow({
   onReset,
 }: EditableInputRowProps) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="w-[120px] font-medium">{label}:</div>
-      <div className="flex-1 flex items-center">
-        <Input
-          value={value || ""}
-          placeholder={placeholder}
-          className={`flex-1 ${!isEditable ? "bg-gray-50" : "bg-white"}`}
-          readOnly={!isEditable}
-          onChange={(e) => onInputChange(fieldName, e.target.value)}
-        />
+    <div className="flex flex-col space-y-1">
+      <div className="flex items-center justify-between">
+        <label className="font-medium text-sm">{label}:</label>
         <Button
           variant="ghost"
           size="icon"
-          className="ml-2 h-8 w-8 text-gray-500"
+          className="h-7 w-7 text-gray-500"
           onClick={() =>
             isEditable ? onReset(fieldName) : onToggleEdit(fieldName)
           }
         >
           {isEditable ? (
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-3.5 w-3.5" />
           ) : (
-            <Edit className="h-4 w-4" />
+            <Edit className="h-3.5 w-3.5" />
           )}
         </Button>
       </div>
+      <Input
+        value={value || ""}
+        placeholder={placeholder}
+        className={`flex-1 text-sm ${!isEditable ? "bg-gray-50" : "bg-white"}`}
+        readOnly={!isEditable}
+        onChange={(e) => onInputChange(fieldName, e.target.value)}
+      />
     </div>
   );
 }

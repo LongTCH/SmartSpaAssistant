@@ -4,7 +4,7 @@ import { useState, Suspense, useEffect, useRef } from "react";
 import { Conversation } from "@/types";
 import ConversationInfoList from "../components/ConversationInfoList";
 import ChatArea from "../components/chat-area/ChatArea";
-import SentimentConversations from "../components/SentimentConversations";
+import SupportPanel from "../components/SupportPanel";
 import { LoadingScreen } from "@/components/loading-screen";
 import { guestService } from "@/services/api/guest.service";
 import { useParams } from "next/navigation";
@@ -22,6 +22,7 @@ export default function ConversationDetail() {
     new Set()
   );
   const [isLoading, setIsLoading] = useState(true);
+  const [showSupportPanel, setShowSupportPanel] = useState(true); // Added state for SupportPanel visibility
 
   // Ref để kiểm soát việc gọi API một lần
   const hasInitialFetchRef = useRef<boolean>(false);
@@ -102,6 +103,10 @@ export default function ConversationDetail() {
     setSelectedConversation(updatedConversation);
   };
 
+  const toggleSupportPanel = () => {
+    setShowSupportPanel((prev) => !prev);
+  };
+
   if (isLoading) {
     return <LoadingScreen />;
   }
@@ -116,20 +121,27 @@ export default function ConversationDetail() {
           handleSelectConversation={handleSelectConversation}
           onNewMessage={handleNewMessage}
           unreadConversations={unreadConversations}
-        />
-
+        />{" "}
         {/* Middle - Chat Area */}
         <ChatArea
           selectedConversationId={selectedConversation?.id || null}
           onConversationRead={handleConversationRead}
           onConversationUpdated={handleConversationUpdated}
-        />
-
+          toggleSupportPanel={toggleSupportPanel} // Pass toggle function
+        />{" "}
         {/* Right Sidebar - Support Panel */}
-        <SentimentConversations
-          selectedConversation={selectedConversation}
-          setSelectedConversation={setSelectedConversation}
-        />
+        <div
+          className={`transition-all duration-300 ease-in-out ${
+            showSupportPanel ? "w-80" : "w-0"
+          } overflow-hidden`}
+        >
+          {showSupportPanel && (
+            <SupportPanel
+              conversationId={selectedConversation?.id || null}
+              onGuestInfoUpdated={handleConversationUpdated} // Added this line
+            />
+          )}
+        </div>
       </div>
     </Suspense>
   );

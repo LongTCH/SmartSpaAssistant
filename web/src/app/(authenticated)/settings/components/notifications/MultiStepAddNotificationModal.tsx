@@ -1,11 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react"; // Add useMemo
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
 import { notificationService } from "@/services/api/notification.service";
-import { Notification, NotificationData, NotificationParams } from "@/types";
+import { NotificationData, NotificationParams } from "@/types";
 
 // Import step components
 import { InfoStep } from "./steps/InfoStep";
@@ -35,48 +35,54 @@ export function MultiStepAddNotificationModal({
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Default parameters for reference
-  const defaultParameters: Parameter[] = [
-    {
-      id: "1",
-      name: "customer_name",
-      type: "String",
-      description: "Tên khách hàng đặt hàng",
-    },
-    {
-      id: "2",
-      name: "customer_phone",
-      type: "String",
-      description: "Số điện thoại khách đặt hàng",
-    },
-    {
-      id: "3",
-      name: "customer_address",
-      type: "String",
-      description: "Địa chỉ khách đặt giao hàng",
-    },
-    {
-      id: "4",
-      name: "order_detail",
-      type: "String",
-      description: "Danh sách sản phẩm bao gồm Tên sp, số lượng",
-    },
-    {
-      id: "5",
-      name: "total_money",
-      type: "Numeric",
-      description: "Tổng giá trị đơn hàng (đã trừ khuyến mãi)",
-    },
-  ];
+  // Default parameters for reference - wrapped in useMemo
+  const defaultParameters = useMemo<Parameter[]>(
+    () => [
+      {
+        id: "1",
+        name: "customer_name",
+        type: "String",
+        description: "Tên khách hàng đặt hàng",
+      },
+      {
+        id: "2",
+        name: "customer_phone",
+        type: "String",
+        description: "Số điện thoại khách đặt hàng",
+      },
+      {
+        id: "3",
+        name: "customer_address",
+        type: "String",
+        description: "Địa chỉ khách đặt giao hàng",
+      },
+      {
+        id: "4",
+        name: "order_detail",
+        type: "String",
+        description: "Danh sách sản phẩm bao gồm Tên sp, số lượng",
+      },
+      {
+        id: "5",
+        name: "total_money",
+        type: "Numeric",
+        description: "Tổng giá trị đơn hàng (đã trừ khuyến mãi)",
+      },
+    ],
+    [] // Empty dependency array since these don't change
+  );
 
   // Default content with template variables
-  const defaultContent = `Bạn có đơn hàng cần xác nhận:
+  const defaultContent = useMemo(
+    () => `Bạn có đơn hàng cần xác nhận:
 Khách: {{ customer_name }}
 SĐT: {{ customer_phone }}
 Địa chỉ: {{ customer_address }}
 Chi tiết đơn hàng:
 {{ order_detail }}
-Tổng tiền: {{ total_money }} VND`;
+Tổng tiền: {{ total_money }} VND`,
+    [] // Empty dependency array
+  );
 
   // Initialize form with default values
   const [formName, setFormName] = useState("");
@@ -126,7 +132,7 @@ Tổng tiền: {{ total_money }} VND`;
   };
 
   // Reset the form to initial values
-  const resetForm = () => {
+  const resetForm = useCallback(() => {
     setCurrentStep(1);
     setIsSubmitting(false);
     setFormName("");
@@ -135,14 +141,14 @@ Tổng tiền: {{ total_money }} VND`;
     setFormUseCase("");
     setFormContent(defaultContent);
     setFormParameters([...defaultParameters]);
-  };
+  }, [defaultContent, defaultParameters]); // Add dependencies
 
   // Reset form when modal closes
   useEffect(() => {
     if (!open) {
       resetForm();
     }
-  }, [open]);
+  }, [open, resetForm]);
 
   // Navigation functions
   const handleNext = () => {
@@ -209,7 +215,7 @@ Tổng tiền: {{ total_money }} VND`;
       toast.success("Tạo thông báo mới thành công");
       onOpenChange(false);
       if (onSuccess) onSuccess();
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi tạo thông báo mới");
     } finally {
       setIsSubmitting(false);

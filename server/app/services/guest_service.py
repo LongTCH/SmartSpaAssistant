@@ -91,8 +91,6 @@ async def insert_guest(db: AsyncSession, guest_data: dict) -> dict:
         account_id=guest_data.get("account_id"),
         account_name=guest_data.get("account_name"),
         avatar=guest_data.get("avatar"),
-        message_count=guest_data.get("message_count", 0),
-        sentiment=guest_data.get("sentiment", "neutral"),
         assigned_to=guest_data.get("assigned_to", "AI"),
     )
     guest = await guest_repository.insert_guest(db, guest)
@@ -132,23 +130,6 @@ async def insert_guest(db: AsyncSession, guest_data: dict) -> dict:
     await db.commit()
     await db.refresh(guest)
     return guest.to_dict()
-
-
-async def get_paging_guests_by_sentiment(
-    db: AsyncSession, sentiment: str, skip: int, limit: int
-) -> PagingDto:
-    count = await guest_repository.count_guests_by_sentiment(db, sentiment)
-    if count == 0:
-        return PagingDto(skip=skip, limit=limit, total=0, data=[])
-    if skip >= count:
-        return PagingDto(skip=skip, limit=limit, total=count, data=[])
-    data = await guest_repository.get_guests_by_sentiment(db, sentiment, skip, limit)
-    # Convert all objects to dictionaries
-    data_dict = [
-        guest.to_dict(include=["interests", "info", "last_chat_message"])
-        for guest in data
-    ]
-    return PagingDto(skip=skip, limit=limit, total=count, data=data_dict)
 
 
 async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -> dict:

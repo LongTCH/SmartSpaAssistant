@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { downloadFile } from "@/lib/file-utils";
 import {
   Table,
   TableBody,
@@ -12,31 +10,14 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
+
+
+
+
 import {
   Download,
-  Plus,
   Pencil,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  AlertTriangle,
   Eye,
 } from "lucide-react";
 interface SpreadSheetTableProps {

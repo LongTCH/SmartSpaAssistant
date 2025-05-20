@@ -72,12 +72,6 @@ export default function ConversationInfo({
       onClick={handleClick}
       className={`p-3 border-b hover:bg-indigo-50 cursor-pointer ${
         isSelected ? "bg-indigo-50" : ""
-      } ${
-        item.sentiment === "negative"
-          ? "border-l-4 border-l-red-500"
-          : item.sentiment === "positive"
-          ? "border-l-4 border-l-green-500"
-          : "border-l-4"
       } ${isUnread ? "bg-blue-50/60" : ""}`}
     >
       <div className="flex items-start space-x-3">

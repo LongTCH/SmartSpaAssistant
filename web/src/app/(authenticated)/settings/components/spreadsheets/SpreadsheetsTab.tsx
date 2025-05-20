@@ -1,17 +1,10 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { downloadFile } from "@/lib/file-utils";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
+
 import {
   Dialog,
   DialogClose,
@@ -21,23 +14,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Download,
   Plus,
-  Pencil,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
   AlertTriangle,
-  Eye,
 } from "lucide-react";
 import { MultiStepAddSpreadsheetModal } from "./MultiStepAddSpreadsheetModal";
 import { MultiStepEditSpreadsheetModal } from "./MultiStepEditSpreadsheetModal";
@@ -254,10 +236,9 @@ export function SpreadsheetsTab() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success("Tải bảng tính thành công");
-    } catch (error) {
+    } catch {
       toast.dismiss(loadingToast);
       toast.error("Không thể tải bảng tính");
-      console.error("Error downloading sheet:", error);
     }
   };
 

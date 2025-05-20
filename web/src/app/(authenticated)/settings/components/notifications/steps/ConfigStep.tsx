@@ -117,7 +117,7 @@ export function ConfigStep({
                     colSpan={4}
                     className="text-center py-4 text-gray-500"
                   >
-                    Chưa có tham số nào. Bấm "Thêm hàng" để thêm tham số.
+                    Chưa có tham số nào. Bấm &quot;Thêm hàng&quot; để thêm tham số.
                   </TableCell>
                 </TableRow>
               )}

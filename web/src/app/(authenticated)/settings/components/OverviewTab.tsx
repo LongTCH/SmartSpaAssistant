@@ -19,7 +19,6 @@ export function OverviewTab() {
   // Global settings state to manage all form values
   const [settings, setSettings] = useState<SettingsState>({
     CHAT_WAIT_SECONDS: 1,
-    SENTIMENT_INTERVAL_CHAT_COUNT: 2,
     FORM_OF_ADDRESS: {
       ME: "Em",
       OTHER: "Quý khách",
@@ -191,20 +190,6 @@ export function OverviewTab() {
                 <p>Số lượng tin nhắn gần nhất dùng để phân tích cảm xúc</p>
               </TooltipContent>
             </Tooltip>
-          </div>
-          <div className="flex items-center space-x-2 max-w-xs">
-            <Input
-              type="number"
-              value={settings.SENTIMENT_INTERVAL_CHAT_COUNT}
-              onChange={(e) =>
-                updateSettings(
-                  "SENTIMENT_INTERVAL_CHAT_COUNT",
-                  Number(e.target.value)
-                )
-              }
-              className="text-center h-10 w-24"
-            />
-            <span className="text-sm">tin</span>
           </div>
         </div>
 

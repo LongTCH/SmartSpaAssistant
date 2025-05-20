@@ -140,8 +140,7 @@ export function UploadInterestModal({
           setSheetNames(sheets);
           setActiveSheet(sheets[0]);
         }
-      } catch (error) {
-        console.error("Excel parsing error:", error);
+      } catch {
         toast.error(
           "Không thể đọc file Excel. Vui lòng kiểm tra lại định dạng file."
         );
@@ -169,8 +168,7 @@ export function UploadInterestModal({
       const templateBlob = await interestService.downloadInterestTemplate();
       await downloadFile(templateBlob, "interest_template.xlsx");
       toast.success("Mẫu Excel từ khóa đã được tải xuống");
-    } catch (error) {
-      console.error("Template download error:", error);
+    } catch {
       toast.error("Không thể tải xuống mẫu Excel");
     }
   };
@@ -187,9 +185,8 @@ export function UploadInterestModal({
       toast.success("Tải lên danh sách từ khóa thành công");
       onOpenChange(false);
       if (onSuccess) onSuccess();
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi tải lên từ khóa");
-      console.error("Upload error:", error);
     } finally {
       setIsUploading(false);
     }

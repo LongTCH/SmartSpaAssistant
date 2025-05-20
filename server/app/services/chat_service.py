@@ -20,8 +20,6 @@ async def insert_chat(
     content = {"side": side, "message": message}
     chat = Chat(guest_id=guest_id, content=content, created_at=created_at)
     await chat_repository.insert_chat(db, chat)
-    # increase message count
-    await guest_repository.increase_message_count(db, guest_id)
     # update last message
     guest = await guest_repository.get_guest_by_id(db, guest_id)
     guest.last_message_id = chat.id

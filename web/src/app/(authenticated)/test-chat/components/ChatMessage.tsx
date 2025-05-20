@@ -1,10 +1,10 @@
-import { Bot, User } from "lucide-react";
+import { Bot } from "lucide-react";
 import { motion } from "framer-motion";
 // marked is imported but not used, consider removing if not needed elsewhere.
 // import { marked } from "marked";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MarkdownContent } from "@/components/markdown-content";
-import { Chat, ChatAttachment } from "@/types/conversation"; // Import Chat type
+import { Chat } from "@/types/conversation"; // Import Chat type
 import { AttachmentViewer } from "@/components/attachment-viewer"; // Import AttachmentViewer
 
 interface ChatMessageProps {
@@ -13,15 +13,6 @@ interface ChatMessageProps {
 }
 
 export function ChatMessage({ message, index }: ChatMessageProps) {
-  const timestamp = new Date(message.created_at).toLocaleString("vi-VN", {
-    // Use message.created_at
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-  });
-
   const isSenderClient = message.content.side === "client";
 
   return (

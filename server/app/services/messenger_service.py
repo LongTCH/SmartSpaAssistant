@@ -193,16 +193,6 @@ async def process_after_wait(sender_psid, wait_seconds: float, guest: Guest):
 
                 # Xử lý tin nhắn
                 if combined_message:
-                    # sentiment, should_reset = await sentiment_service.analyze_sentiment(
-                    #     db, guest
-                    # )
-                    # if sentiment != guest.sentiment:
-                    #     guest.sentiment = sentiment
-                    #     await sentiment_service.update_sentiment_to_websocket(guest)
-                    #     await guest_repository.update_sentiment(db, guest.id, sentiment)
-                    # if should_reset:
-                    #     await guest_repository.reset_message_count(db, guest.id)
-                    # Process interests
                     interest_ids = await interest_service.get_interest_ids_from_text(
                         db, combined_message
                     )

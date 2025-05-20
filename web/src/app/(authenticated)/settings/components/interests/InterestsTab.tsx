@@ -2,16 +2,9 @@
 
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import { downloadFile } from "@/lib/file-utils";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
+
 import {
   Dialog,
   DialogClose,
@@ -21,22 +14,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+
+
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Download,
-  Upload,
   Plus,
-  Pencil,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
   AlertTriangle,
   FileDown,
   FileUp,
@@ -50,7 +32,6 @@ import { interestService } from "@/services/api/interest.service";
 import { PaginationSetting } from "../PaginationSetting";
 import { InterestTable } from "./InterestTable";
 import { StatusFilter } from "../StatusFilter";
-import { Inter } from "next/font/google";
 // Constants
 const ITEMS_PER_PAGE = 10;
 let oldPage = 1;
@@ -268,7 +249,7 @@ export function InterestsTab() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success("Tải xuống nhãn thành công");
-    } catch (error) {
+    } catch  {
       toast.dismiss(loadingToast);
       toast.error("Không thể tải xuống nhãn");
     }

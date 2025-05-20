@@ -502,7 +502,7 @@ function NewConversationModal({
 export function saveConversation(conversation: Conversation): void {
   try {
     const existingConversationsJson = localStorage.getItem("conversations");
-    let conversations = existingConversationsJson
+    const conversations = existingConversationsJson
       ? JSON.parse(existingConversationsJson)
       : [];
 
@@ -516,17 +516,14 @@ export function saveConversation(conversation: Conversation): void {
       conversations.push(conversation);
     }
     localStorage.setItem("conversations", JSON.stringify(conversations));
-  } catch (error) {
-    console.error("Error saving conversation:", error);
-  }
+  } catch {}
 }
 
 export function loadConversations(): Conversation[] {
   try {
     const conversationsJson = localStorage.getItem("conversations");
     return conversationsJson ? JSON.parse(conversationsJson) : [];
-  } catch (error) {
-    console.error("Error loading conversations:", error);
+  } catch {
     return [];
   }
 }
@@ -534,9 +531,7 @@ export function loadConversations(): Conversation[] {
 export function deleteAllConversations(): void {
   try {
     localStorage.removeItem("conversations");
-  } catch (error) {
-    console.error("Error deleting all conversations:", error);
-  }
+  } catch {}
 }
 
 export function updateConversationTitle(
@@ -553,9 +548,7 @@ export function updateConversationTitle(
       conversations[conversationIndex].title = newTitle;
       localStorage.setItem("conversations", JSON.stringify(conversations));
     }
-  } catch (error) {
-    console.error("Error updating conversation title:", error);
-  }
+  } catch {}
 }
 
 export function deleteConversation(conversationId: string): void {
@@ -574,7 +567,5 @@ export function deleteConversation(conversationId: string): void {
     if (lastOpenedId === conversationId) {
       localStorage.removeItem("test-chat-last-opened-id");
     }
-  } catch (error) {
-    console.error("Error deleting conversation:", error);
-  }
+  } catch {}
 }

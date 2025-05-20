@@ -32,20 +32,6 @@ export const conversationService = {
     return response.data as ConversationsPagingResponse;
   },
 
-  async getPagingConversationBySentiment(
-    skip: number,
-    limit: number,
-    sentiment: string
-  ): Promise<ConversationsPagingResponse> {
-    const response = await apiClient.instance.get(
-      API_ROUTES.CONVERSATION.GET_SENTIMENT,
-      {
-        params: { skip, limit, sentiment },
-      }
-    );
-    return response.data as ConversationsPagingResponse;
-  },
-
   async getChatById(
     guestId: string,
     skip: number,

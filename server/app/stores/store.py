@@ -7,14 +7,12 @@ class LocalData:
         self,
         drive_folder_id: str = None,
         chat_wait_seconds: float = None,
-        sentiment_interval_chat_count: int = None,
         form_of_address: "LocalData.FormOfAddress" = None,
         reaction_message: str = None,
         undefined_message_handler: "LocalData.UndefinedMessageHandler" = None,
     ):
         self.drive_folder_id = drive_folder_id
         self.chat_wait_seconds = chat_wait_seconds
-        self.sentiment_interval_chat_count = sentiment_interval_chat_count
         self.form_of_address = form_of_address
         self.reaction_message = reaction_message
         self.undefined_message_handler = undefined_message_handler
@@ -61,7 +59,6 @@ def read_json_file(file_path: str) -> LocalData:
         return LocalData(
             drive_folder_id=data["DRIVE_FOLDER_ID"],
             chat_wait_seconds=float(data["CHAT_WAIT_SECONDS"]),
-            sentiment_interval_chat_count=int(data["SENTIMENT_INTERVAL_CHAT_COUNT"]),
             form_of_address=form_of_address,
             reaction_message=data["REACTION_MESSAGE"],
             undefined_message_handler=undefined_message_handler,

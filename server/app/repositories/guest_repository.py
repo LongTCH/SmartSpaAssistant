@@ -138,61 +138,6 @@ async def insert_guest(db: AsyncSession, guest: Guest) -> Guest:
     return guest
 
 
-async def update_sentiment(db: AsyncSession, guest_id: str, sentiment: str) -> Guest:
-    stmt = select(Guest).where(Guest.id == guest_id)
-    result = await db.execute(stmt)
-    guest = result.scalars().first()
-    if guest:
-        guest.sentiment = sentiment
-        return guest
-    return None
-
-
-async def increase_message_count(db: AsyncSession, guest_id: str) -> Guest:
-    stmt = select(Guest).where(Guest.id == guest_id)
-    result = await db.execute(stmt)
-    guest = result.scalars().first()
-    if guest:
-        guest.message_count += 1
-        return guest
-    return None
-
-
-async def reset_message_count(db: AsyncSession, guest_id: str) -> Guest:
-    stmt = select(Guest).where(Guest.id == guest_id)
-    result = await db.execute(stmt)
-    guest = result.scalars().first()
-    if guest:
-        guest.message_count = 0
-        return guest
-    return None
-
-
-async def count_guests_by_sentiment(db: AsyncSession, sentiment: str) -> int:
-    stmt = select(Guest).where(Guest.sentiment == sentiment)
-    result = await db.execute(stmt)
-    return len(result.scalars().all())
-
-
-async def get_guests_by_sentiment(
-    db: AsyncSession, sentiment: str, skip: int, limit: int
-) -> list[Guest]:
-    # Eager load guest_info
-    stmt = (
-        select(Guest)
-        # Add outer join for ordering
-        .join(Guest.last_chat_message, isouter=True)
-        .options(joinedload(Guest.info), selectinload(Guest.last_chat_message))
-        .where(Guest.sentiment == sentiment)
-        # Order by Chat.created_at
-        .order_by(Chat.created_at.desc().nullslast())
-        .offset(skip)
-        .limit(limit)
-    )
-    result = await db.execute(stmt)
-    return result.scalars().all()
-
-
 async def update_assignment(db: AsyncSession, guest_id: str, assigned_to: str) -> Guest:
     stmt = (
         select(Guest)

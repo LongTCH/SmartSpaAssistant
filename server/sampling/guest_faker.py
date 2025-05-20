@@ -32,8 +32,6 @@ def generate_sample_customer():
         "account_id": str(fake.random_number(digits=15, fix_len=True)),
         "account_name": fake.user_name(),
         "avatar": image_path,
-        "message_count": fake.random_int(min=1, max=5),
-        "sentiment": random.choice(["negative", "neutral", "positive"]),
         "assigned_to": random.choice(["ai", "me"]),
         "info": {
             "fullname": name,

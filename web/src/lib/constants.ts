@@ -66,7 +66,6 @@ export const API_ROUTES = {
   CONVERSATION: {
     GET: "/conversations",
     DETAIL: (id: string) => `/conversations/${id}`,
-    GET_SENTIMENT: "/conversations/sentiments",
     UPDATE_ASSIGNMENT: (id: string) => `/conversations/${id}/assignment`,
   },
   SETTING: {
@@ -93,6 +92,5 @@ export const APP_ROUTES = {
 export const WS_MESSAGES = {
   CONNECTED: "CONNECTED",
   INBOX: "INBOX",
-  UPDATE_SENTIMENT: "UPDATE_SENTIMENT",
   TEST_CHAT: "TEST_CHAT",
 };

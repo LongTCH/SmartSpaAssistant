@@ -28,39 +28,39 @@ export function EditableBirthdayRow({
   formatSafeDate,
 }: EditableBirthdayRowProps) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="w-[120px] font-medium">{label}:</div>
-      <div className="flex-1 flex items-center">
-        {isEditable ? (
-          <Input
-            type="date"
-            value={getSafeDateString(value)} // Uses parent's helper for date input format
-            className="flex-1 bg-white"
-            onChange={(e) => onInputChange(fieldName, e.target.value)}
-          />
-        ) : (
-          <Input
-            value={formatSafeDate(value)} // Uses parent's helper for display format
-            placeholder="Chưa có thông tin"
-            className="flex-1 bg-gray-50"
-            readOnly
-          />
-        )}
+    <div className="flex flex-col space-y-1">
+      <div className="flex items-center justify-between">
+        <label className="font-medium text-sm">{label}:</label>
         <Button
           variant="ghost"
           size="icon"
-          className="ml-2 h-8 w-8 text-gray-500"
+          className="h-7 w-7 text-gray-500"
           onClick={() =>
             isEditable ? onReset(fieldName) : onToggleEdit(fieldName)
           }
         >
           {isEditable ? (
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-3.5 w-3.5" />
           ) : (
-            <Edit className="h-4 w-4" />
+            <Edit className="h-3.5 w-3.5" />
           )}
         </Button>
       </div>
+      {isEditable ? (
+        <Input
+          type="date"
+          value={getSafeDateString(value)}
+          className="flex-1 bg-white text-sm"
+          onChange={(e) => onInputChange(fieldName, e.target.value)}
+        />
+      ) : (
+        <Input
+          value={formatSafeDate(value)}
+          placeholder="Chưa có thông tin"
+          className="flex-1 bg-gray-50 text-sm"
+          readOnly
+        />
+      )}
     </div>
   );
 }

@@ -289,31 +289,10 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         handleNewConversation(data as Conversation);
       }
     );
-    const unregisterSentiment = registerMessageHandler(
-      WS_MESSAGES.UPDATE_SENTIMENT,
-      (data) => {
-        const conversation = data as Conversation;
-
-        // Nếu props.onNewMessage được cung cấp, gọi nó để cập nhật từ component cha
-        if (onNewMessage) {
-          onNewMessage(conversation);
-        }
-
-        // Cập nhật state nội bộ
-        setConversations((prevConversations) =>
-          prevConversations.map((conv) =>
-            conv.id === conversation.id
-              ? { ...conv, sentiment: conversation.sentiment }
-              : conv
-          )
-        );
-      }
-    );
 
     // Cleanup when component unmounts
     return () => {
       unregisterInbox();
-      unregisterSentiment();
     };
   }, [handleNewConversation, onNewMessage, registerMessageHandler]);
 

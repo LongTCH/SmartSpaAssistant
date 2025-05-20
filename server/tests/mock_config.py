@@ -66,11 +66,7 @@ def mock_jsonable_encoder(obj, *args, **kwargs):
                 result = {}
 
                 # Special handling for Guest objects
-                if (
-                    hasattr(obj, "assigned_to")
-                    and hasattr(obj, "info")
-                    and hasattr(obj, "sentiment")
-                ):
+                if hasattr(obj, "assigned_to") and hasattr(obj, "info"):
                     # This is likely a Guest object
                     for key, value in obj.__dict__.items():
                         if (

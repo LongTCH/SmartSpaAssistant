@@ -1,4 +1,3 @@
-from app.configs.constants import SENTIMENTS
 from app.configs.database import get_session
 from app.services import guest_service
 from fastapi import APIRouter, Depends, HTTPException, Request
@@ -20,26 +19,6 @@ async def get_conversations(request: Request, db: AsyncSession = Depends(get_ses
         return conversations
     conversations = await guest_service.get_conversations_by_assignment(
         db, assigned_to, skip, limit
-    )
-    return conversations
-
-
-@router.get("/sentiments")
-async def get_conversations_by_sentiment(
-    request: Request, db: AsyncSession = Depends(get_session)
-):
-    """
-    Get conversations by sentiment from the database.
-    """
-    sentiment = request.query_params.get("sentiment", "neutral")
-    skip = int(request.query_params.get("skip", 0))
-    limit = int(request.query_params.get("limit", 10))
-
-    if sentiment not in [s.value for s in SENTIMENTS]:
-        raise HTTPException(status_code=400, detail="Invalid sentiment value")
-
-    conversations = await guest_service.get_paging_guests_by_sentiment(
-        db, sentiment, skip, limit
     )
     return conversations
 

@@ -2,18 +2,9 @@ import datetime
 import uuid
 from typing import List
 
-from app.configs.constants import CHAT_ASSIGNMENT, SENTIMENTS
+from app.configs.constants import CHAT_ASSIGNMENT
 from app.configs.database import Base
-from sqlalchemy import (
-    Column,
-    DateTime,
-    ForeignKey,
-    Integer,
-    LargeBinary,
-    String,
-    Table,
-    Text,
-)
+from sqlalchemy import Column, DateTime, ForeignKey, LargeBinary, String, Table, Text
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, relationship
 
@@ -154,8 +145,6 @@ class Guest(Base):
     account_name = Column(String(100))
     avatar = Column(Text)
     created_at = Column(DateTime, default=datetime.datetime.now)
-    message_count = Column(Integer, default=0)
-    sentiment = Column(String(50), default=SENTIMENTS.NEUTRAL.value)
     assigned_to = Column(String(50), default=CHAT_ASSIGNMENT.AI.value)
 
     # Foreign Keys for relationships
@@ -195,8 +184,6 @@ class Guest(Base):
             "account_name": self.account_name,
             "avatar": self.avatar,
             "created_at": self.created_at.isoformat() if self.created_at else None,
-            "message_count": self.message_count,
-            "sentiment": self.sentiment,
             "assigned_to": self.assigned_to,
         }
 

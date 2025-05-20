@@ -84,7 +84,7 @@ export function Navbar() {
   };
 
   return (
-    <header className="flex items-center justify-between px-6 py-3 bg-indigo-600 text-white">
+    <header className="flex items-center justify-between px-6 py-2 bg-indigo-600 text-white">
       <div className="flex items-center space-x-4">
         <div className="flex items-center mr-4">
           <Link href="/" className="flex items-center space-x-2">
@@ -103,7 +103,7 @@ export function Navbar() {
           className="w-auto"
         >
           <TabsList
-            className={`bg-white/10 h-10 p-1 rounded-full ${
+            className={`bg-white/10 h-8 p-0.5 rounded-full ${
               isPageLoading ? "opacity-70 pointer-events-none" : ""
             }`}
           >
@@ -158,7 +158,7 @@ export function Navbar() {
                 QL Khách hàng
               </Link>
             </TabsTrigger>
-            <TabsTrigger
+            {/* <TabsTrigger
               value="analysis"
               disabled={isPageLoading}
               className={`px-4 text-sm font-medium rounded-full cursor-pointer ${
@@ -174,7 +174,7 @@ export function Navbar() {
               >
                 Phân tích bài đăng
               </Link>
-            </TabsTrigger>
+            </TabsTrigger> */}
           </TabsList>
         </Tabs>
       </div>

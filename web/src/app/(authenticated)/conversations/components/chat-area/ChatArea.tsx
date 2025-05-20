@@ -1,6 +1,5 @@
 "use client";
 
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import { ChevronDown } from "lucide-react";
 
@@ -9,41 +8,47 @@ import { conversationService } from "@/services/api/conversation.service";
 import { guestService } from "@/services/api/guest.service";
 import { Conversation, Chat } from "@/types";
 import { useApp } from "@/context/app-context";
-import { MarkdownContent } from "@/components/markdown-content";
-import { AttachmentViewer } from "@/components/attachment-viewer";
 import { WS_MESSAGES } from "@/lib/constants";
-import { GuestInfoModal } from "../../../../../components/guest-info/GuestInfoModal";
 import { TagRow } from "./TagRow";
 import ChatHeader from "./ChatHeader";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ChatAreaProps {
   selectedConversationId: string | null; // Changed from selectedConversation object to just ID
   onNewMessageAdded?: (chat: Chat) => void;
   onConversationRead?: (conversationId: string) => void;
   onConversationUpdated?: (conversation: Conversation) => void; // Prop remains
+  toggleSupportPanel?: () => void; // Added this line
 }
 
-const messageLimit = 20; // Limit the number of messages loaded each time
+const MESSAGE_LIMIT = 20; // Limit the number of messages loaded each time
+const TIMESTAMP_GROUPING_INTERVAL_MINUTES = 5; // Display timestamp if previous message is older than this
+
 export default function ChatArea(props: ChatAreaProps) {
   const {
     selectedConversationId,
     onConversationRead,
     onNewMessageAdded,
     onConversationUpdated,
+    toggleSupportPanel, // Added this line
   } = props; // Destructure props
 
   const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
   const [chatList, setChatList] = useState<Chat[]>([]);
-  const [_sentiment, _setSentiment] = useState<string | null>(null);
   const [conversationData, setConversationData] = useState<Conversation | null>(
     null
   ); // Add state for full conversation data
   const [_isLoadingConversation, _setIsLoadingConversation] =
     useState<boolean>(false); // Add loading state for conversation
-  const [showUserInfo, setShowUserInfo] = useState(false);
   const chatContainerRef = useRef<HTMLDivElement>(null);
   const prevScrollHeight = useRef<number>(0);
   const prevScrollTop = useRef<number>(0);
+  const isLoadingMore = useRef<boolean>(false); // Ref to track if loading more is in progress
 
   // Ref to hold the latest onConversationRead prop to avoid issues with unstable function references
   const onConversationReadRef = useRef(onConversationRead);
@@ -78,7 +83,7 @@ export default function ChatArea(props: ChatAreaProps) {
         const response = await conversationService.getChatById(
           conversationIdParam,
           skip,
-          messageLimit
+          MESSAGE_LIMIT
         );
 
         if (response && response.data) {
@@ -122,7 +127,6 @@ export default function ChatArea(props: ChatAreaProps) {
         _setIsLoadingConversation(true);
         const response = await guestService.getGuestInfo(conversationIdParam);
         setConversationData(response);
-        _setSentiment(response.sentiment as string);
         return response;
       } catch {
         setConversationData(null);
@@ -132,7 +136,49 @@ export default function ChatArea(props: ChatAreaProps) {
       }
     },
     []
-  ); // _setIsLoadingConversation, setConversationData, _setSentiment are stable setters
+  ); // _setIsLoadingConversation, setConversationData are stable setters
+
+  // useEffect to automatically load more messages if the content is not scrollable initially
+  useEffect(() => {
+    const checkAndLoadMoreIfNeeded = async () => {
+      if (
+        chatContainerRef.current &&
+        chatContainerRef.current.scrollHeight <=
+          chatContainerRef.current.clientHeight && // Not scrollable
+        hasMoreMessages && // Still more messages to load
+        !isLoadingMessages && // Not currently loading (main loading)
+        selectedConversationId && // Conversation is selected
+        !isLoadingMore.current && // Not currently loading more (scroll or auto)
+        !isConversationSwitching // Not in the middle of switching conversations
+      ) {
+        // Prevent multiple rapid calls
+        if (isLoadingMore.current) return;
+        isLoadingMore.current = true;
+
+        // Store current scroll height and top position before loading new messages
+        prevScrollHeight.current = chatContainerRef.current.scrollHeight;
+        prevScrollTop.current = chatContainerRef.current.scrollTop; // Should be 0 if not scrollable
+
+        await fetchConversationMessages(selectedConversationId, true);
+
+        isLoadingMore.current = false;
+      }
+    };
+
+    // Call after a short delay to allow DOM to update after chatList changes
+    // and after conversation switching is complete.
+    if (!isConversationSwitching) {
+      const timeoutId = setTimeout(checkAndLoadMoreIfNeeded, 250); // Adjusted delay
+      return () => clearTimeout(timeoutId);
+    }
+  }, [
+    chatList,
+    hasMoreMessages,
+    isLoadingMessages,
+    selectedConversationId,
+    fetchConversationMessages,
+    isConversationSwitching, // Ensure this runs after switching is done
+  ]);
 
   // Scroll to latest messages with enhanced reliability
   const scrollToBottom = () => {
@@ -183,10 +229,6 @@ export default function ChatArea(props: ChatAreaProps) {
             onNewMessageAdded(newChat);
           }
         }
-        // Update sentiment if it changed (already exists)
-        // if (sentiment !== conversation.sentiment) {
-        //   setSentiment(conversation.sentiment as string);
-        // }
       }
     },
 
@@ -211,6 +253,27 @@ export default function ChatArea(props: ChatAreaProps) {
     }
   };
 
+  // Scroll handler to load more messages when scrolling to the top
+  const handleScroll = async () => {
+    if (
+      chatContainerRef.current &&
+      chatContainerRef.current.scrollTop === 0 &&
+      !isLoadingMessages &&
+      hasMoreMessages &&
+      selectedConversationId &&
+      !isLoadingMore.current // Check ref to prevent multiple calls
+    ) {
+      isLoadingMore.current = true; // Set loading more flag
+      // Store current scroll height and top position before loading new messages
+      prevScrollHeight.current = chatContainerRef.current.scrollHeight;
+      prevScrollTop.current = chatContainerRef.current.scrollTop; // Should be 0
+
+      await fetchConversationMessages(selectedConversationId, true);
+      isLoadingMore.current = false; // Reset loading more flag
+    }
+    checkScrollPosition(); // Also check if user is at bottom after any scroll
+  };
+
   // Register WebSocket message handler for INBOX messages
   useEffect(() => {
     const unregister = registerMessageHandler(WS_MESSAGES.INBOX, (data) => {
@@ -223,22 +286,6 @@ export default function ChatArea(props: ChatAreaProps) {
     };
   }, [selectedConversationId, registerMessageHandler, handleIncomingMessage]);
 
-  useEffect(() => {
-    const unregister = registerMessageHandler(
-      WS_MESSAGES.UPDATE_SENTIMENT,
-      (data) => {
-        const conversation = data as Conversation;
-        if (selectedConversationId === conversation.id) {
-          _setSentiment(conversation.sentiment as string);
-        }
-      }
-    );
-
-    return () => {
-      unregister();
-    };
-  }, [selectedConversationId, registerMessageHandler]);
-
   // Handle conversation change
   useEffect(() => {
     if (selectedConversationId) {
@@ -248,7 +295,6 @@ export default function ChatArea(props: ChatAreaProps) {
       setHasMoreMessages(false);
       setHasNewMessage(false);
       setIsAtBottom(true);
-      _setSentiment("neutral");
     }
   }, [selectedConversationId]);
 
@@ -361,206 +407,140 @@ export default function ChatArea(props: ChatAreaProps) {
   };
 
   return (
-    <div className="flex-1 flex flex-col bg-gray-50">
-      {/* Chat Header */}
+    <div className="flex-1 flex flex-col bg-gray-50 min-w-0">
+      {" "}
+      {/* Added min-w-0 here */}
       <ChatHeader
         conversationData={conversationData}
-        setShowUserInfo={setShowUserInfo}
+        toggleSupportPanel={toggleSupportPanel} // Changed from setShowUserInfo
         selectedConversationId={selectedConversationId || ""}
-        onConversationUpdated={handleLocalConversationUpdate} // Pass handler
+        onConversationUpdated={handleLocalConversationUpdate}
       />
-      {/* Chat Messages Area */}
-      <div className="h-[10vh] flex-1 flex flex-col relative">
-        {/* Scrollable Messages - Thay đổi từ flex-col-reverse thành flex-col thông thường */}
-        <div
-          ref={chatContainerRef}
-          className="flex-1 overflow-y-auto p-4 space-y-4 flex flex-col"
-          onScroll={(e) => {
-            const target = e.target as HTMLDivElement;
-            // Check if user is near the bottom (within 20px)
-            checkScrollPosition();
-
-            // Load more messages when user scrolls to the top (infinite scroll up)
-            if (
-              !isConversationSwitching &&
-              target.scrollTop < 50 &&
-              hasMoreMessages &&
-              !isLoadingMessages &&
-              selectedConversationId
-            ) {
-              // Save current scroll height and position before loading more messages
-              prevScrollHeight.current = target.scrollHeight;
-              prevScrollTop.current = target.scrollTop;
-
-              // Load more messages by calling the function directly
-              fetchConversationMessages(selectedConversationId, true);
-            }
-          }}
-        >
-          {/* Loading indicator for more messages */}
-          {isLoadingMessages && chatList.length > 0 && (
-            <div className="text-center text-gray-500 py-2">
-              <span className="inline-block animate-spin mr-2">⟳</span>
-              Loading more messages...
+      {/* Chat messages area */}
+      <div
+        ref={chatContainerRef}
+        onScroll={handleScroll} // Add your scroll handler if it exists for other features like loading more
+        className="flex-1 overflow-y-auto p-4 space-y-1" // Reduced space-y for tighter packing if timestamps are hidden
+      >
+        {isLoadingMessages && chatList.length === 0 ? (
+          <div className="flex justify-center items-center h-full">
+            <div className="text-center">
+              {/* You can use a spinner component here */}
+              <p className="text-gray-500">Loading messages...</p>
             </div>
-          )}
-
-          {/* Message list - Bây giờ hiển thị theo thứ tự thông thường */}
-          {isLoadingMessages && chatList.length === 0 ? (
-            <div className="flex justify-center items-center h-full">
-              <div className="text-center text-gray-500">
-                <span className="inline-block animate-spin mr-2">⟳</span>
-                Loading messages...
-              </div>
-            </div>
-          ) : chatList && chatList.length > 0 ? (
-            <>
-              {chatList.map((chat, index) =>
-                chat.content.side === "client" ? (
-                  // Client/User Message - Now using dark theme (previously light)
-                  <div
-                    key={chat.id || `chat-${index}`}
-                    className="flex items-start space-x-2 max-w-[80%]"
-                  >
-                    <Avatar>
-                      <AvatarImage src="/placeholder.svg?height=40&width=40" />
-                      <AvatarFallback>?</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="bg-indigo-500 p-3 rounded-lg shadow-sm">
-                        {chat.content.message.text ? (
-                          <MarkdownContent
-                            content={chat.content.message.text}
-                            className="text-sm"
-                            isDarkTheme={true}
-                          />
-                        ) : null}
-
-                        {/* Hiển thị attachment nếu có */}
-                        {chat.content.message.attachments &&
-                          chat.content.message.attachments.length > 0 && (
-                            <AttachmentViewer
-                              attachments={chat.content.message.attachments}
-                              className={
-                                chat.content.message.text ? "mt-2" : ""
-                              }
-                              isDarkTheme={true}
-                            />
-                          )}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1">
-                        {new Date(chat.created_at).toLocaleString("vi-VN", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  // Staff/Bot Message - Now using light theme (previously dark)
-                  <div
-                    key={chat.id || `chat-${index}`}
-                    className="flex items-start justify-end space-x-2 max-w-[80%] ml-auto"
-                  >
-                    <div>
-                      <div className="bg-gray-200 p-3 rounded-lg shadow-sm">
-                        {chat.content.message.text ? (
-                          <MarkdownContent
-                            content={chat.content.message.text}
-                            className="text-sm"
-                            isDarkTheme={false}
-                          />
-                        ) : null}
-
-                        {/* Hiển thị attachment nếu có */}
-                        {chat.content.message.attachments &&
-                          chat.content.message.attachments.length > 0 && (
-                            <AttachmentViewer
-                              attachments={chat.content.message.attachments}
-                              className={
-                                chat.content.message.text ? "mt-2" : ""
-                              }
-                              isDarkTheme={false}
-                            />
-                          )}
-                      </div>
-                      <div className="text-xs text-gray-500 mt-1 text-right">
-                        {new Date(chat.created_at).toLocaleString("vi-VN", {
-                          day: "2-digit",
-                          month: "2-digit",
-                          year: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })}
-                      </div>
-                    </div>
-                    <Avatar className="w-8 h-8">
-                      <AvatarImage src="/placeholder.svg?height=32&width=32" />
-                      <AvatarFallback>SA</AvatarFallback>
-                    </Avatar>
-                  </div>
-                )
-              )}
-            </>
-          ) : (
-            <div className="flex justify-center items-center h-full">
-              <div className="text-gray-500">
-                {selectedConversationId
-                  ? "No messages available"
-                  : "Please select a conversation"}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* New message notification button */}
-        {hasNewMessage && (
-          <div className="absolute bottom-16 right-4">
-            <Button
-              onClick={scrollToBottom}
-              size="sm"
-              className="flex items-center gap-1.5 shadow-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200 font-medium px-4 py-2 rounded-full animate-pulse"
-            >
-              <ChevronDown className="w-4 h-4" />
-              Tin nhắn mới
-            </Button>
           </div>
+        ) : (
+          <TooltipProvider>
+            {chatList.map((chat, index) => {
+              const currentMessageDate = new Date(chat.created_at); // Ensure chat.created_at is valid
+              let showTimestamp = true;
+
+              if (index > 0) {
+                const previousMessageDate = new Date(
+                  chatList[index - 1].created_at
+                );
+                const diffInMilliseconds =
+                  currentMessageDate.getTime() - previousMessageDate.getTime();
+                const intervalMilliseconds =
+                  TIMESTAMP_GROUPING_INTERVAL_MINUTES * 60 * 1000;
+
+                if (diffInMilliseconds < intervalMilliseconds) {
+                  // Optional: if you also want to group by sender blocks, you could add:
+                  // && chat.content.side === chatList[index - 1].content.side
+                  showTimestamp = false;
+                }
+              }
+
+              // Determine message alignment and style based on sender
+              const isUserMessage = chat.content.side === "client";
+              const isAgentOrBotMessage = chat.content.side === "staff";
+
+              return (
+                <div
+                  key={chat.id}
+                  className={`flex flex-col ${
+                    isUserMessage ? "items-end" : "items-start"
+                  } mb-1`}
+                >
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div
+                        className={`max-w-xs md:max-w-md lg:max-w-lg xl:max-w-2xl p-2 px-3 rounded-lg shadow-sm ${
+                          isUserMessage
+                            ? "bg-blue-500 text-white"
+                            : isAgentOrBotMessage // staff messages are gray as per image
+                            ? "bg-gray-200 text-gray-800"
+                            : "bg-gray-200 text-gray-800" // Default for other received messages (e.g. bot if different from staff)
+                        }`}
+                      >
+                        <p className="text-sm whitespace-pre-wrap">
+                          {chat.content.message.text || ""}
+                        </p>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="left">
+                      <p>
+                        {currentMessageDate.toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                          second: "2-digit",
+                        })}{" "}
+                        {currentMessageDate.toLocaleDateString([], {
+                          day: "2-digit",
+                          month: "2-digit",
+                          year: "numeric",
+                        })}
+                      </p>
+                    </TooltipContent>
+                  </Tooltip>
+                  {showTimestamp && (
+                    <div
+                      className={`text-xs text-gray-400 mt-1 px-1 ${
+                        isUserMessage ? "text-right w-full" : "text-left w-full"
+                      }`}
+                    >
+                      {currentMessageDate.toLocaleTimeString([], {
+                        hour: "2-digit",
+                        minute: "2-digit",
+                      })}{" "}
+                      {currentMessageDate.toLocaleDateString([], {
+                        day: "2-digit",
+                        month: "2-digit",
+                        year: "numeric",
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </TooltipProvider>
         )}
-
-        {/* Fixed System Message at Bottom */}
-        <div className="p-2 border-t bg-white sticky bottom-0 z-10">
-          {/* Hiển thị các nhãn của cuộc hội thoại */}
-          {conversationData && conversationData.interests && (
-            <TagRow interests={conversationData.interests} />
-          )}
-          <div className="text-xs text-gray-500 text-center bg-gray-50 py-2 rounded border border-gray-200">
-            Xin lỗi, nhắn tin trực tiếp không được hỗ trợ.
-          </div>
+        {/* Placeholder for new message indicator or other elements */}
+        {/* {hasNewMessage && !isAtBottom && <NewMessageIndicator onClick={scrollToBottom} />} */}
+      </div>
+      {/* New message notification button */}
+      {hasNewMessage && (
+        <div className="absolute bottom-16 right-4">
+          <Button
+            onClick={scrollToBottom}
+            size="sm"
+            className="flex items-center gap-1.5 shadow-lg bg-indigo-600 text-white hover:bg-indigo-700 transition-all duration-200 font-medium px-4 py-2 rounded-full animate-pulse"
+          >
+            <ChevronDown className="w-4 h-4" />
+            Tin nhắn mới
+          </Button>
+        </div>
+      )}
+      {/* Fixed System Message at Bottom */}
+      <div className="p-2 border-t bg-white sticky bottom-0 z-10">
+        {/* Hiển thị các nhãn của cuộc hội thoại */}
+        {conversationData && conversationData.interests && (
+          <TagRow interests={conversationData.interests} />
+        )}
+        <div className="text-xs text-gray-500 text-center bg-gray-50 py-2 rounded border border-gray-200">
+          Xin lỗi, nhắn tin trực tiếp không được hỗ trợ.
         </div>
       </div>
-      {/* User Info Modal */}
-      <GuestInfoModal
-        open={showUserInfo}
-        onOpenChange={(open) => {
-          setShowUserInfo(open);
-          // Nếu đóng modal và có conversation đã chọn, cập nhật lại thông tin từ API
-          if (!open && selectedConversationId) {
-            // Fetch lại thông tin khách hàng mà không cần fetch lại tin nhắn chat
-            fetchConversationData(selectedConversationId)
-              .then((updatedConversation) => {
-                // Báo lên component cha rằng conversation đã được cập nhật nếu có callback
-                if (onConversationUpdated && updatedConversation) {
-                  onConversationUpdated(updatedConversation);
-                }
-              })
-              .catch(() => {});
-          }
-        }}
-        guestId={selectedConversationId || ""}
-      />
     </div>
   );
 }

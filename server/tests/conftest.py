@@ -5,7 +5,7 @@ from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from app.configs.constants import CHAT_ASSIGNMENT, SENTIMENTS
+from app.configs.constants import CHAT_ASSIGNMENT
 from app.models import Chat
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -95,13 +95,6 @@ def mock_external_dependencies():
             new_callable=AsyncMock,
             return_value=None,
         ),
-        # Mock sentiment service analyze_sentiment method if it exists
-        patch(
-            "app.services.integrations.sentiment_service.analyze_sentiment",
-            new_callable=AsyncMock,
-            return_value="neutral",
-            create=True,
-        ),
         # Mock Google services if used
         patch(
             "app.services.integrations.google_service.get_service",
@@ -144,8 +137,6 @@ def mock_guest():
         "avatar": "http://example.com/avatar.jpg",
         "last_message_at": datetime.now().isoformat(),
         "last_message": {"text": "Hello world"},
-        "message_count": 5,
-        "sentiment": SENTIMENTS.POSITIVE.value,
         "assigned_to": CHAT_ASSIGNMENT.AI.value,
         "info": guest_info_dict,
         "info_id": guest_info_dict["id"],
@@ -189,12 +180,6 @@ def mock_guest_list():
             "avatar": f"http://example.com/avatar_{i}.jpg",
             "last_message_at": datetime.now().isoformat(),
             "last_message": {"text": f"Hello world {i}"},
-            "message_count": i + 1,
-            "sentiment": (
-                SENTIMENTS.POSITIVE.value
-                if i == 0
-                else (SENTIMENTS.NEUTRAL.value if i == 1 else SENTIMENTS.NEGATIVE.value)
-            ),
             "assigned_to": (
                 CHAT_ASSIGNMENT.AI.value if i < 2 else CHAT_ASSIGNMENT.ME.value
             ),

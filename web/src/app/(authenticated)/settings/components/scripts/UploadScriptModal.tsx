@@ -140,8 +140,7 @@ export function UploadScriptModal({
           setSheetNames(sheets);
           setActiveSheet(sheets[0]);
         }
-      } catch (error) {
-        console.error("Excel parsing error:", error);
+      } catch {
         toast.error(
           "Không thể đọc file Excel. Vui lòng kiểm tra lại định dạng file."
         );
@@ -169,8 +168,7 @@ export function UploadScriptModal({
       const templateBlob = await scriptService.downloadScriptTemplate();
       await downloadFile(templateBlob, "script_template.xlsx");
       toast.success("Mẫu Excel đã được tải xuống");
-    } catch (error) {
-      console.error("Template download error:", error);
+    } catch {
       toast.error("Không thể tải xuống mẫu Excel");
     }
   };
@@ -187,9 +185,8 @@ export function UploadScriptModal({
       toast.success("Tải lên kịch bản thành công");
       onOpenChange(false);
       if (onSuccess) onSuccess();
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi tải lên file Excel");
-      console.error("Upload error:", error);
     } finally {
       setIsUploading(false);
     }

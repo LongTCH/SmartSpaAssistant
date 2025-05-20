@@ -1,9 +1,7 @@
 "use client";
 
-import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { downloadFile } from "@/lib/file-utils";
 import {
   Table,
   TableBody,
@@ -12,42 +10,15 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+
+
+
+
 import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import {
-  Download,
-  Upload,
-  Plus,
   Pencil,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
-  AlertTriangle,
-  FileDown,
-  FileUp,
 } from "lucide-react";
-import { AddScriptModal } from "./AddScriptModal";
-import { EditScriptModal } from "./EditScriptModal";
-import { UploadScriptModal } from "./UploadScriptModal";
 import { Script } from "@/types";
-import { toast } from "sonner";
-import { scriptService } from "@/services/api/script.service";
-import { PaginationSetting } from "../PaginationSetting";
 
 
 interface ScriptTableProps {

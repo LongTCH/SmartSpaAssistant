@@ -4,7 +4,6 @@ import { Interest } from "./interest";
 export type ProviderType = "messenger" | "web";
 export type ConversationalistType = "client" | "staff";
 export type ChatAttachmentType = "image" | "video" | "audio" | "file";
-export type SentimentType = "positive" | "negative" | "neutral";
 export type ChatAssignmentType = "ai" | "me" | "all";
 
 export interface Conversation {
@@ -13,7 +12,6 @@ export interface Conversation {
   avatar: string;
   last_chat_message: Chat;
   provider: ProviderType;
-  sentiment: SentimentType;
   assigned_to: ChatAssignmentType;
   info?: GuestInfo;
   interests?: Interest[];

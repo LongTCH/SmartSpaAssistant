@@ -31,52 +31,68 @@ export function EditableGenderRow({
   onReset,
 }: EditableGenderRowProps) {
   return (
-    <div className="flex items-center justify-between">
-      <div className="w-[120px] font-medium">{label}:</div>
-      <div className="flex-1 flex items-center">
-        {isEditable ? (
-          <Select
-            value={value || "unknown"} // Treat null as 'unknown' for the Select component
-            onValueChange={(val) => onValueChange(fieldName, val)}
-            disabled={!isEditable}
-          >
-            <SelectTrigger className="flex-1 bg-white">
-              <SelectValue placeholder="Chọn giới tính" />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="male">Nam</SelectItem>
-              <SelectItem value="female">Nữ</SelectItem>
-              <SelectItem value="unknown">Không xác định</SelectItem>
-            </SelectContent>
-          </Select>
-        ) : (
-          <Input
-            value={
-              value === "male"
-                ? "Nam"
-                : value === "female"
-                ? "Nữ"
-                : "Chưa có thông tin"
-            }
-            className="flex-1 bg-gray-50"
-            readOnly
-          />
-        )}
+    <div className="flex flex-col space-y-1">
+      {" "}
+      {/* Changed to flex-col and added space-y-1 */}
+      <div className="flex items-center justify-between">
+        {" "}
+        {/* Wrapper for label and edit button */}
+        <label className="font-medium text-sm">{label}:</label>{" "}
+        {/* Smaller font for label */}
         <Button
           variant="ghost"
           size="icon"
-          className="ml-2 h-8 w-8 text-gray-500"
+          className="h-7 w-7 text-gray-500" // Smaller button
           onClick={() =>
             isEditable ? onReset(fieldName) : onToggleEdit(fieldName)
           }
         >
           {isEditable ? (
-            <RotateCcw className="h-4 w-4" />
+            <RotateCcw className="h-3.5 w-3.5" /> // Smaller icon
           ) : (
-            <Edit className="h-4 w-4" />
+            <Edit className="h-3.5 w-3.5" /> // Smaller icon
           )}
         </Button>
       </div>
+      {isEditable ? (
+        <Select
+          value={value || "unknown"}
+          onValueChange={(val) => onValueChange(fieldName, val)}
+          disabled={!isEditable}
+        >
+          <SelectTrigger className="flex-1 bg-white text-sm">
+            {" "}
+            {/* Smaller font */}
+            <SelectValue placeholder="Chọn giới tính" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="male" className="text-sm">
+              Nam
+            </SelectItem>{" "}
+            {/* Smaller font */}
+            <SelectItem value="female" className="text-sm">
+              Nữ
+            </SelectItem>{" "}
+            {/* Smaller font */}
+            <SelectItem value="unknown" className="text-sm">
+              Không xác định
+            </SelectItem>{" "}
+            {/* Smaller font */}
+          </SelectContent>
+        </Select>
+      ) : (
+        <Input
+          value={
+            value === "male"
+              ? "Nam"
+              : value === "female"
+              ? "Nữ"
+              : "Chưa có thông tin"
+          }
+          className="flex-1 bg-gray-50 text-sm" // Smaller font
+          readOnly
+        />
+      )}
     </div>
   );
 }

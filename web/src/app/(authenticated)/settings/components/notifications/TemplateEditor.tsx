@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { Textarea } from "@/components/ui/textarea";
 
 interface TemplateEditorProps {
@@ -20,27 +20,30 @@ export function TemplateEditor({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [highlightedContent, setHighlightedContent] = useState("");
 
-  // Function to highlight template variables
-  const highlightTemplateVariables = (text: string) => {
-    let highlighted = text; // Replace all template variables with highlighted versions
-    parameters.forEach((param) => {
-      const regex = new RegExp(`\\{\\{\\s*${param.name}\\s*\\}\\}`, "g");
-      highlighted = highlighted.replace(
-        regex,
-        `<span class="bg-[#F3E8FF] text-[#9333EA] rounded" style="display:inline-block;">{{ ${param.name} }}</span>`
-      );
-    });
+  // Function to highlight template variables - wrapped in useCallback
+  const highlightTemplateVariables = useCallback(
+    (text: string) => {
+      let highlighted = text; // Replace all template variables with highlighted versions
+      parameters.forEach((param) => {
+        const regex = new RegExp(`\\{\\{\\s*${param.name}\\s*\\}\\}`, "g");
+        highlighted = highlighted.replace(
+          regex,
+          `<span class="bg-[#F3E8FF] text-[#9333EA] rounded" style="display:inline-block;">{{ ${param.name} }}</span>`
+        );
+      });
 
-    // Convert newlines to <br> for HTML display
-    highlighted = highlighted.replace(/\n/g, "<br>");
+      // Convert newlines to <br> for HTML display
+      highlighted = highlighted.replace(/\n/g, "<br>");
 
-    return highlighted;
-  };
+      return highlighted;
+    },
+    [parameters]
+  );
 
   // Update highlighted content whenever value changes
   useEffect(() => {
     setHighlightedContent(highlightTemplateVariables(value));
-  }, [value, parameters]);
+  }, [value, highlightTemplateVariables]); // Fix dependency array
 
   // Sync scroll position between textarea and highlight overlay
   const handleScroll = () => {

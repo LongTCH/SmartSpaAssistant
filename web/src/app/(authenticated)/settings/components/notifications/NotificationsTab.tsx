@@ -1,16 +1,9 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+
+
 import {
   Dialog,
   DialogClose,
@@ -20,25 +13,12 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
+
+
 import {
   Plus,
-  Pencil,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
-  Filter,
   AlertTriangle,
-  Download,
-  Edit,
-  FilePlus,
   FileDown,
   FileUp,
 } from "lucide-react";
@@ -90,7 +70,7 @@ export function NotificationsTab() {
       setNotifications(response.data);
       setTotalPages(response.total_pages);
       setTotalItems(response.total);
-    } catch (error) {
+    } catch {
       toast.error("Không thể tải danh sách thông báo.");
     } finally {
       setIsLoading(false);
@@ -151,8 +131,7 @@ export function NotificationsTab() {
       const blob = await notificationService.downloadNotifications();
       downloadFile(blob, `Cài đặt thông báo.xlsx`);
       toast.success("Đã tải xuống file Excel thành công");
-    } catch (error) {
-      console.error("Download error:", error);
+    } catch  {
       toast.error("Không thể tải xuống file Excel");
     } finally {
       setIsDownloading(false);
@@ -166,7 +145,7 @@ export function NotificationsTab() {
         await notificationService.getNotificationById(notification.id);
       setEditingNotification(detailedNotification);
       setShowEditModal(true);
-    } catch (error) {
+    } catch {
       toast.error("Không thể tải thông tin thông báo");
     }
   };
@@ -202,7 +181,7 @@ export function NotificationsTab() {
 
         // Refresh the list
         fetchNotifications();
-      } catch (error) {
+      } catch {
         toast.error("Không thể xóa các thông báo đã chọn.");
       } finally {
         setIsDeleting(false);
@@ -219,7 +198,7 @@ export function NotificationsTab() {
 
         // Refresh the list
         fetchNotifications();
-      } catch (error) {
+      } catch {
         toast.error("Không thể xóa thông báo.");
       } finally {
         setIsDeleting(false);

@@ -68,10 +68,7 @@ async def update_local_data(updates: Dict[str, Any]) -> LocalData:
         current_data["DRIVE_FOLDER_ID"] = updates["DRIVE_FOLDER_ID"]
     if "CHAT_WAIT_SECONDS" in updates:
         current_data["CHAT_WAIT_SECONDS"] = updates["CHAT_WAIT_SECONDS"]
-    if "SENTIMENT_INTERVAL_CHAT_COUNT" in updates:
-        current_data["SENTIMENT_INTERVAL_CHAT_COUNT"] = updates[
-            "SENTIMENT_INTERVAL_CHAT_COUNT"
-        ]
+
     if "REACTION_MESSAGE" in updates:
         current_data["REACTION_MESSAGE"] = updates["REACTION_MESSAGE"]
 

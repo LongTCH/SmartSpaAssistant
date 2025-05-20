@@ -22,7 +22,6 @@ import { ChatHeader } from "./components/ChatHeader";
 import { ChatInput } from "./components/ChatInput";
 // Use a type alias to distinguish local Conversation from global Conversation
 import {
-  Conversation as GlobalConversation,
   Chat,
   ChatAttachment,
 } from "@/types/conversation"; // Added ChatAttachment
@@ -108,7 +107,7 @@ export default function TestChatPage() {
       setConversations(loadConversations()); // Reload to get the new list
     },
     // saveConversation & loadConversations are stable imports, setConversations, setCurrentConversationId, setMessages are stable state setters
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+     
     []
   );
 
@@ -317,8 +316,7 @@ export default function TestChatPage() {
               chatData.content.message.attachments // Pass attachments
             );
           }
-        } catch (error) {
-          console.error("Error processing WebSocket response:", error);
+        } catch {
         }
       }
     );
@@ -377,8 +375,7 @@ export default function TestChatPage() {
           chatRes.content.message.text,
           chatRes.content.message.attachments // Pass attachments
         );
-      } catch (error) {
-        console.error("Error getting chat response:", error);
+      } catch {
         addMessage(
           convoIdToSendMessageTo,
           "staff", // 'staff' for Assistant messages

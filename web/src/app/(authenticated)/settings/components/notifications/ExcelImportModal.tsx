@@ -140,8 +140,7 @@ export function ExcelImportModal({
           setSheetNames(sheets);
           setActiveSheet(sheets[0]);
         }
-      } catch (error) {
-        console.error("Excel parsing error:", error);
+      } catch {
         toast.error(
           "Không thể đọc file Excel. Vui lòng kiểm tra lại định dạng file."
         );
@@ -170,8 +169,7 @@ export function ExcelImportModal({
         await notificationService.downloadNotificationTemplate();
       await downloadFile(templateBlob, "notification_template.xlsx");
       toast.success("Mẫu Excel đã được tải xuống");
-    } catch (error) {
-      console.error("Template download error:", error);
+    } catch {
       toast.error("Không thể tải xuống mẫu Excel");
     }
   };
@@ -188,9 +186,8 @@ export function ExcelImportModal({
       toast.success("Tải lên thông báo thành công");
       onOpenChange(false);
       if (onSuccess) onSuccess();
-    } catch (error) {
+    } catch {
       toast.error("Có lỗi xảy ra khi tải lên file Excel");
-      console.error("Upload error:", error);
     } finally {
       setIsUploading(false);
     }
@@ -402,12 +399,12 @@ export function ExcelImportModal({
               <p className="font-medium mb-1">Định dạng file Excel yêu cầu:</p>
               <ul className="list-disc pl-5 space-y-1">
                 <li>
-                  Sheet "data" chứa các cột: id, label, color, status,
+                  Sheet &quot;data&quot; chứa các cột: id, label, color, status,
                   description, content
                 </li>
                 <li>
-                  Mỗi thông báo cần có sheet riêng "n_[id]" (ví dụ: n_1, n_2) để
-                  chứa thông tin params
+                  Mỗi thông báo cần có sheet riêng &quot;n_[id]&quot; (ví dụ:
+                  n_1, n_2) để chứa thông tin params
                 </li>
                 <li>
                   Mỗi sheet params có các cột: index, param_name, param_type,
