@@ -4,11 +4,11 @@ from sqlalchemy.future import select
 from sqlalchemy.sql import text
 
 
-async def get_guest_info_by_id(db: AsyncSession, guest_info_id: str) -> GuestInfo:
+async def get_guest_info_by_guest_id(db: AsyncSession, guest_id: str) -> GuestInfo:
     """
     Lấy guest info theo id
     """
-    stmt = select(GuestInfo).where(GuestInfo.id == guest_info_id)
+    stmt = select(GuestInfo).where(GuestInfo.guest_id == guest_id)
     result = await db.execute(stmt)
     return result.scalars().first()
 

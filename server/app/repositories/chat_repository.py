@@ -25,4 +25,5 @@ async def get_chat_by_guest_id(
 
 async def insert_chat(db: AsyncSession, chat: Chat) -> Chat:
     db.add(chat)
+    await db.flush()
     return chat

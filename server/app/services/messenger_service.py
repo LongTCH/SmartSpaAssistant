@@ -7,11 +7,11 @@ from typing import Any, Dict
 import aiohttp
 from app.configs import env_config
 from app.configs.constants import CHAT_ASSIGNMENT, CHAT_SIDES, PROVIDERS
-from app.configs.database import async_session
+from app.configs.database import async_session, with_session
 from app.models import Guest, GuestInfo
 from app.pydantic_agents import invoke_agent
 from app.repositories import guest_info_repository, guest_repository
-from app.services import chat_service, interest_service
+from app.services import chat_service
 from app.stores.store import LOCAL_DATA
 from app.utils.message_utils import (
     get_attachment_type_name,
@@ -19,7 +19,6 @@ from app.utils.message_utils import (
     messenger_to_markdown,
     send_message_to_ws,
 )
-from baml_client.types import ChatResponseItem
 from sqlalchemy.ext.asyncio import AsyncSession
 
 SENDER_ACTION = {
@@ -27,6 +26,8 @@ SENDER_ACTION = {
     "typing_on": "typing_on",
     "typing_off": "typing_off",
 }
+RESEND_TYPING_AFTER = 8  # seconds
+DELAY_BETWEEN_MESSAGES = 2  # seconds
 
 # Cấu trúc để lưu trữ tin nhắn đợi xử lý
 map_message: Dict[str, Dict[str, Any]] = {}
@@ -108,21 +109,6 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                 created_at = datetime.fromtimestamp(timestamp / 1000)
 
                 if message.get("is_echo", False):
-                    guest = await guest_repository.get_conversation_by_provider(
-                        db, PROVIDERS.MESSENGER, receipient_psid
-                    )
-                    if guest:
-                        # Convert millisecond timestamp to seconds for proper datetime handling
-                        await chat_service.insert_chat(
-                            db,
-                            guest.id,
-                            CHAT_SIDES.STAFF,
-                            text,
-                            attachments,
-                            created_at,
-                        )
-                        guest = await guest_repository.get_guest_by_id(db, guest.id)
-                        await send_message_to_ws(guest)
                     return
 
                 # Ensure we explicitly handle the case when guest is None
@@ -134,12 +120,13 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                     if not guest:
                         print(f"Failed to create guest for sender_psid: {sender_psid}")
                         return
-                    await db.commit()
 
                 await chat_service.insert_chat(
                     db, guest.id, CHAT_SIDES.CLIENT, text, attachments, created_at
                 )
-                guest = await guest_repository.get_guest_by_id(db, guest.id)
+                guest = await with_session(
+                    lambda session: guest_repository.get_guest_by_id(session, guest.id)
+                )
                 await send_message_to_ws(guest)
 
                 # Khởi tạo hoặc cập nhật thông tin tin nhắn cho người dùng
@@ -193,12 +180,6 @@ async def process_after_wait(sender_psid, wait_seconds: float, guest: Guest):
 
                 # Xử lý tin nhắn
                 if combined_message:
-                    interest_ids = await interest_service.get_interest_ids_from_text(
-                        db, combined_message
-                    )
-                    await guest_repository.add_interests_to_guest_by_id(
-                        db, guest.id, interest_ids
-                    )
                     # Handle the chat message
                     await handle_chat(sender_psid, combined_message, guest)
                     await db.commit()
@@ -208,6 +189,25 @@ async def process_after_wait(sender_psid, wait_seconds: float, guest: Guest):
         except Exception as e:
             await db.rollback()
             print(f"Error in process_after_wait: {e}")
+
+
+async def send_response_webhook(
+    guest_id: str, text: str, attachments: list, created_at: datetime
+):
+    await with_session(
+        lambda db: chat_service.insert_chat(
+            db,
+            guest_id,
+            CHAT_SIDES.STAFF,
+            text,
+            attachments,
+            created_at,
+        )
+    )
+    guest = await with_session(
+        lambda db: guest_repository.get_guest_by_id(db, guest_id)
+    )
+    await send_message_to_ws(guest)
 
 
 async def handle_chat(sender_psid, message, guest: Guest):
@@ -221,9 +221,7 @@ async def handle_chat(sender_psid, message, guest: Guest):
             typing_task = asyncio.create_task(keep_typing(sender_psid))
 
             # Handle the message
-            message_parts: list[ChatResponseItem] = await invoke_agent(
-                guest.id, message
-            )
+            message_parts = await invoke_agent(guest.id, message)
 
             for part in message_parts:
                 if part.type == "text":
@@ -244,7 +242,13 @@ async def handle_chat(sender_psid, message, guest: Guest):
                         ]
                     }
                 await call_send_api(sender_psid, response)
-                await asyncio.sleep(2)
+                await send_response_webhook(
+                    guest.id,
+                    response.get("text", ""),
+                    response.get("attachments", []),
+                    datetime.now(),
+                )
+                await asyncio.sleep(DELAY_BETWEEN_MESSAGES)
 
         except Exception as e:
             print(f"Error in handle_chat: {e}")
@@ -297,7 +301,7 @@ async def keep_typing(sender_psid):
     try:
         while True:
             await send_action(sender_psid, SENDER_ACTION["typing_on"])
-            await asyncio.sleep(5)  # Send typing indicator every 5 seconds
+            await asyncio.sleep(RESEND_TYPING_AFTER)
     except Exception as e:
         print(f"Error in keep_typing: {e}")
 
@@ -311,7 +315,7 @@ async def handle_message(sender_psid, received_message):
     # Checks if the message contains text
     if received_message.get("text"):
         # Create the payload for a basic text message
-        response_text = await send_to_n8n(sender_psid, received_message.get("text"))
+        response_text = ""
         response = {"text": response_text}
         await call_send_api(sender_psid, response)
     elif received_message.get("attachments"):
@@ -439,22 +443,3 @@ async def post_to_messenger(url, payload, params, headers=None, retry=5) -> bool
                 return False
 
     return False
-
-
-async def send_to_n8n(sender_psid, message):
-    """
-    Sends message to n8n webhook
-    """
-    payload = {"sender_psid": sender_psid, "message": message}
-
-    async with aiohttp.ClientSession() as session:
-        # Send the message to n8n webhook
-        async with session.post(
-            env_config.N8N_MESSAGE_WEBHOOK_URL, json=payload
-        ) as response:
-            if response.status == 200:
-                response_data = await response.text()
-                return response_data
-            else:
-                print(f"Error: {response.status}")
-                return "Hiện tại em chưa thể trả lời được ạ. Em sẽ cố gắng trả lời sớm nhất có thể."
