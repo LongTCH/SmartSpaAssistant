@@ -381,13 +381,20 @@ class Notification(Base):
 
 
 class Alert(Base):
+    """
+    type: ["system", "custom"]
+    status: ["unread", "read"]
+    """
+
     __tablename__ = "alerts"
 
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
-    guest_id = Column(String, nullable=False)
+    guest_id = Column(String, nullable=True)
+    type = Column(String(50), nullable=False)
     content = Column(Text, nullable=False)
+    status = Column(String(50), default="unread")
     created_at = Column(DateTime, default=datetime.datetime.now)
-    notification_id = Column(String, ForeignKey("notifications.id"))
+    notification_id = Column(String, ForeignKey("notifications.id"), nullable=True)
 
     # Relationship to Notification
     notification = relationship("Notification", back_populates="alerts")
@@ -398,6 +405,8 @@ class Alert(Base):
         result = {
             "id": self.id,
             "guest_id": self.guest_id,
+            "type": self.type,
+            "status": self.status,
             "content": self.content,
             "created_at": self.created_at.isoformat() if self.created_at else None,
             "notification_id": self.notification_id,

@@ -109,6 +109,20 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                 created_at = datetime.fromtimestamp(timestamp / 1000)
 
                 if message.get("is_echo", False):
+                    guest = await guest_repository.get_conversation_by_provider(
+                        db, PROVIDERS.MESSENGER, receipient_psid
+                    )
+                    if not guest:
+                        return
+                    if guest.assigned_to == CHAT_ASSIGNMENT.AI:
+                        return
+                    await chat_service.insert_chat(
+                        db, guest.id, CHAT_SIDES.STAFF, text, attachments, created_at
+                    )
+                    guest = await with_session(
+                        lambda db: guest_repository.get_guest_by_id(db, guest.id)
+                    )
+                    await send_message_to_ws(guest)
                     return
 
                 # Ensure we explicitly handle the case when guest is None
@@ -128,6 +142,10 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                     lambda session: guest_repository.get_guest_by_id(session, guest.id)
                 )
                 await send_message_to_ws(guest)
+
+                if guest.assigned_to != CHAT_ASSIGNMENT.AI:
+                    # Nếu không phải là AI, không cần xử lý tin nhắn
+                    return
 
                 # Khởi tạo hoặc cập nhật thông tin tin nhắn cho người dùng
                 if sender_psid not in map_message:
@@ -191,7 +209,7 @@ async def process_after_wait(sender_psid, wait_seconds: float, guest: Guest):
             print(f"Error in process_after_wait: {e}")
 
 
-async def send_response_webhook(
+async def send_agent_response_ws(
     guest_id: str, text: str, attachments: list, created_at: datetime
 ):
     await with_session(
@@ -222,6 +240,11 @@ async def handle_chat(sender_psid, message, guest: Guest):
 
             # Handle the message
             message_parts = await invoke_agent(guest.id, message)
+            # cancel typing task
+            if typing_task:
+                typing_task.cancel()
+            # send typing_off action
+            await send_action(sender_psid, SENDER_ACTION["typing_off"])
 
             for part in message_parts:
                 if part.type == "text":
@@ -242,7 +265,7 @@ async def handle_chat(sender_psid, message, guest: Guest):
                         ]
                     }
                 await call_send_api(sender_psid, response)
-                await send_response_webhook(
+                await send_agent_response_ws(
                     guest.id,
                     response.get("text", ""),
                     response.get("attachments", []),

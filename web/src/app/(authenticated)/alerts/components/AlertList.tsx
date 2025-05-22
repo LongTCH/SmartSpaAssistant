@@ -1,7 +1,7 @@
 "use client";
 
 import { Alert } from "@/types";
-import { useEffect, useRef, useState, useCallback } from "react"; // Import useCallback
+import { useEffect, useState, useCallback, useRef } from "react"; // useRef added
 import { useInView } from "react-intersection-observer";
 import { alertService } from "@/services/api/alert.service";
 import AlertItem from "./AlertItem";
@@ -9,7 +9,7 @@ import NotificationFilter from "./NotificationFilter";
 
 interface AlertListProps {
   onSelectAlert: (alert: Alert) => void;
-  activeFilter: string; // Add activeFilter prop
+  activeFilter: string;
 }
 
 export default function AlertList({
@@ -23,31 +23,43 @@ export default function AlertList({
   const [hasMore, setHasMore] = useState(true);
   const [selectedNotificationId, setSelectedNotificationId] =
     useState<string>("all");
-  // Remove activeTab state, as it's now passed as activeFilter prop
-  // const [activeTab, setActiveTab] = useState<string>("all");
 
   const { ref, inView } = useInView({
     threshold: 0.1,
   });
-  const fetchAlerts = useCallback(
-    async (reset = false) => {
-      if (loading) return;
 
+  // loadingRef to prevent calling performFetch if already loading, without adding loading to useCallback deps
+  const loadingRef = useRef(loading);
+  useEffect(() => {
+    loadingRef.current = loading;
+  }, [loading]);
+
+  const performFetch = useCallback(
+    async (fetchSkip: number, isReset: boolean) => {
+      if (loadingRef.current && !isReset) {
+        // Allow reset calls to interrupt, or use a more sophisticated queue/cancel
+        // For simplicity, if loading and not a reset, just return.
+        // A reset implies filter change, which should take precedence.
+        // If it's a reset, we might want to cancel ongoing non-reset fetches.
+        // For now, let's ensure loading state is respected.
+        if (!isReset && fetchSkip > 0) return; // Don't interrupt for load more if already loading
+      }
       setLoading(true);
       try {
-        const currentSkip = reset ? 0 : skip;
-        // Modify getPagingAlert to potentially use activeFilter if your API supports it
-        // For now, it still uses selectedNotificationId which is controlled by NotificationFilter
+        const apiType = activeFilter; // "all", "system", or "custom"
+        // For "system" or "all" types, notification_id is "all".
+        // For "custom" type, it's the selectedNotificationId (which can also be "all").
+        const apiNotificationId =
+          activeFilter === "custom" ? selectedNotificationId : "all";
+
         const response = await alertService.getPagingAlert(
-          currentSkip,
+          fetchSkip,
           limit,
-          // If activeFilter is 'all' or 'system', selectedNotificationId should reflect that,
-          // or your API needs to handle 'all' and 'system' directly.
-          // For now, we assume selectedNotificationId is correctly set by NotificationFilter or defaults to 'all'.
-          activeFilter === "chat" ? selectedNotificationId : activeFilter
+          apiType,
+          apiNotificationId
         );
 
-        if (reset) {
+        if (isReset) {
           setAlerts(response.data);
         } else {
           setAlerts((prev) => [...prev, ...response.data]);
@@ -55,56 +67,90 @@ export default function AlertList({
 
         setHasMore(response.has_next);
         if (response.has_next) {
-          setSkip(currentSkip + limit);
+          setSkip(fetchSkip + response.data.length);
+        } else {
+          // If no more data
+          if (isReset) {
+            setSkip(0); // Reset skip to 0 if it was a reset operation
+          }
+          // If it was a load more (isReset=false) and no more data,
+          // skip is already fetchSkip + response.data.length (which is fetchSkip if data is empty)
+          // and hasMore is false, so no further action on skip needed.
         }
-      } catch {
+      } catch (error) {
+        console.error("Failed to fetch alerts:", error);
+        setHasMore(false); // Stop trying to load more on error
+        if (isReset) {
+          setAlerts([]); // Clear alerts on error if it was a reset
+          setSkip(0);
+        }
       } finally {
         setLoading(false);
       }
     },
-    [loading, skip, limit, activeFilter, selectedNotificationId] // Add dependencies to useCallback
+    [
+      activeFilter,
+      selectedNotificationId,
+      limit,
+      // setLoading, // Removed as per your manual edit, assuming loadingRef handles it
+      // setAlerts, // Removed
+      // setHasMore, // Removed
+      // setSkip, // Removed
+      // Ensure all dependencies used inside performFetch are listed if they can change and should trigger re-creation of performFetch
+      // For example, if 'limit' could change, it should be here.
+      // The state setters (setAlerts, setHasMore, setSkip, setLoading) are generally stable and don't need to be deps
+      // but if you are directly using their state values (e.g. `skip` instead of `fetchSkip`) then those values should be deps.
+      // Based on your provided snippet, activeFilter, selectedNotificationId, limit are direct deps.
+    ]
   );
 
-  // Track previous notification ID to prevent redundant API calls
-  const prevNotificationIdRef = useRef<string>(selectedNotificationId);
-  const initialFetchRef = useRef<boolean>(false);
-
+  // Effect for initial load and filter changes (always resets)
   useEffect(() => {
-    if (!initialFetchRef.current) {
-      initialFetchRef.current = true;
-      fetchAlerts(true);
-    } else if (
-      prevNotificationIdRef.current !== selectedNotificationId ||
-      activeFilter !== prevNotificationIdRef.current
-    ) {
-      // Also refetch if activeFilter changes
-      prevNotificationIdRef.current =
-        activeFilter === "chat" ? selectedNotificationId : activeFilter;
-      fetchAlerts(true);
-    }
-  }, [selectedNotificationId, activeFilter, fetchAlerts]); // Add fetchAlerts to dependency array
+    performFetch(0, true); // Always fetch from skip 0 and reset
+  }, [activeFilter, selectedNotificationId, performFetch]);
 
+  // Effect for infinite scrolling (load more)
   useEffect(() => {
     if (inView && hasMore && !loading) {
-      fetchAlerts();
+      performFetch(skip, false); // Fetch from current `skip` and append
     }
-  }, [inView, hasMore, loading, fetchAlerts]); // Add fetchAlerts to dependency array
+  }, [inView, hasMore, loading, skip, performFetch]);
+
+  const handleAlertItemClick = async (alert: Alert) => {
+    if (alert.status === "unread") {
+      try {
+        const updatedAlert = await alertService.markAsRead(alert.id);
+        setAlerts((prevAlerts) =>
+          prevAlerts.map((a) =>
+            a.id === updatedAlert.id ? { ...a, status: "read" } : a
+          )
+        );
+        // Proceed with original navigation/selection logic
+        onSelectAlert(updatedAlert); // Pass the updated alert
+      } catch (error) {
+        console.error("Failed to mark alert as read:", error);
+        // Optionally, still proceed with navigation even if marking as read fails
+        onSelectAlert(alert);
+      }
+    } else {
+      // If already read, just proceed with original navigation/selection logic
+      onSelectAlert(alert);
+    }
+  };
+
   const handleNotificationChange = (notificationId: string) => {
     setSelectedNotificationId(notificationId);
-    setSkip(0);
-    // No longer setting activeTab here
+    // setSkip(0); // Not strictly needed as performFetch(0, true) will be called by the effect above
   };
 
   if (alerts.length === 0 && !loading) {
     return (
       <div className="flex flex-col space-y-4">
-        {/* Conditionally render NotificationFilter only if activeFilter is "chat" */}
-        {activeFilter === "chat" && (
+        {activeFilter === "custom" && ( // Changed "chat" to "custom"
           <NotificationFilter
             onNotificationChange={handleNotificationChange}
             selectedNotificationId={selectedNotificationId}
-            // Ensure allowedNotificationTypes is appropriate for the chat filter
-            allowedNotificationTypes={["all", "Chat"]}
+            allowedNotificationTypes={["all", "Chat"]} // "Chat" is likely a label for custom type
           />
         )}
         <div className="flex flex-col items-center justify-center h-64 text-gray-500">
@@ -116,22 +162,20 @@ export default function AlertList({
 
   return (
     <div className="flex flex-col space-y-4">
-      {/* Conditionally render NotificationFilter only if activeFilter is "chat" */}
-      {activeFilter === "chat" && (
+      {activeFilter === "custom" && ( // Changed "chat" to "custom"
         <NotificationFilter
           onNotificationChange={handleNotificationChange}
           selectedNotificationId={selectedNotificationId}
-          allowedNotificationTypes={["all", "Chat"]} // Or just ["Chat"] if "all" within chat is not a concept
+          allowedNotificationTypes={["all", "Chat"]}
         />
       )}
-      {/* When activeFilter is "all" or "system", NotificationFilter is not rendered */}
 
       <div className="space-y-3">
         {alerts.map((alert) => (
           <AlertItem
             key={alert.id}
             alert={alert}
-            onClick={() => onSelectAlert(alert)}
+            onClick={() => handleAlertItemClick(alert)} // Updated onClick handler
           />
         ))}
 
@@ -141,7 +185,9 @@ export default function AlertList({
           </div>
         )}
 
-        {hasMore && !loading && <div ref={ref} className="h-10" />}
+        {hasMore && !loading && alerts.length > 0 && (
+          <div ref={ref} className="h-10" />
+        )}
       </div>
     </div>
   );

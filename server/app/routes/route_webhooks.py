@@ -1,5 +1,5 @@
 from app.configs import env_config
-from app.services import messenger_service
+from app.services.integrations import messenger_service
 from app.utils import asyncio_utils
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response as HttpResponse

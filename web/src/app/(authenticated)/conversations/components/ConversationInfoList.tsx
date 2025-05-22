@@ -246,9 +246,7 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         clearTimeout(throttleTimeoutRef.current);
       }
     };
-  }, []);
-
-  // Handle new conversation from WebSocket
+  }, []); // Handle new conversation from WebSocket
   const handleNewConversation = useCallback(
     (conversation: Conversation) => {
       // Nếu props.onNewMessage được cung cấp, gọi nó
@@ -269,9 +267,10 @@ export default function ConversationInfoList(props: ConversationInfoListProps) {
         if (existingIndex !== -1) {
           // If exists, remove from old position
           newConversations.splice(existingIndex, 1);
+          // Ensure we always use the incoming conversation object which has the latest message content
         }
 
-        // Add new conversation to the top of the list
+        // Add the updated conversation to the top of the list
         newConversations = [conversation, ...newConversations];
 
         return newConversations;

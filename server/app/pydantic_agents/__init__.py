@@ -4,7 +4,12 @@ from app.models import Script
 from app.pydantic_agents.memory import MemoryAgentDeps, memory_agent
 from app.pydantic_agents.synthetic import SyntheticAgentDeps, create_synthetic_agent
 from app.repositories import chat_history_repository, guest_repository
-from app.services import chat_history_service, interest_service, script_service
+from app.services import (
+    alert_service,
+    chat_history_service,
+    interest_service,
+    script_service,
+)
 from app.services.integrations import script_rag_service
 from app.utils import asyncio_utils
 from app.utils.agent_utils import MessagePart
@@ -88,6 +93,9 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             return message_parts
         except Exception as e:
             print(e)
+            await alert_service.insert_system_alert(
+                db, user_id, f"Hệ thống bị lỗi khi cố gắng tạo phản hồi cho khách hàng"
+            )
             return [MessagePart(type="text", payload="Xin lỗi, vui lòng thử lại sau")]
 
 
