@@ -1,8 +1,8 @@
 import json
 from typing import Any, Dict
 
-from app.stores import store
-from app.stores.store import LocalData, read_json_file
+from app.stores.store import LocalData
+from app.stores.store import get_local_data as get_local_data_from_store
 
 LOCAL_DATA_PATH = "./app/stores/localData.json"
 
@@ -10,11 +10,12 @@ LOCAL_DATA_PATH = "./app/stores/localData.json"
 async def get_local_data() -> LocalData:
     """
     Lấy dữ liệu cấu hình local dưới dạng đối tượng LocalData.
+    Luôn load lại từ file để đảm bảo dữ liệu mới nhất.
 
     Returns:
         LocalData: Đối tượng cấu hình local data
     """
-    return store.LOCAL_DATA
+    return get_local_data_from_store()
 
 
 async def get_local_data_dict() -> Dict[str, Any]:
@@ -30,7 +31,7 @@ async def get_local_data_dict() -> Dict[str, Any]:
 
 async def save_local_data(data: Dict[str, Any]) -> LocalData:
     """
-    Lưu dữ liệu cấu hình local và cập nhật đối tượng LOCAL_DATA toàn cục.
+    Lưu dữ liệu cấu hình local.
 
     Args:
         data (Dict[str, Any]): Dữ liệu cấu hình để lưu
@@ -42,9 +43,8 @@ async def save_local_data(data: Dict[str, Any]) -> LocalData:
     with open(LOCAL_DATA_PATH, "w", encoding="utf-8") as file:
         json.dump(data, file, ensure_ascii=False, indent=2)
 
-    # Cập nhật đối tượng LOCAL_DATA toàn cục và trả về
-    store.LOCAL_DATA = read_json_file(LOCAL_DATA_PATH)
-    return store.LOCAL_DATA
+    # Trả về đối tượng LocalData mới được load từ file
+    return get_local_data_from_store()
 
 
 async def update_local_data(updates: Dict[str, Any]) -> LocalData:
@@ -64,37 +64,20 @@ async def update_local_data(updates: Dict[str, Any]) -> LocalData:
     current_data = await get_local_data_dict()
 
     # Cập nhật các trường đơn giản
-    if "DRIVE_FOLDER_ID" in updates:
-        current_data["DRIVE_FOLDER_ID"] = updates["DRIVE_FOLDER_ID"]
     if "CHAT_WAIT_SECONDS" in updates:
         current_data["CHAT_WAIT_SECONDS"] = updates["CHAT_WAIT_SECONDS"]
+
+    if "MAX_SCRIPT_RETRIEVAL" in updates:
+        current_data["MAX_SCRIPT_RETRIEVAL"] = updates["MAX_SCRIPT_RETRIEVAL"]
 
     if "REACTION_MESSAGE" in updates:
         current_data["REACTION_MESSAGE"] = updates["REACTION_MESSAGE"]
 
-    # Cập nhật đối tượng lồng nhau FORM_OF_ADDRESS
-    if "FORM_OF_ADDRESS" in updates:
-        form_updates = updates["FORM_OF_ADDRESS"]
-        if not isinstance(current_data.get("FORM_OF_ADDRESS"), dict):
-            current_data["FORM_OF_ADDRESS"] = {}
+    if "IDENTITY" in updates:
+        current_data["IDENTITY"] = updates["IDENTITY"]
 
-        if "ME" in form_updates:
-            current_data["FORM_OF_ADDRESS"]["ME"] = form_updates["ME"]
-        if "OTHER" in form_updates:
-            current_data["FORM_OF_ADDRESS"]["OTHER"] = form_updates["OTHER"]
-
-    # Cập nhật đối tượng lồng nhau UNDEFINED_MESSAGE_HANDLER
-    if "UNDEFINED_MESSAGE_HANDLER" in updates:
-        handler_updates = updates["UNDEFINED_MESSAGE_HANDLER"]
-        if not isinstance(current_data.get("UNDEFINED_MESSAGE_HANDLER"), dict):
-            current_data["UNDEFINED_MESSAGE_HANDLER"] = {}
-
-        if "TYPE" in handler_updates:
-            current_data["UNDEFINED_MESSAGE_HANDLER"]["TYPE"] = handler_updates["TYPE"]
-        if "MESSAGE" in handler_updates:
-            current_data["UNDEFINED_MESSAGE_HANDLER"]["MESSAGE"] = handler_updates[
-                "MESSAGE"
-            ]
+    if "INSTRUCTIONS" in updates:
+        current_data["INSTRUCTIONS"] = updates["INSTRUCTIONS"]
 
     # Lưu dữ liệu đã cập nhật
     return await save_local_data(current_data)

@@ -19,10 +19,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Script, ScriptData } from "@/types";
-import { Sheet } from "@/types/sheet";
 import { toast } from "sonner";
 import { scriptService } from "@/services/api/script.service";
-import { sheetService } from "@/services/api/sheet.service";
 import { RelatedDropdown } from "./RelatedDropdown";
 
 interface AddScriptModalProps {
@@ -43,23 +41,21 @@ export function AddScriptModal({
     solution: "",
     status: "published",
     related_script_ids: [],
-    related_sheet_ids: [],
   });
   const [availableScripts, setAvailableScripts] = useState<Script[]>([]);
-  const [availableSheets, setAvailableSheets] = useState<Sheet[]>([]);
 
   // Fetch available scripts and sheets for the related dropdowns
   useEffect(() => {
     if (open) {
       const fetchData = async () => {
         try {
-          const [scriptsResponse, sheetsResponse] = await Promise.all([
-            scriptService.getPaginationScript(1, 100, "published"),
-            sheetService.getPaginationSheet(1, 100, "published"),
-          ]);
+          const scriptsResponse = await scriptService.getPaginationScript(
+            1,
+            100,
+            "published"
+          );
 
           setAvailableScripts(scriptsResponse.data);
-          setAvailableSheets(sheetsResponse.data);
         } catch {
           toast.error(
             "Không thể tải danh sách kịch bản và bảng tính liên quan"
@@ -101,31 +97,6 @@ export function AddScriptModal({
       };
     });
   };
-
-  const toggleRelatedSheet = (sheetId: string) => {
-    setScriptData((prev) => {
-      const currentIds = prev.related_sheet_ids || [];
-      const newIds = currentIds.includes(sheetId)
-        ? currentIds.filter((id) => id !== sheetId)
-        : [...currentIds, sheetId];
-
-      return {
-        ...prev,
-        related_sheet_ids: newIds,
-      };
-    });
-  };
-
-  const removeRelatedSheet = (sheetId: string) => {
-    setScriptData((prev) => {
-      const currentIds = prev.related_sheet_ids || [];
-      return {
-        ...prev,
-        related_sheet_ids: currentIds.filter((id) => id !== sheetId),
-      };
-    });
-  };
-
   const handleSubmit = async () => {
     setIsSubmitting(true);
 
@@ -195,8 +166,7 @@ export function AddScriptModal({
             </label>
             <Textarea
               className="min-h-[100px]"
-              placeholder='Khách hàng hỏi về thời gian hoạt động của thẩm mỹ viện
-"Bên mình hoạt động từ mấy giờ đến mấy giờ vậy", "Cho chị hỏi bên mình làm việc thứ mấy"'
+              placeholder='"Bên mình hoạt động từ mấy giờ đến mấy giờ vậy", "Cho chị hỏi bên mình làm việc thứ mấy"'
               value={scriptData.description}
               onChange={(e) => handleChange("description", e.target.value)}
             />
@@ -224,17 +194,6 @@ Nghỉ chủ nhật và các ngày lễ"
             badgeClassName="bg-blue-100 text-blue-800 border-blue-200"
             placeholder="Chọn kịch bản liên quan"
             emptyMessage="Không có kịch bản khả dụng"
-          />
-
-          <RelatedDropdown
-            label="Bảng tính liên quan"
-            items={availableSheets}
-            selectedIds={scriptData.related_sheet_ids || []}
-            onToggleItem={toggleRelatedSheet}
-            onRemoveItem={removeRelatedSheet}
-            badgeClassName="bg-green-100 text-green-800 border-green-200"
-            placeholder="Chọn bảng tính liên quan"
-            emptyMessage="Không có bảng tính khả dụng"
           />
         </div>
         <DialogFooter className="flex-shrink-0 mt-4 pb-2">

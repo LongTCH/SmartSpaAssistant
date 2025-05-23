@@ -24,14 +24,6 @@ script_attachments = Table(
     Column("attached_script_id", String, ForeignKey("scripts.id", ondelete="CASCADE")),
 )
 
-# Association table for Script-Sheet many-to-many relationship
-script_sheets = Table(
-    "script_sheets",
-    Base.metadata,
-    Column("script_id", String, ForeignKey("scripts.id", ondelete="CASCADE")),
-    Column("sheet_id", String, ForeignKey("sheets.id", ondelete="CASCADE")),
-)
-
 
 class Sheet(Base):
     """
@@ -54,15 +46,6 @@ class Sheet(Base):
     table_name = Column(String, nullable=True)
     status = Column(String(50), default="published")
     created_at = Column(DateTime, default=datetime.datetime.now)
-
-    # Relationship to Script với cấu hình back_populates rõ ràng
-    related_scripts = relationship(
-        "Script",
-        secondary=script_sheets,
-        lazy="select",
-        cascade="save-update, merge, expunge",
-        back_populates="related_sheets",
-    )
 
     def to_dict(self):
         return {
@@ -238,14 +221,6 @@ class Script(Base):
         cascade="save-update, merge, expunge",
     )
 
-    # Relationship to Sheet với back_populates rõ ràng
-    related_sheets: Mapped[List[Sheet]] = relationship(
-        "Sheet",
-        secondary=script_sheets,
-        lazy="select",
-        back_populates="related_scripts",
-    )
-
     def to_dict(self, include=None):
         """
         Convert object to dictionary representation
@@ -270,13 +245,7 @@ class Script(Base):
             result["related_scripts"] = [
                 script.to_dict(include=[]) for script in self.related_scripts
             ]
-
-        # Include related sheets if specified
-        if "related_sheets" in include and hasattr(self, "related_sheets"):
-            result["related_sheets"] = [
-                sheet.to_dict() for sheet in self.related_sheets
-            ]
-
+        # Include attached scripts if specified
         if "attached_scripts" in include and hasattr(self, "attached_scripts"):
             result["attached_scripts"] = [
                 script.to_dict(include=[]) for script in self.attached_scripts

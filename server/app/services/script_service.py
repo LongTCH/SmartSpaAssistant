@@ -51,8 +51,8 @@ async def get_script_by_id(db: AsyncSession, script_id: str) -> dict:
 
     # Load related sheets as well
     if script:
-        # Include both related_scripts and related_sheets
-        return script.to_dict(include=["related_scripts", "related_sheets"])
+        # Include both related_scripts
+        return script.to_dict(include=["related_scripts"])
 
     return None
 
@@ -75,13 +75,6 @@ async def insert_script(db: AsyncSession, script: dict) -> str:
         if related_script_ids:
             await script_repository.insert_related_scripts(
                 db, script_obj.id, related_script_ids
-            )
-
-        # Xử lý các sheet liên quan
-        related_sheet_ids = script.get("related_sheet_ids", [])
-        if related_sheet_ids:
-            await script_repository.insert_related_sheets(
-                db, script_obj.id, related_sheet_ids
             )
 
         await db.commit()
@@ -136,33 +129,6 @@ async def update_script(db: AsyncSession, script_id: str, script: dict) -> None:
             if relations_to_add:
                 await script_repository.insert_related_scripts(
                     db, script_id, list(relations_to_add)
-                )
-
-        # Xử lý các sheet liên quan
-        if "related_sheet_ids" in script:
-            new_related_sheet_ids = set(script.get("related_sheet_ids", []))
-
-            # Lấy danh sách ID của các sheet đã liên kết hiện tại
-            current_related_sheet_ids = set()
-            if hasattr(existing_script, "related_sheets"):
-                current_related_sheet_ids = {
-                    s.id for s in existing_script.related_sheets
-                }
-
-            # Tìm các mối quan hệ cần xóa (có trong hiện tại nhưng không có trong danh sách mới)
-            sheet_relations_to_delete = (
-                current_related_sheet_ids - new_related_sheet_ids
-            )
-            if sheet_relations_to_delete:
-                await script_repository.delete_related_sheets(
-                    db, script_id, list(sheet_relations_to_delete)
-                )
-
-            # Tìm các mối quan hệ cần thêm (có trong danh sách mới nhưng không có trong hiện tại)
-            sheet_relations_to_add = new_related_sheet_ids - current_related_sheet_ids
-            if sheet_relations_to_add:
-                await script_repository.insert_related_sheets(
-                    db, script_id, list(sheet_relations_to_add)
                 )
 
         await db.commit()

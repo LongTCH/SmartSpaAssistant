@@ -19,10 +19,8 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog";
 import { Script, ScriptData } from "@/types";
-import { Sheet } from "@/types/sheet";
 import { toast } from "sonner";
 import { scriptService } from "@/services/api/script.service";
-import { sheetService } from "@/services/api/sheet.service";
 import { RelatedDropdown } from "./RelatedDropdown";
 
 interface EditScriptModalProps {
@@ -53,7 +51,6 @@ export function EditScriptModal({
     related_sheet_ids: [],
   });
   const [availableScripts, setAvailableScripts] = useState<Script[]>([]);
-  const [availableSheets, setAvailableSheets] = useState<Sheet[]>([]);
 
   // Fetch script data when scriptId changes
   useEffect(() => {
@@ -74,28 +71,23 @@ export function EditScriptModal({
           ? script.related_scripts.map((relatedScript) => relatedScript.id)
           : [];
 
-        // Convert related_sheets to related_sheet_ids if it exists
-        const related_sheet_ids = script.related_sheets
-          ? script.related_sheets.map((relatedSheet) => relatedSheet.id)
-          : [];
-
         setScriptData({
           ...script,
           related_script_ids,
-          related_sheet_ids,
         });
 
-        // Fetch available published scripts and sheets using pagination
-        const [scriptsResponse, sheetsResponse] = await Promise.all([
-          scriptService.getPaginationScript(1, 100, "published"),
-          sheetService.getPaginationSheet(1, 100, "published"),
-        ]);
+        const scriptsResponse = await scriptService.getPaginationScript(
+          1,
+          100,
+          "published"
+        );
+
+        setAvailableScripts(scriptsResponse.data);
 
         // Filter out the current script from available scripts
         setAvailableScripts(
           scriptsResponse.data.filter((s) => s.id !== scriptId)
         );
-        setAvailableSheets(sheetsResponse.data);
       } catch {
         toast.error("Không thể tải thông tin kịch bản");
       } finally {
@@ -137,30 +129,6 @@ export function EditScriptModal({
     });
   };
 
-  const toggleRelatedSheet = (sheetId: string) => {
-    setScriptData((prev) => {
-      const currentIds = prev.related_sheet_ids || [];
-      const newIds = currentIds.includes(sheetId)
-        ? currentIds.filter((id) => id !== sheetId)
-        : [...currentIds, sheetId];
-
-      return {
-        ...prev,
-        related_sheet_ids: newIds,
-      };
-    });
-  };
-
-  const removeRelatedSheet = (sheetId: string) => {
-    setScriptData((prev) => {
-      const currentIds = prev.related_sheet_ids || [];
-      return {
-        ...prev,
-        related_sheet_ids: currentIds.filter((id) => id !== sheetId),
-      };
-    });
-  };
-
   const handleSubmit = async () => {
     setIsSubmitting(true);
 
@@ -185,7 +153,6 @@ export function EditScriptModal({
         solution: scriptData.solution,
         status: scriptData.status,
         related_script_ids: scriptData.related_script_ids || [],
-        related_sheet_ids: scriptData.related_sheet_ids || [],
       };
 
       // Call API to update script
@@ -254,7 +221,7 @@ export function EditScriptModal({
               </label>
               <Textarea
                 className="min-h-[100px]"
-                placeholder="Khách hàng hỏi về thời gian hoạt động của thẩm mỹ viện"
+                placeholder='"Bên mình hoạt động từ mấy giờ đến mấy giờ vậy", "Cho chị hỏi bên mình làm việc thứ mấy"'
                 value={scriptData.description}
                 onChange={(e) => handleChange("description", e.target.value)}
               />
@@ -281,17 +248,6 @@ export function EditScriptModal({
               badgeClassName="bg-blue-100 text-blue-800 border-blue-200"
               placeholder="Chọn kịch bản liên quan"
               emptyMessage="Không có kịch bản khả dụng"
-            />
-
-            <RelatedDropdown
-              label="Bảng tính liên quan"
-              items={availableSheets}
-              selectedIds={scriptData.related_sheet_ids || []}
-              onToggleItem={toggleRelatedSheet}
-              onRemoveItem={removeRelatedSheet}
-              badgeClassName="bg-green-100 text-green-800 border-green-200"
-              placeholder="Chọn bảng tính liên quan"
-              emptyMessage="Không có bảng tính khả dụng"
             />
           </div>
         )}

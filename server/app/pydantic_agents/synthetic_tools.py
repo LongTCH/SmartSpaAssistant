@@ -78,6 +78,8 @@ def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) 
                 notification_id=notification_id,
                 content=alert_content,
                 guest_id=guest_id,
+                type="custom",
+                status="unread",
             )
             alert = await alert_repository.insert_alert(session, alert)
             await session.commit()

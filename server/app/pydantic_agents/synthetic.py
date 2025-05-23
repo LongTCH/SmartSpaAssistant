@@ -17,6 +17,7 @@ from app.pydantic_agents.synthetic_tools import (
     update_guest_phone,
 )
 from app.repositories import guest_info_repository
+from app.stores.store import get_local_data
 from app.utils.agent_utils import MessagePart
 from jinja2 import Environment, FileSystemLoader
 from pydantic_ai import Agent, RunContext, Tool
@@ -49,9 +50,14 @@ async def get_instruction(context: RunContext[SyntheticAgentDeps]) -> str:
         customer_birthday = (
             guest_info.birthday.strftime("%Y-%m-%d") if guest_info.birthday else ""
         )
+    local_data = get_local_data()
+    bot_identity = local_data.identity
+    bot_instructions = local_data.instructions
     # Load template
     template = env.get_template("synthetic_prompt.j2")
     rendered = template.render(
+        bot_identity=bot_identity,
+        bot_instructions=bot_instructions,
         customer_name=customer_name,
         customer_gender=customer_gender,
         customer_phone=customer_phone,

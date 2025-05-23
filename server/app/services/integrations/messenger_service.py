@@ -12,7 +12,7 @@ from app.models import Guest, GuestInfo
 from app.pydantic_agents import invoke_agent
 from app.repositories import guest_info_repository, guest_repository
 from app.services import chat_service
-from app.stores.store import LOCAL_DATA
+from app.stores.store import get_local_data
 from app.utils.message_utils import (
     get_attachment_type_name,
     markdown_to_messenger,
@@ -167,8 +167,9 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                     map_message[sender_psid]["timer"] = None
 
                 # Tạo timer mới với db session được truyền vào
+                local_data = get_local_data()
                 map_message[sender_psid]["timer"] = asyncio.create_task(
-                    process_after_wait(sender_psid, LOCAL_DATA.chat_wait_seconds, guest)
+                    process_after_wait(sender_psid, local_data.chat_wait_seconds, guest)
                 )
         except Exception as e:
             print(f"Error in process_message: {e}")

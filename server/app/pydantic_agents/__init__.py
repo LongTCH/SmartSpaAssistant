@@ -59,7 +59,7 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             # )
             # user_input = message_rewrite_agent_output.output
             scripts: list[Script] = await script_rag_service.search_script_chunks(
-                user_input, limit=5
+                user_input, limit=7
             )
             script_context = await script_service.agent_scripts_to_xml(scripts)
 

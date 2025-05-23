@@ -34,9 +34,7 @@ async def get_paging_scripts_by_status(
 async def get_script_by_id(db: AsyncSession, script_id: str) -> Script:
     stmt = (
         select(Script)
-        .options(
-            selectinload(Script.related_scripts), selectinload(Script.related_sheets)
-        )
+        .options(selectinload(Script.related_scripts))
         .where(Script.id == script_id)
     )
     result = await db.execute(stmt)
@@ -149,9 +147,7 @@ async def get_scripts_by_ids(db: AsyncSession, script_ids: list[str]) -> list[Sc
     """
     stmt = (
         select(Script)
-        .options(
-            selectinload(Script.related_scripts), selectinload(Script.related_sheets)
-        )
+        .options(selectinload(Script.related_scripts))
         .where(Script.id.in_(script_ids))
     )
     result = await db.execute(stmt)
@@ -180,50 +176,5 @@ async def delete_related_scripts(
     stmt = delete(script_attachments).where(
         script_attachments.c.parent_script_id == script_id,
         script_attachments.c.attached_script_id.in_(related_script_ids),
-    )
-    await db.execute(stmt)
-
-
-async def get_related_sheets(db: AsyncSession, script_id: str) -> list:
-    """
-    Get all sheets related to a given script.
-    """
-    stmt = (
-        select(Script)
-        .options(selectinload(Script.related_sheets))
-        .where(Script.id == script_id)
-    )
-    result = await db.execute(stmt)
-    script = result.scalars().first()
-
-    if script and hasattr(script, "related_sheets"):
-        return script.related_sheets
-    return []
-
-
-async def insert_related_sheets(
-    db: AsyncSession, script_id: str, sheet_ids: list[str]
-) -> None:
-    """
-    Insert related sheets for a given script.
-    """
-    from app.models import script_sheets
-
-    for sheet_id in sheet_ids:
-        stmt = insert(script_sheets).values(script_id=script_id, sheet_id=sheet_id)
-        await db.execute(stmt)
-
-
-async def delete_related_sheets(
-    db: AsyncSession, script_id: str, sheet_ids: list[str]
-) -> None:
-    """
-    Delete related sheets for a given script.
-    """
-    from app.models import script_sheets
-
-    stmt = delete(script_sheets).where(
-        script_sheets.c.script_id == script_id,
-        script_sheets.c.sheet_id.in_(sheet_ids),
     )
     await db.execute(stmt)

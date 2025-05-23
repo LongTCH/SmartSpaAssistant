@@ -1,4 +1,4 @@
-from app.models import Sheet, script_sheets
+from app.models import Sheet
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.sql import text
@@ -122,17 +122,6 @@ async def get_example_rows_by_sheet_id(db: AsyncSession, sheet_id: str) -> list[
     query = text(f'SELECT * FROM "{table_name}" LIMIT 2')
     result = await db.execute(query)
     return result.mappings().all()
-
-
-async def get_sheet_ids_by_script_ids(
-    db: AsyncSession, script_ids: list[str]
-) -> list[str]:
-    """
-    Get the sheet IDs by script IDs from the database.
-    """
-    stmt = select(script_sheets).where(script_sheets.c.script_id.in_(script_ids))
-    result = await db.execute(stmt)
-    return [row[1] for row in result.fetchall()]
 
 
 async def get_all_rows_with_sheet_and_columns(

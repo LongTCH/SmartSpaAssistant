@@ -4,7 +4,6 @@ import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Info, Save } from "lucide-react";
 import {
   Tooltip,
@@ -19,16 +18,10 @@ export function OverviewTab() {
   // Global settings state to manage all form values
   const [settings, setSettings] = useState<SettingsState>({
     CHAT_WAIT_SECONDS: 1,
-    FORM_OF_ADDRESS: {
-      ME: "Em",
-      OTHER: "Quý khách",
-    },
     REACTION_MESSAGE: "Dạ quý khách cần em hỗ trợ gì thêm không ạ",
-    UNDEFINED_MESSAGE_HANDLER: {
-      TYPE: "response",
-      MESSAGE:
-        "Xin lỗi hiện tại em không có thông tin về việc này, quý khách vui lòng liên hệ trực tiếp nhân viên qua số HOTLINE 0123456789 hoặc quý khách có muốn em báo trực tiếp cho nhân viên không ạ. Nếu báo nhân viên thì mình phải đợi nhân viên kiểm tra và phản hồi ấy ạ.",
-    },
+    IDENTITY: "",
+    INSTRUCTIONS: "",
+    MAX_SCRIPT_RETRIEVAL: 7,
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -136,6 +129,58 @@ export function OverviewTab() {
       </div>
 
       <div className="space-y-8">
+        {/* Identity */}
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <h2 className="text-lg font-medium">Cài đặt thông tin bot</h2>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 rounded-full text-[#6366F1]"
+                >
+                  <Info className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Thông tin định danh của AI</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <Textarea
+            className="min-h-[200px]"
+            placeholder="You are Nguyen Thi Phuong Thao..."
+            value={settings.IDENTITY}
+            onChange={(e) => updateSettings("IDENTITY", e.target.value)}
+          />
+        </div>
+        {/* Instructions */}
+        <div className="space-y-4">
+          <div className="flex items-center space-x-2">
+            <h2 className="text-lg font-medium">Hướng dẫn cho bot</h2>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-5 w-5 rounded-full text-[#6366F1]"
+                >
+                  <Info className="h-4 w-4" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Một số hướng dẫn cho AI khi trả lời khách hàng</p>
+              </TooltipContent>
+            </Tooltip>
+          </div>
+          <Textarea
+            className="min-h-[200px]"
+            placeholder="- Just provide information from trusted context..."
+            value={settings.INSTRUCTIONS}
+            onChange={(e) => updateSettings("INSTRUCTIONS", e.target.value)}
+          />{" "}
+        </div>
         {/* Auto Response Time */}
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
@@ -170,12 +215,10 @@ export function OverviewTab() {
           </div>
         </div>
 
-        {/* Message Count for Emotion Analysis */}
+        {/* Max Script Retrieval */}
         <div className="space-y-2">
           <div className="flex items-center space-x-2">
-            <h2 className="text-lg font-medium">
-              Số lượng tin nhắn dùng để đánh giá cảm xúc khách hàng (tin)
-            </h2>
+            <h2 className="text-lg font-medium">Số lượng kịch bản tối đa</h2>
             <Tooltip>
               <TooltipTrigger asChild>
                 <Button
@@ -187,52 +230,22 @@ export function OverviewTab() {
                 </Button>
               </TooltipTrigger>
               <TooltipContent>
-                <p>Số lượng tin nhắn gần nhất dùng để phân tích cảm xúc</p>
+                <p>
+                  Số lượng kịch bản tối đa được sử dụng để trả lời khách hàng
+                </p>
               </TooltipContent>
             </Tooltip>
           </div>
-        </div>
-
-        {/* Pronoun Settings */}
-        <div className="space-y-4">
-          <div className="flex items-center space-x-2">
-            <h2 className="text-lg font-medium">Cài đặt cách xưng/hô</h2>
-            <Tooltip>
-              <TooltipTrigger asChild>
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-5 w-5 rounded-full text-[#6366F1]"
-                >
-                  <Info className="h-4 w-4" />
-                </Button>
-              </TooltipTrigger>
-              <TooltipContent>
-                <p>Cách AI xưng hô với khách hàng</p>
-              </TooltipContent>
-            </Tooltip>
-          </div>
-          <div className="grid grid-cols-2 gap-6 max-w-xl">
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Xưng</label>
-              <Input
-                placeholder="Em"
-                value={settings.FORM_OF_ADDRESS.ME}
-                onChange={(e) =>
-                  updateSettings("FORM_OF_ADDRESS.ME", e.target.value)
-                }
-              />
-            </div>
-            <div className="space-y-2">
-              <label className="text-sm font-medium">Hô</label>
-              <Input
-                placeholder="Quý khách"
-                value={settings.FORM_OF_ADDRESS.OTHER}
-                onChange={(e) =>
-                  updateSettings("FORM_OF_ADDRESS.OTHER", e.target.value)
-                }
-              />
-            </div>
+          <div className="flex items-center space-x-2 max-w-xs">
+            <Input
+              type="number"
+              value={settings.MAX_SCRIPT_RETRIEVAL}
+              onChange={(e) =>
+                updateSettings("MAX_SCRIPT_RETRIEVAL", Number(e.target.value))
+              }
+              className="text-center h-10 w-24"
+            />
+            <span className="text-sm">kịch bản</span>
           </div>
         </div>
 
@@ -262,54 +275,6 @@ export function OverviewTab() {
             onChange={(e) => updateSettings("REACTION_MESSAGE", e.target.value)}
           />
         </div>
-
-        {/* Actions for Undefined Questions */}
-        <div className="space-y-4">
-          <h2 className="text-lg font-medium">
-            Hành động khi gặp câu hỏi không xác định
-          </h2>
-          <RadioGroup
-            value={settings.UNDEFINED_MESSAGE_HANDLER.TYPE}
-            onValueChange={(value) =>
-              updateSettings("UNDEFINED_MESSAGE_HANDLER.TYPE", value)
-            }
-            className="flex items-center space-x-6"
-          >
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem id="response" value="response" />
-              <label
-                htmlFor="response"
-                className="text-sm font-medium cursor-pointer"
-              >
-                Nhập câu trả lời
-              </label>
-            </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem id="notify" value="notify" />
-              <label
-                htmlFor="notify"
-                className="text-sm font-medium cursor-pointer"
-              >
-                Không trả lời và báo cho quản trị viên
-              </label>
-            </div>
-          </RadioGroup>
-
-          {settings.UNDEFINED_MESSAGE_HANDLER.TYPE === "response" && (
-            <Textarea
-              className="min-h-[100px] mt-4"
-              placeholder="Xin lỗi hiện tại em không có thông tin về việc này..."
-              value={settings.UNDEFINED_MESSAGE_HANDLER.MESSAGE}
-              onChange={(e) =>
-                updateSettings(
-                  "UNDEFINED_MESSAGE_HANDLER.MESSAGE",
-                  e.target.value
-                )
-              }
-            />
-          )}
-        </div>
-
         {/* Empty div as padding */}
         <div className="h-32" />
       </div>
