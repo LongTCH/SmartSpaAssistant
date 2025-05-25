@@ -5,14 +5,12 @@ from typing import Any, Dict, Literal
 
 import pytz
 from app.configs.database import async_session, with_session
-from app.models import Alert
 from app.repositories import (
-    alert_repository,
     guest_info_repository,
     notification_repository,
     sheet_repository,
 )
-from app.services import sheet_service
+from app.services import alert_service, sheet_service
 from app.services.integrations import sheet_rag_service
 from app.utils import string_utils
 from app.utils.agent_utils import (
@@ -74,18 +72,12 @@ def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) 
             )
             template_str = notification.content
             alert_content = string_utils.render_tool_template(template_str, **kwargs)
-            alert = Alert(
-                notification_id=notification_id,
-                content=alert_content,
-                guest_id=guest_id,
-                type="custom",
-                status="unread",
+            await alert_service.insert_custom_alert(
+                session, guest_id, notification_id, alert_content
             )
-            alert = await alert_repository.insert_alert(session, alert)
-            await session.commit()
             return {
                 "status": "success",
-                "message": f"Aleart {notification.label} has been sent with content:\n\n{alert.content}",
+                "message": f"Alert {notification.label} has been sent with content:\n\n{alert_content}",
             }
 
     this_tool_def = ToolDefinition(

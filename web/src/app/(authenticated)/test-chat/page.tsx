@@ -3,7 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useApp } from "@/context/app-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
-
+import { WS_MESSAGES } from "@/lib/constants";
 // Import our components
 import {
   ChatMessage,
@@ -26,19 +26,6 @@ import {
   ChatAttachment,
 } from "@/types/conversation"; // Added ChatAttachment
 import { Conversation as LocalConversation } from "./components/ConversationSidebar";
-
-// Define WebSocket message types
-const WS_MESSAGES = {
-  TEST_CHAT: "TEST_CHAT",
-  CONNECTED: "CONNECTED",
-  PING: "PING",
-  PONG: "PONG",
-};
-
-// interface ChatResponse { // REMOVED
-//   id: string; // This is conversationId
-//   message: string;
-// }
 
 export default function TestChatPage() {
   // State

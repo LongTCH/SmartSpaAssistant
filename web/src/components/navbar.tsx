@@ -21,6 +21,8 @@ export function Navbar() {
     logout,
     setPageLoading,
     isPageLoading,
+    hasNewAlerts, // Get the new state
+    setHasNewAlerts, // Get the setter
   } = useApp();
   const router = useRouter();
   const handleTabChange = (value: string) => {
@@ -57,6 +59,7 @@ export function Navbar() {
         break;
       case "alerts":
         router.push("/alerts");
+        setHasNewAlerts(false); // Clear the alert dot when navigating to alerts page
         break;
       default:
         setPageLoading(false); // Ensure loading is stopped for unhandled cases
@@ -200,12 +203,15 @@ export function Navbar() {
             activeNavTab === "alerts"
               ? "bg-white text-[#6366F1]"
               : "text-white/90 hover:text-white hover:bg-white/10"
-          } rounded-full`}
+          } rounded-full relative`} // Added relative for positioning the dot
           disabled={isPageLoading}
           onClick={() => handleTabChange("alerts")}
           title="Thông báo"
         >
           <Bell className="h-5 w-5" />
+          {hasNewAlerts && (
+            <span className="absolute top-1 right-1 block h-2 w-2 rounded-full bg-red-500 ring-2 ring-white" />
+          )}
         </Button>
         <DropdownMenu>
           <DropdownMenuTrigger asChild>

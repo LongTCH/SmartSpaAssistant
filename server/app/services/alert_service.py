@@ -1,6 +1,8 @@
-from app.dtos import PagingDto
+from app.configs.constants import WS_MESSAGES
+from app.dtos import PagingDto, WsMessageDto
 from app.models import Alert
 from app.repositories import alert_repository
+from app.services import connection_manager
 from fastapi import HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -96,4 +98,37 @@ async def insert_system_alert(db: AsyncSession, guest_id: str, content: str) -> 
     )
     alert = await alert_repository.insert_alert(db, alert)
     await db.commit()
+    await notify_alert(db, alert.id)
     return alert.to_dict()
+
+
+async def insert_custom_alert(
+    db: AsyncSession, guest_id: str, notification_id: str, content: str
+) -> dict:
+    """
+    Insert a custom alert into the database.
+    """
+    alert = Alert(
+        guest_id=guest_id,
+        type="custom",
+        status="unread",
+        content=content,
+        notification_id=notification_id,
+    )
+    alert = await alert_repository.insert_alert(db, alert)
+    await db.commit()
+    await notify_alert(db, alert.id)
+    return alert.to_dict()
+
+
+async def notify_alert(db, alert_id: str) -> None:
+    """
+    Notify the alert to the connected clients.
+    """
+    alert = await alert_repository.get_alert_by_id(db, alert_id)
+    if alert:
+        await connection_manager.manager.broadcast(
+            WsMessageDto(
+                message=WS_MESSAGES.ALERT, data=alert.to_dict(include=["notification"])
+            )
+        )

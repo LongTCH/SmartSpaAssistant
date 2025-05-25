@@ -93,4 +93,5 @@ export const WS_MESSAGES = {
   CONNECTED: "CONNECTED",
   INBOX: "INBOX",
   TEST_CHAT: "TEST_CHAT",
+  ALERT: "ALERT",
 };

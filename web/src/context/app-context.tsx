@@ -21,7 +21,6 @@ import { APP_ROUTES } from "@/lib/constants";
 import { logoutUser } from "./action";
 import { User } from "@/schemas/auth";
 import Cookies from "js-cookie";
-
 type WebSocketMessage = {
   message: string;
   data: any;
@@ -34,10 +33,12 @@ interface AppContextType {
   isLoading: boolean;
   contentHeight: string;
   activeNavTab: string;
-  isPageLoading: boolean; // Thêm trạng thái loading cho trang
+  isPageLoading: boolean;
+  hasNewAlerts: boolean;
   setActiveNavTab: (tab: string) => void;
   setContentHeight: (height: string) => void;
-  setPageLoading: (loading: boolean) => void; // Thêm hàm để cập nhật trạng thái loading
+  setPageLoading: (loading: boolean) => void;
+  setHasNewAlerts: (hasAlerts: boolean) => void;
   logout: () => Promise<void>;
   checkAuth: () => Promise<boolean>;
   loginSuccess: (accessToken: string, user: User) => void;
@@ -48,6 +49,8 @@ interface AppContextType {
   ) => () => void;
   sendWebSocketMessage: (message: WebSocketMessage) => void;
   isWebSocketConnected: boolean;
+  setIsWebSocketConnected: (connected: boolean) => void;
+  messageHandlersRef: React.MutableRefObject<Map<string, Set<MessageHandler>>>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -58,67 +61,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isPageLoading, setPageLoading] = useState<boolean>(false);
   const [contentHeight, setContentHeight] = useState<string>("100vh");
   const [activeNavTab, setActiveNavTab] = useState<string>("");
+  const [hasNewAlerts, setHasNewAlerts] = useState<boolean>(false);
   const [isWebSocketConnected, setIsWebSocketConnected] =
     useState<boolean>(false);
   const router = useRouter();
   const pathname = usePathname();
-  const webSocketRef = useRef<WebSocket | null>(null);
   const messageHandlersRef = useRef<Map<string, Set<MessageHandler>>>(
     new Map()
   );
-
-  // WebSocket connection setup
-  useEffect(() => {
-    if (!isLoggedIn) return;
-
-    const connectWebSocket = () => {
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
-      const ws = new WebSocket(wsUrl);
-
-      ws.onopen = () => {
-        setIsWebSocketConnected(true);
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data) as WebSocketMessage;
-
-          // Notify all handlers registered for this message type
-          const handlers = messageHandlersRef.current.get(data.message);
-          if (handlers) {
-            handlers.forEach((handler) => {
-              try {
-                handler(data.data);
-              } catch {}
-            });
-          }
-        } catch {}
-      };
-      ws.onerror = () => {
-        setIsWebSocketConnected(false);
-      };
-
-      ws.onclose = () => {
-        setIsWebSocketConnected(false);
-
-        // Try to reconnect after a delay
-        setTimeout(() => {
-          if (isLoggedIn) connectWebSocket();
-        }, 3000);
-      };
-
-      webSocketRef.current = ws;
-    };
-
-    connectWebSocket();
-
-    return () => {
-      if (webSocketRef.current) {
-        webSocketRef.current.close();
-        webSocketRef.current = null;
-      }
-    };
-  }, [isLoggedIn]);
 
   const registerMessageHandler = useCallback(
     (messageType: string, handler: MessageHandler) => {
@@ -144,9 +94,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   const sendWebSocketMessage = useCallback(
     (message: WebSocketMessage) => {
-      if (webSocketRef.current && isWebSocketConnected) {
-        webSocketRef.current.send(JSON.stringify(message));
-      } else {
+      const wsRef = (window as any).__webSocketRef;
+      if (wsRef?.current && isWebSocketConnected) {
+        wsRef.current.send(JSON.stringify(message));
       }
     },
     [isWebSocketConnected]
@@ -211,7 +161,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
       router.push(APP_ROUTES.LOGIN);
     }
   };
-
   const value = {
     isLoggedIn,
     isLoading,
@@ -225,11 +174,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setActiveNavTab,
     isPageLoading,
     setPageLoading,
+    hasNewAlerts,
+    setHasNewAlerts,
     registerMessageHandler,
     sendWebSocketMessage,
     isWebSocketConnected,
+    setIsWebSocketConnected,
+    messageHandlersRef,
   };
-
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;
 }
 

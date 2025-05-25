@@ -6,6 +6,8 @@ import { useInView } from "react-intersection-observer";
 import { alertService } from "@/services/api/alert.service";
 import AlertItem from "./AlertItem";
 import NotificationFilter from "./NotificationFilter";
+import { useApp } from "@/context/app-context";
+import { WS_MESSAGES } from "@/lib/constants";
 
 interface AlertListProps {
   onSelectAlert: (alert: Alert) => void;
@@ -27,6 +29,8 @@ export default function AlertList({
   const { ref, inView } = useInView({
     threshold: 0.1,
   });
+  // Get WebSocket context
+  const { registerMessageHandler, setHasNewAlerts } = useApp();
 
   // loadingRef to prevent calling performFetch if already loading, without adding loading to useCallback deps
   const loadingRef = useRef(loading);
@@ -108,13 +112,58 @@ export default function AlertList({
   useEffect(() => {
     performFetch(0, true); // Always fetch from skip 0 and reset
   }, [activeFilter, selectedNotificationId, performFetch]);
-
   // Effect for infinite scrolling (load more)
   useEffect(() => {
     if (inView && hasMore && !loading) {
       performFetch(skip, false); // Fetch from current `skip` and append
     }
-  }, [inView, hasMore, loading, skip, performFetch]);
+  }, [inView, hasMore, loading, skip, performFetch]); // Track when new alerts are added via WebSocket
+  const [hasNewWebSocketAlert, setHasNewWebSocketAlert] = useState(false);
+
+  // WebSocket message handler for new alerts
+  useEffect(() => {
+    const unregister = registerMessageHandler(
+      WS_MESSAGES.ALERT,
+      (data: any) => {
+        console.log("Received ALERT WebSocket message:", data);
+
+        // Ensure data is a valid Alert object
+        if (data && typeof data === "object" && data.id && data.content) {
+          const newAlert = data as Alert;
+
+          // Add the new alert to the beginning of the list (most recent first)
+          setAlerts((prevAlerts) => {
+            // Check if alert already exists to prevent duplicates
+            const exists = prevAlerts.some((alert) => alert.id === newAlert.id);
+            if (exists) {
+              return prevAlerts;
+            }
+
+            // Add new alert to the beginning of the list
+            return [newAlert, ...prevAlerts];
+          });
+
+          // Set flag to trigger notification in the next effect
+          setHasNewWebSocketAlert(true);
+        } else {
+          console.error("Received invalid alert data:", data);
+        }
+      }
+    );
+
+    // Cleanup when component unmounts
+    return () => {
+      unregister();
+    };
+  }, [registerMessageHandler]);
+
+  // Effect to handle notification when new WebSocket alert is added
+  useEffect(() => {
+    if (hasNewWebSocketAlert) {
+      setHasNewAlerts(true);
+      setHasNewWebSocketAlert(false); // Reset the flag
+    }
+  }, [hasNewWebSocketAlert, setHasNewAlerts]);
 
   const handleAlertItemClick = async (alert: Alert) => {
     if (alert.status === "unread") {

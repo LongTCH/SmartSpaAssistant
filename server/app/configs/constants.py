@@ -5,6 +5,7 @@ class WS_MESSAGES(str, Enum):
     CONNECTED = "CONNECTED"
     INBOX = "INBOX"
     TEST_CHAT = "TEST_CHAT"
+    ALERT = "ALERT"
 
 
 class CHAT_SIDES(str, Enum):

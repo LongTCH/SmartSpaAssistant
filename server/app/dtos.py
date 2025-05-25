@@ -1,6 +1,6 @@
-import json
 from typing import Any
 
+from app.utils.agent_utils import dump_json
 from pydantic import BaseModel
 
 
@@ -36,7 +36,7 @@ class WsMessageDto(BaseModel):
     data: Any = None
 
     def __str__(self):
-        return json.dumps(self.to_json(), ensure_ascii=False)
+        return dump_json(self.to_json())
 
     def to_json(self):
         return self.model_dump_json()

@@ -3,7 +3,8 @@ import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/context/app-context";
-import { Toaster } from "sonner";
+import { ToastProvider } from "@/context/toast-provider";
+import { WebSocketHandler } from "@/context/websocket-handler";
 
 import LayoutContainer from "@/app/layout-container";
 
@@ -31,11 +32,14 @@ export default function RootLayout({
     <html lang="en" suppressHydrationWarning>
       <body
         className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-      ><TooltipProvider>
-        <AppProvider>
-          <LayoutContainer>{children}</LayoutContainer>
-          <Toaster position="top-right" richColors />
-        </AppProvider>
+      >
+        <TooltipProvider>
+          <ToastProvider>
+            <AppProvider>
+              <WebSocketHandler />
+              <LayoutContainer>{children}</LayoutContainer>
+            </AppProvider>
+          </ToastProvider>
         </TooltipProvider>
       </body>
     </html>
