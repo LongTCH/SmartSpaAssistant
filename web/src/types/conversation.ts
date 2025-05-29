@@ -10,7 +10,7 @@ export interface Conversation {
   id: string;
   account_name: string;
   avatar: string;
-  last_chat_message: Chat;
+  last_chat_message: Chat | null;
   provider: ProviderType;
   assigned_to: ChatAssignmentType;
   info?: GuestInfo;

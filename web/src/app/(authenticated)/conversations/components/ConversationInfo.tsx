@@ -109,9 +109,11 @@ export default function ConversationInfo({
                   <div className="ml-2 w-2 h-2 bg-blue-500 rounded-full"></div>
                 )}
               </div>
-            </div>
+            </div>{" "}
             <span className="text-[10px] text-gray-500">
-              {getTimeDifference(item.last_chat_message.created_at)}
+              {item.last_chat_message
+                ? getTimeDifference(item.last_chat_message.created_at)
+                : ""}
             </span>
           </div>
           <p
@@ -119,7 +121,9 @@ export default function ConversationInfo({
               isUnread ? "text-black font-medium" : "text-gray-500"
             } truncate`}
           >
-            {getLastMessage(item.last_chat_message.content)}
+            {item.last_chat_message
+              ? getLastMessage(item.last_chat_message.content)
+              : "No messages yet"}
           </p>
         </div>
       </div>
