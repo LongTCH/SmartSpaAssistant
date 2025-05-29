@@ -1,7 +1,8 @@
-import os
 import sys
 from contextlib import asynccontextmanager
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import uvicorn
 from app.configs import database, env_config
@@ -9,10 +10,6 @@ from app.middleware import catch_exceptions_middleware
 from app.routes import include_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 # cors config
 origins = env_config.CLIENT_URLS.split(",")
@@ -45,11 +42,6 @@ app.middleware("http")(catch_exceptions_middleware)
 
 # Include all routes
 include_router(app)
-
-# Set up static files
-os.makedirs("static", exist_ok=True)
-os.makedirs("static/images", exist_ok=True)
-app.mount("/static", StaticFiles(directory="static"), name="static")
 
 # Only run the server directly when this script is executed as the main program
 if __name__ == "__main__":

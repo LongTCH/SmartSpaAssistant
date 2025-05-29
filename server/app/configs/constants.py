@@ -15,6 +15,7 @@ class CHAT_SIDES(str, Enum):
 
 class PROVIDERS(str, Enum):
     MESSENGER = "messenger"
+    WEB = "web"
 
 
 class CHAT_ASSIGNMENT(str, Enum):

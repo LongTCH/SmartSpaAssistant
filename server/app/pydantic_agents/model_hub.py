@@ -19,11 +19,16 @@ ModelName = Literal[
     "o4-mini",
     "gpt-4.1",
     "gemini-1.5-flash-8b",
+    "gpt-4o",
 ]
 ModelType = Union[OpenAIModel, GeminiModel]
 
 
 model_hub: Dict[ModelName, ModelType] = {
+    "gpt-4o": OpenAIModel(
+        "gpt-4o",
+        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
+    ),
     "gpt-4o-mini": OpenAIModel(
         "gpt-4o-mini",
         provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
