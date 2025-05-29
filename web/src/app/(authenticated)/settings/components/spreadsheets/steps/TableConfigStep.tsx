@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { Textarea } from "@/components/ui/textarea";
 import {
   Table,
@@ -101,7 +101,6 @@ function predictColumnType(data: any[], columnName: string = ""): ColumnType {
   if (numericPattern) {
     return "Numeric" as ColumnType;
   }
-
   // Kiểm tra kiểu Text (văn bản dài)
   const textPattern = data.some(
     (value) => typeof value === "string" && value.length > 255
@@ -115,6 +114,16 @@ function predictColumnType(data: any[], columnName: string = ""): ColumnType {
   return "String" as ColumnType;
 }
 
+// Define valid column types as a constant outside the component to avoid recreation on every render
+const validColumnTypes: { value: ColumnType; label: string }[] = [
+  { value: "String", label: "String (Văn bản ngắn)" },
+  { value: "Text", label: "Text (Văn bản dài)" },
+  { value: "Integer", label: "Integer (Số nguyên)" },
+  { value: "Numeric", label: "Numeric (Số thập phân)" },
+  { value: "DateTime", label: "DateTime (Ngày giờ)" },
+  { value: "Boolean", label: "Boolean (True/False)" },
+];
+
 export function TableConfigStep({
   columnConfigs,
   updateColumnConfig,
@@ -122,20 +131,40 @@ export function TableConfigStep({
   allRows, // Destructure allRows
   setNextEnabled, // Add a prop to control the Next button state
 }: TableConfigStepProps & { setNextEnabled: (enabled: boolean) => void }) {
-  const validColumnTypes: { value: ColumnType; label: string }[] = [
-    { value: "String", label: "String (Văn bản ngắn)" },
-    { value: "Text", label: "Text (Văn bản dài)" },
-    { value: "Integer", label: "Integer (Số nguyên)" },
-    { value: "Numeric", label: "Numeric (Số thập phân)" },
-    { value: "DateTime", label: "DateTime (Ngày giờ)" },
-    { value: "Boolean", label: "Boolean (True/False)" },
-  ];
+  // Track whether initial prediction has been done to avoid overriding user changes
+  const initialPredictionDone = useRef(false);
+  // Track the previous column configs to detect actual data changes vs navigation
+  const prevColumnConfigsRef = useRef<ColumnConfig[]>([]);
 
   useEffect(() => {
-    let initialTypesWereMissing = false;
+    // Check if this is a real data change (new file upload) vs just navigation
+    const isNewData =
+      columnConfigs.length !== prevColumnConfigsRef.current.length ||
+      columnConfigs.some(
+        (config, index) =>
+          !prevColumnConfigsRef.current[index] ||
+          config.column_name !== prevColumnConfigsRef.current[index].column_name
+      );
+
+    // Reset prediction flag only if it's actually new data
+    if (isNewData) {
+      initialPredictionDone.current = false;
+      prevColumnConfigsRef.current = [...columnConfigs];
+    }
+
+    // Only run prediction once when component first loads with data
+    if (initialPredictionDone.current) {
+      return;
+    } // Define valid column type values for validation
+    const validColumnTypeValues = validColumnTypes.map((t) => t.value);
+
+    let hasColumnsNeedingPrediction = false;
     columnConfigs.forEach((config) => {
-      if (!config.column_type) {
-        initialTypesWereMissing = true;
+      const needsPrediction =
+        !config.column_type ||
+        !validColumnTypeValues.includes(config.column_type as ColumnType);
+      if (needsPrediction) {
+        hasColumnsNeedingPrediction = true;
       }
     });
 
@@ -144,60 +173,52 @@ export function TableConfigStep({
       excelData.rows &&
       excelData.headers &&
       allRows &&
-      allRows.length > 0
+      allRows.length > 0 &&
+      columnConfigs.length > 0
     ) {
       const dataRowsForPrediction = allRows.slice(1);
       let hasError = false;
 
       const predictedConfigs = columnConfigs.map((config, index) => {
-        let currentConfigType = config.column_type;
-        // If the type was initially undefined/falsy, treat it as "String" for prediction logic below
-        if (!currentConfigType) {
-          currentConfigType = "String" as ColumnType;
-        }
+        const currentConfigType = config.column_type;
+
+        // Check if column needs prediction (no type or invalid type)
+        const needsPrediction =
+          !currentConfigType ||
+          !validColumnTypeValues.includes(currentConfigType as ColumnType);
 
         if (index >= excelData.headers.length) {
           hasError = true;
-          return { ...config, column_type: currentConfigType }; // Use current (possibly defaulted String)
+          return {
+            ...config,
+            column_type: currentConfigType || ("String" as ColumnType),
+          };
         }
 
+        // If column already has a valid type, keep it unchanged
+        if (!needsPrediction) {
+          return { ...config, column_type: currentConfigType };
+        }
+
+        // Only predict for columns that need it
         const columnData: Array<any> = dataRowsForPrediction.map(
           (row: any[]) => row[index]
         );
 
-        let predictedType = currentConfigType;
         const isIdColumn = config.column_name.toLowerCase() === "id";
+        let predictedType: ColumnType;
 
-        // Only predict if current type is "String" (either originally or defaulted)
-        if (predictedType === "String") {
-          if (isIdColumn) {
-            // For 'id' column, if UploadStep set it as Integer, it won't be "String" here.
-            // If it is "String" (e.g. defaulted from undefined, or column_config had it as String),
-            // try to predict it as Integer.
-            const idSpecificPrediction = predictColumnType(
-              columnData,
-              config.column_name
-            );
-            if (idSpecificPrediction === "Integer") {
-              predictedType = "Integer" as ColumnType;
-            } // else it remains "String"
-          } else {
-            predictedType = predictColumnType(columnData, config.column_name);
-          }
-        } else if (
-          isIdColumn &&
-          config.column_type !== "Integer" &&
-          predictedType !== "Integer"
-        ) {
-          // This case handles if 'id' came from column_config as non-Integer, or was undefined.
-          // We want to ensure it becomes Integer if data allows.
+        if (isIdColumn) {
+          // For 'id' column, always try to predict as Integer if data allows
           const idSpecificPrediction = predictColumnType(
             columnData,
             config.column_name
           );
-          if (idSpecificPrediction === "Integer") {
-            predictedType = "Integer" as ColumnType;
-          }
+          predictedType =
+            idSpecificPrediction === "Integer" ? "Integer" : "String";
+        } else {
+          // For other columns, run normal prediction
+          predictedType = predictColumnType(columnData, config.column_name);
         }
 
         return { ...config, column_type: predictedType };
@@ -215,21 +236,30 @@ export function TableConfigStep({
       if (hasError) {
         toast.dismiss();
         toast.error("Có lỗi trong cấu hình cột. Vui lòng kiểm tra lại.");
-      }
+      } // Mark initial prediction as done
+      initialPredictionDone.current = true;
     } else {
       // Prediction data (excelData, allRows) is NOT available.
-      // If any types were initially missing, update them to "String".
-      if (initialTypesWereMissing) {
+      // If any columns need type assignment, update them to "String".
+      if (hasColumnsNeedingPrediction) {
         columnConfigs.forEach((config, index) => {
-          if (!config.column_type) {
+          const needsPrediction =
+            !config.column_type ||
+            !validColumnTypeValues.includes(config.column_type as ColumnType);
+          if (needsPrediction) {
             updateColumnConfig(index, "column_type", "String" as ColumnType);
           }
         });
       }
       // Enable Next if columnConfigs exist, otherwise disable.
       setNextEnabled(columnConfigs && columnConfigs.length > 0);
+
+      // Mark initial prediction as done even without data
+      if (columnConfigs.length > 0) {
+        initialPredictionDone.current = true;
+      }
     }
-  }, [excelData, allRows, columnConfigs, updateColumnConfig, setNextEnabled]);
+  }, [excelData, allRows, updateColumnConfig, setNextEnabled, columnConfigs]); // Added columnConfigs back but with smarter logic above
 
   return (
     <div className="space-y-6 p-4">
