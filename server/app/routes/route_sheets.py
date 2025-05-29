@@ -1,12 +1,13 @@
-import os
+from io import BytesIO
+from urllib.parse import quote
 
 from app.configs.database import get_session
 from app.services import sheet_service
 from app.services.integrations import sheet_rag_service
 from app.utils import asyncio_utils
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response as HttpResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/sheets", tags=["Sheets"])
@@ -161,30 +162,45 @@ async def get_sheet_rows(
 
 @router.get("/{sheet_id}/download")
 async def download_sheet(
-    sheet_id: str,
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_session),
+    sheet_id: str, request: Request, db: AsyncSession = Depends(get_session)
 ):
     """
-    Download a sheet as Excel file.
+    Download multiple sheets as a single Excel file.
 
     Returns:
-        Excel file as a FileResponse
+        Excel file as a StreamingResponse
     """
     try:
+        # Get query parameters
         # Get the sheet data from the service
         sheet = await sheet_service.get_sheet_by_id(db, sheet_id)
         if not sheet:
             raise HTTPException(status_code=404, detail="Sheet not found")
 
-        # Lưu và lấy đường dẫn file Excel
-        file_path = await sheet_service.download_sheet_as_excel(db, sheet_id)
-        background_tasks.add_task(os.remove, file_path)
-        return FileResponse(
-            path=file_path,
-            filename=sheet["name"] + ".xlsx",
+        # Get the Excel file buffer from the service
+        excel_buffer = await sheet_service.download_sheet_as_excel_stream(db, sheet_id)
+
+        # Create a new BytesIO to avoid any potential issues with the original buffer
+        response_buffer = BytesIO(excel_buffer.getvalue())
+
+        # Encode the filename to handle non-ASCII characters
+        filename = f"{sheet['name']}.xlsx"
+        encoded_filename = quote(filename)
+
+        # Return as streaming response with proper headers for Vietnamese filename
+        return StreamingResponse(
+            response_buffer,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+                "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8",
+            },
         )
     except Exception as e:
-        print(f"Error downloading sheet: {e}")
-        raise HTTPException(status_code=500, detail=f"Error downloading sheet")
+        print(f"Error downloading sheets: {e}")  # Updated error message
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"Error downloading sheets: {str(e)}"
+        )  # Updated error message

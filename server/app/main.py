@@ -1,9 +1,7 @@
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 import os
+import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import uvicorn
 from app.configs import database, env_config
@@ -12,6 +10,9 @@ from app.routes import include_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 
 # cors config
 origins = env_config.CLIENT_URLS.split(",")
@@ -29,7 +30,8 @@ async def lifespan(app: FastAPI):
 # Create FastAPI app instance at module level for ASGI servers to import
 app = FastAPI(lifespan=lifespan)
 
-# Add CORS middleware
+# CORS is handled by nginx proxy, but FastAPI still needs to handle OPTIONS
+# Nginx hides FastAPI CORS headers, so no conflict
 app.add_middleware(
     CORSMiddleware,
     allow_origins=origins,

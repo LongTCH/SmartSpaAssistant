@@ -1,0 +1,36 @@
+%%{init: {'theme': 'neutral', 'themeVariables': {'actorFontSize': 24, 'messageFontSize': 24, 'noteFontSize': 24}}}%%
+sequenceDiagram
+    participant Client
+    participant Router
+    participant InterestService
+    participant Database
+
+    Client-->>Router: insert_interest(data)
+    activate Router
+    Router->>Router: Parse Request
+
+    Router->>InterestService: Insert Interest
+    activate InterestService
+
+    InterestService->>Database: Store Interest Object
+    activate Database
+    Database-->>InterestService: Object Stored
+    deactivate Database
+
+    InterestService->>Database: Commit Transaction
+    activate Database
+    Database-->>InterestService: Commit Successful
+    deactivate Database
+
+    deactivate InterestService
+    Router-->>Client: HTTP 201 Created
+    deactivate Router
+
+    alt Error
+        InterestService->>Database: Rollback Transaction
+        activate Database
+        Database-->>InterestService: Rollback Successful
+        deactivate Database
+        InterestService--xRouter: Raise Exception
+        Router-->>Client: HTTP 500 Internal Error
+    end

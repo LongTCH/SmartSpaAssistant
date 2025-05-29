@@ -7,7 +7,7 @@ import { APP_ROUTES } from "./constants";
 const apiBaseUrl =
   (typeof window == "undefined" && process.env.NEXT_PUBLIC_SSR_API_URL) ||
   process.env.NEXT_PUBLIC_API_URL ||
-  "http://localhost:8080";
+  "http://localhost/api";
 const baseURL = `${apiBaseUrl}`;
 
 const api = axios.create({

@@ -1,10 +1,11 @@
-import os
+from io import BytesIO
+from urllib.parse import quote
 
 from app.configs.database import get_session
 from app.services import interest_service
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response as HttpResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/interests", tags=["Interests"])
@@ -37,59 +38,60 @@ async def get_all_published_interests(
 
 
 @router.get("/download")
-async def download_interests(
-    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
-):
+async def download_interests(db: AsyncSession = Depends(get_session)):
     """
     Download all interests as an Excel file.
-
-    Returns:
-        Excel file as a FileResponse
     """
-    try:
-        # Get the interests data from the service
-        file_path = await interest_service.download_interests_as_excel(db)
-        if not file_path:
-            raise HTTPException(status_code=404, detail="No interests found")
+    # Get the interests data from the service
+    excel_buffer = await interest_service.download_interests_as_excel(db)
+    if not excel_buffer:
+        raise HTTPException(status_code=404, detail="No interests found")
 
-        background_tasks.add_task(os.remove, file_path)
-        return FileResponse(
-            path=file_path,
-            filename="Xu hướng Khách hàng.xlsx",
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-    except Exception as e:
-        print(f"Error downloading interests: {e}")
-        raise HTTPException(status_code=500, detail=f"Error downloading interests")
+    # StreamingResponse for better performance with large files
+    response_buffer = BytesIO(excel_buffer.getvalue())
+
+    # Encode the filename to handle non-ASCII characters
+    filename = "Nhãn.xlsx"
+    encoded_filename = quote(filename)
+
+    # Return as streaming response with proper headers for Vietnamese filename
+    return StreamingResponse(
+        response_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8",
+        },
+    )
 
 
 @router.get("/download-template")
-async def get_interest_template(
-    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
-):
+async def get_interest_template(db: AsyncSession = Depends(get_session)):
     """
     Download an Excel template file for interests.
 
     Returns:
         Excel template file as a FileResponse
     """
-    try:
-        # Get the template file path
-        file_path = await interest_service.get_interest_template()
+    # Get the template file path
+    excel_buffer = await interest_service.get_interest_template()
 
-        # Schedule file cleanup after sending
-        background_tasks.add_task(os.remove, file_path)
+    # StreamingResponse for better performance with large files
+    response_buffer = BytesIO(excel_buffer.getvalue())
 
-        return FileResponse(
-            path=file_path,
-            filename="xu_huong_template.xlsx",
-            media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        )
-    except Exception as e:
-        print(f"Error generating interest template: {e}")
-        raise HTTPException(
-            status_code=500, detail=f"Error generating interest template"
-        )
+    # Encode the filename to handle non-ASCII characters
+    filename = "Template Nhãn.xlsx"
+    encoded_filename = quote(filename)
+
+    # Return as streaming response with proper headers for Vietnamese filename
+    return StreamingResponse(
+        response_buffer,
+        media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        headers={
+            "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+            "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8",
+        },
+    )
 
 
 @router.get("/{interest_id}")
@@ -113,39 +115,34 @@ async def upload_interest(request: Request, db: AsyncSession = Depends(get_sessi
     Expects multipart/form-data with:
     - file: Excel file
     """
-    try:
-        # Parse the multipart form data
-        form = await request.form()
+    # Parse the multipart form data
+    form = await request.form()
 
-        # Get the uploaded file
-        file = form.get("file")
+    # Get the uploaded file
+    file = form.get("file")
 
-        if not file:
-            raise HTTPException(status_code=400, detail="Missing required fields")
+    if not file:
+        raise HTTPException(status_code=400, detail="Missing required fields")
 
-        # Validate file is an Excel file
-        content_type = file.content_type
-        if content_type not in [
-            "application/vnd.ms-excel",
-            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-        ]:
-            raise HTTPException(
-                status_code=400,
-                detail="Invalid file type. Only Excel files are supported.",
-            )
+    # Validate file is an Excel file
+    content_type = file.content_type
+    if content_type not in [
+        "application/vnd.ms-excel",
+        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ]:
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid file type. Only Excel files are supported.",
+        )
 
-        # Read file contents
-        file_contents = await file.read()
+    # Read file contents
+    file_contents = await file.read()
 
-        # Create new Sheet record using the service
-        await interest_service.insert_interests_from_excel(db, file_contents)
+    # Create new Sheet record using the service
+    await interest_service.insert_interests_from_excel(db, file_contents)
 
-        # Return the created sheet
-        return HttpResponse(status_code=201)
-
-    except Exception as e:
-        print(f"Error creating interest: {e}")
-        raise HTTPException(status_code=500, detail=f"Error processing spreadsheet")
+    # Return the created sheet
+    return HttpResponse(status_code=201)
 
 
 @router.post("")

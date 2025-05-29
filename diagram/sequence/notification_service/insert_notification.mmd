@@ -1,0 +1,33 @@
+%%{init: {'theme': 'neutral', 'themeVariables': {'actorFontSize': 24, 'messageFontSize': 24, 'noteFontSize': 24}}}%%
+sequenceDiagram
+    participant Client
+    participant Router
+    participant NotificationService
+    participant Database
+
+    Client-->>Router: POST /notification (data)
+    activate Router
+    Router->>NotificationService: Insert Notification
+    activate NotificationService
+
+    NotificationService->>NotificationService: Validate & Create Object
+    NotificationService->>Database: Store Notification Object
+    activate Database
+    Database-->>NotificationService: Object Stored
+    deactivate Database
+
+    alt Success
+        NotificationService->>Database: Commit Transaction
+        activate Database
+        Database-->>NotificationService: Commit Successful
+        deactivate Database
+        Router-->>Client: HTTP 201 Created
+    else Error
+        NotificationService->>Database: Rollback Transaction
+        activate Database
+        Database-->>NotificationService: Rollback Successful
+        deactivate Database
+        NotificationService--x Router: Raise Exception
+    end
+    deactivate NotificationService
+    deactivate Router

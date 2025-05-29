@@ -1,0 +1,40 @@
+%%{init: {'theme': 'neutral', 'themeVariables': {'actorFontSize': 24, 'messageFontSize': 24, 'noteFontSize': 24}}}%%
+sequenceDiagram
+    participant Client
+    participant Router
+    participant SheetService
+    participant Database
+    participant RAGService
+
+    Client-->>Router: insert_sheet(multipart data)
+    activate Router
+    Router->>Router: Validate Request & Read File
+
+    Router->>SheetService: Process Sheet (sheet_data)
+    activate SheetService
+
+    SheetService->>Database: Store Initial Sheet Data & Get ID
+    activate Database
+    Database-->>SheetService: new_sheet_id
+    deactivate Database
+
+    alt Error in SheetService Process
+        SheetService->>Database: Rollback Transaction
+        activate Database
+        Database-->>SheetService: Rollback Complete
+        deactivate Database
+        SheetService--xRouter: Raise Exception
+        Router-->>Client: HTTP 500 Internal Server Error
+    else SheetService Success
+        SheetService->>Database: Create Dynamic Table & Insert Data
+        activate Database
+        Database-->>SheetService: Table & Data Stored
+        deactivate Database
+        SheetService-->>Router: new_sheet_id
+        Router->>RAGService: Process Sheet for RAG (new_sheet_id)
+        activate RAGService
+        deactivate RAGService
+        Router-->>Client: HTTP 201 Created (new_sheet_id)
+    end
+    deactivate Router
+    deactivate SheetService

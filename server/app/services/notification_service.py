@@ -1,4 +1,3 @@
-import os
 from datetime import datetime
 from io import BytesIO
 
@@ -223,32 +222,21 @@ async def delete_multiple_notifications(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def download_notifications_as_excel(db: AsyncSession) -> str:
+async def download_notifications_as_excel(db: AsyncSession) -> BytesIO:
     """
-    Download all notifications as an Excel file.
+    Download all notifications as an Excel file stream (BytesIO).
     The Excel file will contain:
     1. 'data' sheet: Contains all notifications with sequential integer IDs
     2. 'n_{id}' sheets: One sheet per notification with its parameters
 
     Returns:
-        str: Path to the saved Excel file.
+        BytesIO: Excel file contents in a BytesIO buffer.
     """
     try:
         # Get all notifications
         notifications = await notification_repository.get_all_notifications(db)
         if not notifications:
-            raise Exception("No notifications found")
-
-        # Create temp directory if it doesn't exist
-        temp_dir = os.path.join(os.getcwd(), "temp")
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
-
-        # Create filename with timestamp
-        # --- Prepare main 'data' sheet ---
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"notifications_{timestamp}.xlsx"
-        file_path = os.path.join(temp_dir, filename)
+            return None
         data_list = []
         for idx, notification in enumerate(notifications, 1):  # Start from 1
             data_list.append(
@@ -265,9 +253,9 @@ async def download_notifications_as_excel(db: AsyncSession) -> str:
 
         # Create DataFrame for the main 'data' sheet
         df_data = pd.DataFrame(data_list)
-
+        excel_buffer = BytesIO()
         # Write to Excel file
-        with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
             # Write 'data' sheet
             # Only include visible columns (excluding original_id)
             visible_columns = [
@@ -336,7 +324,8 @@ async def download_notifications_as_excel(db: AsyncSession) -> str:
                         for cell in worksheet_empty[1]:  # Header row
                             cell.alignment = Alignment(horizontal="left")
 
-        return file_path
+        excel_buffer.seek(0)  # Reset to beginning of buffer
+        return excel_buffer
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -494,7 +483,7 @@ async def upload_notifications_from_excel(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-async def get_notification_template() -> str:
+async def get_notification_template() -> BytesIO:
     """
     Generate a template Excel file for notifications.
     The template will contain:
@@ -505,16 +494,6 @@ async def get_notification_template() -> str:
         str: Path to the template Excel file
     """
     try:
-        # Create temp directory if it doesn't exist
-        temp_dir = os.path.join(os.getcwd(), "temp")
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
-
-        # Create filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"notification_template_{timestamp}.xlsx"
-        file_path = os.path.join(temp_dir, filename)
-
         # --- Prepare 'data' sheet with sample data ---
         data_list = [
             {
@@ -552,9 +531,9 @@ async def get_notification_template() -> str:
             },
         ]
         df_params = pd.DataFrame(params_data)
-
+        excel_buffer = BytesIO()
         # Write to Excel file
-        with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
             # Write 'data' sheet
             df_data.to_excel(writer, index=False, sheet_name="data")
             worksheet_data = writer.sheets["data"]
@@ -578,6 +557,7 @@ async def get_notification_template() -> str:
             for cell in worksheet_empty[1]:  # Header row
                 cell.alignment = Alignment(horizontal="left")
 
-        return file_path
+        excel_buffer.seek(0)  # Reset to beginning of buffer
+        return excel_buffer
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))

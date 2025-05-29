@@ -1,5 +1,3 @@
-import os
-from datetime import datetime
 from io import BytesIO
 
 import pandas as pd
@@ -120,22 +118,13 @@ async def delete_multiple_interests(db: AsyncSession, interest_ids: list) -> Non
         raise e
 
 
-async def download_interests_as_excel(db: AsyncSession) -> str:
+async def download_interests_as_excel(db: AsyncSession) -> BytesIO:
     """
     Download all interests as an Excel file.
     """
     interests = await interest_repository.get_all_interests(db)
     if not interests:
         return None
-
-    # Tạo thư mục temp nếu chưa tồn tại
-    temp_dir = os.path.join(os.getcwd(), "temp")
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
-
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    filename = f"interests_{timestamp}.xlsx"
-    file_path = os.path.join(temp_dir, filename)
 
     headers_map = {
         "name": "Nhãn",
@@ -156,7 +145,8 @@ async def download_interests_as_excel(db: AsyncSession) -> str:
     ]
 
     df = pd.DataFrame(data, columns=headers)
-    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+    excel_buffer = BytesIO()
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="data")
         worksheet = writer.sheets["data"]
         # Set headers alignment to left
@@ -166,8 +156,8 @@ async def download_interests_as_excel(db: AsyncSession) -> str:
         for idx, col in enumerate(df.columns):
             max_len = max(df[col].astype(str).map(len).max(), len(str(col)))
             worksheet.column_dimensions[chr(65 + idx)].width = max_len
-
-    return file_path
+    excel_buffer.seek(0)
+    return excel_buffer
 
 
 async def insert_interests_from_excel(db: AsyncSession, sheet_file) -> None:
@@ -196,7 +186,7 @@ async def insert_interests_from_excel(db: AsyncSession, sheet_file) -> None:
         raise e
 
 
-async def get_interest_template() -> str:
+async def get_interest_template() -> BytesIO:
     """
     Generate a template Excel file for interests.
     The template will contain sample data with required columns.
@@ -205,16 +195,6 @@ async def get_interest_template() -> str:
         str: Path to the template Excel file
     """
     try:
-        # Create temp directory if it doesn't exist
-        temp_dir = os.path.join(os.getcwd(), "temp")
-        if not os.path.exists(temp_dir):
-            os.makedirs(temp_dir)
-
-        # Create filename with timestamp
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-        filename = f"interest_template_{timestamp}.xlsx"
-        file_path = os.path.join(temp_dir, filename)
-
         # Sample data
         data_list = [
             {
@@ -231,9 +211,9 @@ async def get_interest_template() -> str:
             },
         ]
         df_data = pd.DataFrame(data_list)
-
+        excel_buffer = BytesIO()
         # Write to Excel file
-        with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+        with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
             # Write data sheet
             df_data.to_excel(writer, index=False, sheet_name="data")
             worksheet_data = writer.sheets["data"]
@@ -241,7 +221,8 @@ async def get_interest_template() -> str:
                 cell.alignment = Alignment(horizontal="left")
             adjust_column_widths_in_worksheet(worksheet_data, df_data)
 
-        return file_path
+        excel_buffer.seek(0)
+        return excel_buffer
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

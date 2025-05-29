@@ -1,10 +1,11 @@
-import os
+from io import BytesIO
+from urllib.parse import quote
 
 from app.configs.database import get_session
 from app.services import notification_service
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response as HttpResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
@@ -28,26 +29,28 @@ async def get_notifications(request: Request, db: AsyncSession = Depends(get_ses
 
 
 @router.get("/download-template")
-async def get_notification_template(
-    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
-):
+async def get_notification_template(db: AsyncSession = Depends(get_session)):
     """
     Download an Excel template file for notifications.
-
-    Returns:
-        Excel template file as a FileResponse
     """
     try:
         # Get the template file path
-        file_path = await notification_service.get_notification_template()
+        excel_buffer = await notification_service.get_notification_template()
+        if not excel_buffer:
+            raise HTTPException(status_code=404, detail="Template not found")
+        response_buffer = BytesIO(excel_buffer.getvalue())
+        # Encode the filename to handle non-ASCII characters
+        filename = "Template cài đặt thông báo.xlsx"
+        encoded_filename = quote(filename)
 
-        # Schedule file cleanup after sending
-        background_tasks.add_task(os.remove, file_path)
-
-        return FileResponse(
-            path=file_path,
-            filename="notification_template.xlsx",
+        # Return as streaming response with proper headers for Vietnamese filename
+        return StreamingResponse(
+            response_buffer,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+                "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8",
+            },
         )
     except Exception as e:
         print(f"Error generating notification template: {e}")
@@ -58,26 +61,29 @@ async def get_notification_template(
 
 @router.get("/download")
 async def download_notifications_as_excel(
-    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_session),
 ):
     """
     Download all notifications as Excel file.
-
-    Returns:
-        Excel file as a FileResponse
     """
     try:
         # Get the file path from the service
-        file_path = await notification_service.download_notifications_as_excel(db)
+        excel_buffer = await notification_service.download_notifications_as_excel(db)
+        if not excel_buffer:
+            raise HTTPException(status_code=404, detail="No notifications found")
 
-        # Schedule file cleanup after sending
-        background_tasks.add_task(os.remove, file_path)
-
-        return FileResponse(
-            path=file_path,
-            filename="Cài đặt thông báo.xlsx",
+        # Encode the filename to handle non-ASCII characters
+        filename = "Cài đặt thông báo.xlsx"
+        encoded_filename = quote(filename)
+        response_buffer = BytesIO(excel_buffer.getvalue())
+        # Return as streaming response with proper headers for Vietnamese filename
+        return StreamingResponse(
+            response_buffer,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+                "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8",
+            },
         )
     except Exception as e:
         print(f"Error downloading notifications: {e}")

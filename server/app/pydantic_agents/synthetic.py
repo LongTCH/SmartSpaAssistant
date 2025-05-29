@@ -21,6 +21,7 @@ from app.stores.store import get_local_data
 from app.utils.agent_utils import MessagePart
 from jinja2 import Environment, FileSystemLoader
 from pydantic_ai import Agent, RunContext, Tool
+from pydantic_ai.models.google import GoogleModelSettings
 
 
 async def get_instruction(context: RunContext[SyntheticAgentDeps]) -> str:
@@ -84,6 +85,10 @@ async def create_synthetic_agent(
         retries=2,
         output_type=list[MessagePart],
         output_retries=2,
+        model_settings=GoogleModelSettings(
+            google_thinking_config={"thinking_budget": 8000},
+            temperature=0.1,
+        ),
         tools=[
             Tool(
                 get_all_available_sheets,

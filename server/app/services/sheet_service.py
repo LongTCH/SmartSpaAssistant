@@ -1,6 +1,5 @@
 import json
 import math
-import os
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from io import BytesIO
@@ -391,9 +390,9 @@ async def delete_multiple_sheets(db: AsyncSession, sheet_ids: list[str]) -> None
         raise e
 
 
-async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
+async def download_sheet_as_excel_stream(db: AsyncSession, sheet_id: str) -> BytesIO:
     """
-    Download a sheet as an Excel file.
+    Download a sheet as an Excel file stream (BytesIO).
     The Excel file will contain three sheets:
     1. 'data': Contains the main table data.
     2. 'sheet_info': Contains the table name and description.
@@ -404,23 +403,14 @@ async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
         sheet_id: ID of the sheet to download
 
     Returns:
-        str: Path to the saved Excel file.
+        BytesIO: Excel file contents in a BytesIO buffer.
     """
     # Get the sheet with its schema
     sheet = await sheet_repository.get_sheet_by_id(db, sheet_id)
     if not sheet:
         raise Exception(f"Sheet with ID {sheet_id} not found")
 
-    # Create temp directory if it doesn't exist
-    temp_dir = os.path.join(os.getcwd(), "temp")
-    if not os.path.exists(temp_dir):
-        os.makedirs(temp_dir)
-
-    # Create filename with timestamp and a sanitized sheet name
-    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-    sane_sheet_name = "".join(c if c.isalnum() else "_" for c in sheet.name)
-    filename = f"{sane_sheet_name}_{sheet.id}_{timestamp}.xlsx"
-    file_path = os.path.join(temp_dir, filename)
+    excel_buffer = BytesIO()
 
     # --- Prepare 'data' sheet ---
     data_columns = [item.get("column_name") for item in sheet.column_config]
@@ -466,10 +456,8 @@ async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
             columns=["column_name", "column_type", "description", "is_index"]
         )
 
-    # Helper function to adjust column widths
-
-    # Write DataFrames to Excel file
-    with pd.ExcelWriter(file_path, engine="openpyxl") as writer:
+    # Write DataFrames to Excel buffer
+    with pd.ExcelWriter(excel_buffer, engine="openpyxl") as writer:
         # Write 'data' sheet
         df_data.to_excel(writer, index=False, sheet_name="data")
         worksheet_data = writer.sheets["data"]
@@ -494,7 +482,8 @@ async def download_sheet_as_excel(db: AsyncSession, sheet_id: str) -> str:
             for cell in worksheet_column_config[1]:  # Header row
                 cell.alignment = Alignment(horizontal="left")
 
-    return file_path
+    excel_buffer.seek(0)  # Reset buffer position to the beginning
+    return excel_buffer
 
 
 async def get_sheet_rows_by_sheet_id(

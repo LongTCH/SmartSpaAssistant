@@ -6623,6 +6623,7 @@ snapshots:
       react-dom: 19.1.0(react@19.1.0)
       react-hook-form: 7.56.2(react@19.1.0)
       react-icons: 5.5.0(react@19.1.0)
+      react-intersection-observer: 9.16.0(react-dom@19.1.0(react@19.1.0))(react@19.1.0)
       react-markdown: 10.1.0(@types/react@19.1.2)(react@19.1.0)
       react-syntax-highlighter: 15.6.1(react@19.1.0)
       rehype-katex: 7.0.1

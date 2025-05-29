@@ -76,7 +76,7 @@ model_hub: Dict[ModelName, ModelType] = {
         ),
     ),
     "gemini-2.5-flash": GeminiModel(
-        "gemini-2.5-flash-preview-04-17",
+        "gemini-2.5-flash-preview-05-20",
         provider=GoogleGLAProvider(
             api_key=env_config.GEMINI_API_KEY,
         ),

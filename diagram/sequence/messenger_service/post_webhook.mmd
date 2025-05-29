@@ -1,0 +1,54 @@
+%%{init: {'theme': 'neutral', 'themeVariables': {'actorFontSize': 24, 'messageFontSize': 24, 'noteFontSize': 24}}}%%
+sequenceDiagram
+    participant Client
+    participant Router
+    participant MessengerService
+    participant Database
+    participant ExternalAPI as Facebook Graph API
+    participant WebSocket as Frontend (WS)
+    participant AIService as AI Agent
+
+    Client-->>Router: send_message(Webhook)
+    activate Router
+    Router-->>Client: HTTP 200 OK (Phản hồi ngay lập tức)
+
+    Router->>MessengerService: Xử lý sự kiện Webhook (Tác vụ nền)
+    activate MessengerService
+
+    MessengerService->>Database: Lưu tin nhắn đến & Lấy/Tạo người dùng
+    activate Database
+    Database-->>MessengerService: Đã lưu
+    deactivate Database
+    MessengerService->>WebSocket: Thông báo Frontend: Tin nhắn mới
+
+    opt Yêu cầu phản hồi AI
+        MessengerService->>AIService: Yêu cầu phản hồi AI
+        activate AIService
+        AIService-->>MessengerService: Phản hồi từ AI
+        deactivate AIService
+        
+        MessengerService->>ExternalAPI: Gửi phản hồi AI đến người dùng
+        activate ExternalAPI
+        ExternalAPI-->>MessengerService: Đã gửi
+        deactivate ExternalAPI
+        MessengerService->>Database: Lưu phản hồi AI vào chat
+        activate Database
+        Database-->>MessengerService: Đã lưu
+        deactivate Database
+        MessengerService->>WebSocket: Thông báo Frontend: Phản hồi AI
+    end
+
+    MessengerService->>Database: Commit giao dịch
+    activate Database
+    Database-->>MessengerService: Đã commit
+    deactivate Database
+
+    deactivate MessengerService
+
+    alt Lỗi trong tác vụ nền
+        MessengerService->>Database: Rollback giao dịch
+        activate Database
+        Database-->>MessengerService: Rollback hoàn tất
+        deactivate Database
+    end
+    deactivate Router

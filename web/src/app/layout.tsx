@@ -5,7 +5,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { AppProvider } from "@/context/app-context";
 import { ToastProvider } from "@/context/toast-provider";
 import { WebSocketHandler } from "@/context/websocket-handler";
-
+import { Toaster } from "@/components/ui/sonner";
 import LayoutContainer from "@/app/layout-container";
 
 const geistSans = Geist({
@@ -37,6 +37,7 @@ export default function RootLayout({
           <ToastProvider>
             <AppProvider>
               <WebSocketHandler />
+              <Toaster position="top-right" richColors closeButton />
               <LayoutContainer>{children}</LayoutContainer>
             </AppProvider>
           </ToastProvider>

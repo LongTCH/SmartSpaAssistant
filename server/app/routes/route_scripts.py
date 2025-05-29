@@ -1,12 +1,13 @@
-import os
+from io import BytesIO
+from urllib.parse import quote
 
 from app.configs.database import get_session
 from app.services import script_service
 from app.services.integrations import script_rag_service
 from app.utils import asyncio_utils
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response as HttpResponse
+from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/scripts", tags=["Scripts"])
@@ -40,57 +41,75 @@ async def get_all_published_scripts(
 
 
 @router.get("/download")
-async def download_scripts(
-    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
-):
+async def download_scripts(db: AsyncSession = Depends(get_session)):
     """
     Download all scripts as an Excel file.
 
     Returns:
-        Excel file as a FileResponse
+        Excel file as a StreamingResponse
     """
     try:
-        # Get the scripts data from the service
-        file_path = await script_service.download_scripts_as_excel(db)
-        if not file_path:
+        # Get the scripts data from the service as BytesIO
+        excel_buffer = await script_service.download_scripts_as_excel_stream(db)
+        if not excel_buffer:
             raise HTTPException(status_code=404, detail="No scripts found")
 
-        background_tasks.add_task(os.remove, file_path)
-        return FileResponse(
-            path=file_path,
-            filename="Kịch bản.xlsx",
+        # Create a new BytesIO to avoid any potential issues with the original buffer
+        response_buffer = BytesIO(excel_buffer.getvalue())
+
+        # Encode the filename to handle non-ASCII characters
+        filename = "Kịch bản.xlsx"
+        encoded_filename = quote(filename)
+
+        # Return as streaming response with proper headers for Vietnamese filename
+        return StreamingResponse(
+            response_buffer,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+                "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8",
+            },
         )
     except Exception as e:
         print(f"Error downloading scripts: {e}")
-        raise HTTPException(status_code=500, detail=f"Error downloading scripts")
+        import traceback
+
+        traceback.print_exc()
+        raise HTTPException(
+            status_code=500, detail=f"Error downloading scripts: {str(e)}"
+        )
 
 
 @router.get("/download-template")
-async def get_script_template(
-    background_tasks: BackgroundTasks, db: AsyncSession = Depends(get_session)
-):
+async def get_script_template(db: AsyncSession = Depends(get_session)):
     """
     Download an Excel template file for scripts.
 
     Returns:
-        Excel template file as a FileResponse
+        Excel template file as a StreamingResponse
     """
     try:
-        # Get the template file path
-        file_path = await script_service.get_script_template()
+        # Get the template file as BytesIO
+        excel_buffer = await script_service.get_script_template()
 
-        # Schedule file cleanup after sending
-        background_tasks.add_task(os.remove, file_path)
+        # Encode the filename to handle non-ASCII characters
+        filename = "Template Kịch bản.xlsx"
+        encoded_filename = quote(filename)
 
-        return FileResponse(
-            path=file_path,
-            filename="kich_ban_template.xlsx",
+        # Return as streaming response with proper headers for Vietnamese filename
+        return StreamingResponse(
+            excel_buffer,
             media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            headers={
+                "Content-Disposition": f"attachment; filename*=UTF-8''{encoded_filename}",
+                "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet; charset=utf-8",
+            },
         )
     except Exception as e:
         print(f"Error generating script template: {e}")
-        raise HTTPException(status_code=500, detail=f"Error generating script template")
+        raise HTTPException(
+            status_code=500, detail=f"Error generating script template: {str(e)}"
+        )
 
 
 @router.get("/{script_id}")

@@ -1,0 +1,48 @@
+%%{init: {'theme': 'neutral', 'themeVariables': {'actorFontSize': 24, 'messageFontSize': 24, 'noteFontSize': 24}}}%%
+sequenceDiagram
+    participant Client
+    participant Router
+    participant ScriptService
+    participant Database
+    participant RAGService
+
+    Client-->>Router: insert_script(script data)
+    activate Router
+    Router->>ScriptService: Insert Script
+    activate ScriptService
+
+    ScriptService->>Database: Store Script & Get ID
+    activate Database
+    Database-->>ScriptService: new_script_id
+    deactivate Database
+
+    opt Has Related Scripts
+        ScriptService->>Database: Store Related Script Links
+        activate Database
+        Database-->>ScriptService: Links Stored
+        deactivate Database
+    end
+
+    ScriptService->>Database: Commit Transaction
+    activate Database
+    Database-->>ScriptService: Commit Successful
+    deactivate Database
+
+    ScriptService-->>Router: new_script_id
+    deactivate ScriptService
+
+    Router->>RAGService: Process Script for RAG (new_script_id)
+    activate RAGService
+    deactivate RAGService
+
+    Router-->>Client: HTTP 201 Created (Success)
+    deactivate Router
+
+    alt Error occurred
+        ScriptService->>Database: Rollback Transaction
+        activate Database
+        Database-->>ScriptService: Rollback Successful
+        deactivate Database
+        ScriptService--xRouter: Raise Exception
+        Router-->>Client: HTTP 500 Internal Server Error
+    end

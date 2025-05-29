@@ -152,7 +152,7 @@ async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> list[str]:
 
     Results are returned as a list of text entries. Each entry represents a row from a knowledge sheet
     identified by 'sheet.id' in the 'sheet' table of database.
-    Use this tool when SQL tool not returning appropriate data.
+    Use this tool to search relative items when 'execute_query_on_sheet_rows' tool not returning appropriate data.
 
     Args:
         sheet_id: The ID of the sheet to query.
@@ -284,8 +284,7 @@ async def execute_query_on_sheet_rows(
             if not rows:
                 raise ModelRetry(
                     "No data found. Please check your query again."
-                    "If your query contain fulltext search, such as data &@~ 'example keyword', that will search rows contain both 'example' and 'keyword'."
-                    "Prefer using less keywords or using OR to comine them. Please check your keywords."
+                    "Or consider using `rag_hybrid_search` tool to search for relevant data."
                 )
             return [dict(row) for row in rows]
     except ModelRetry as model_retry:

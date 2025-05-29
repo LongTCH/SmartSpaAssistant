@@ -1,6 +1,5 @@
 import asyncio
 import datetime
-import os
 from datetime import datetime
 from typing import Any, Dict
 
@@ -12,6 +11,7 @@ from app.models import Guest, GuestInfo
 from app.pydantic_agents import invoke_agent
 from app.repositories import guest_info_repository, guest_repository
 from app.services import chat_service
+from app.services.clients import cloudinary
 from app.stores.store import get_local_data
 from app.utils.message_utils import (
     get_attachment_type_name,
@@ -43,41 +43,26 @@ async def insert_guest(db: AsyncSession, sender_id) -> Guest | None:
         "access_token": env_config.PAGE_ACCESS_TOKEN,
         "fields": "first_name,last_name,name,gender,picture",
     }
-    image_url = f"https://graph.facebook.com/v22.0/{sender_id}/picture"
-    image_params = {"access_token": env_config.PAGE_ACCESS_TOKEN, "type": "large"}
+    image_url = f"https://graph.facebook.com/v22.0/{sender_id}/picture?access_token={env_config.PAGE_ACCESS_TOKEN}&type=large"
     async with aiohttp.ClientSession() as session:
         async with session.get(url, params=params) as response:
             if response.status == 200:
                 data = await response.json()
                 account_id = data.get("id")
                 account_name = data.get("name")
-                gender = data.get("gender")
-                # Tải ảnh từ URL
-                image_data = None
-                async with session.get(
-                    image_url, params=image_params
-                ) as image_response:
-                    if image_response.status != 200:
-                        return {"error": "Không thể tải ảnh từ URL."}
-                    image_data = await image_response.read()
-
+                avatar_url = await cloudinary.upload_image(image_url)
                 # Tạo Guest với provider và account_name trong guest
                 guest = Guest(
                     provider=PROVIDERS.MESSENGER,
                     account_id=account_id,
                     account_name=account_name,
                     assigned_to=CHAT_ASSIGNMENT.AI,
+                    avatar=avatar_url,
                 )
                 guest = await guest_repository.insert_guest(db, guest)
 
                 fullname = data.get("last_name") + " " + data.get("first_name")
-                image_path = os.path.join("static", "images", f"{guest.id}.jpg")
-                avatar_url = f"{env_config.BASE_URL}/static/images/{guest.id}.jpg"
-                # Lưu ảnh vào thư mục 'images'
-                with open(image_path, "wb") as f:
-                    f.write(image_data)
-                guest.avatar = avatar_url
-
+                gender = data.get("gender")
                 guest_info = GuestInfo(
                     fullname=fullname, gender=gender, guest_id=guest.id
                 )
