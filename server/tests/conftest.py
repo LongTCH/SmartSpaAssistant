@@ -6,7 +6,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from app.configs.constants import CHAT_ASSIGNMENT
-from app.models import Chat
 from sqlalchemy.ext.asyncio import AsyncSession
 
 # Add the project root directory to Python path
@@ -95,12 +94,6 @@ def mock_external_dependencies():
             new_callable=AsyncMock,
             return_value=None,
         ),
-        # Mock Google services if used
-        patch(
-            "app.services.integrations.google_service.get_service",
-            return_value=MagicMock(),
-            create=True,
-        ),
     ]
 
     # Start all patches
@@ -147,14 +140,14 @@ def mock_guest():
 
 @pytest.fixture
 def mock_chat():
-    """Create a mock Chat object for testing."""
-    chat = Chat(
-        id="test-chat-id",
-        guest_id="test-guest-id",
-        content={"side": "client", "message": {"text": "Hello"}},
-        created_at=datetime.now(),
-    )
-    return chat
+    """Create a mock Chat dictionary for testing."""
+    chat_dict = {
+        "id": "test-chat-id",
+        "guest_id": "test-guest-id",
+        "content": {"side": "client", "message": {"text": "Hello"}},
+        "created_at": datetime.now().isoformat(),
+    }
+    return chat_dict
 
 
 @pytest.fixture
@@ -193,17 +186,17 @@ def mock_guest_list():
 
 @pytest.fixture
 def mock_chat_list():
-    """Create a list of mock Chat objects for testing."""
+    """Create a list of mock Chat dictionaries for testing."""
     chats = []
     for i in range(3):
-        chat = Chat(
-            id=f"test-chat-id-{i}",
-            guest_id="test-guest-id",
-            content={
+        chat_dict = {
+            "id": f"test-chat-id-{i}",
+            "guest_id": "test-guest-id",
+            "content": {
                 "side": "client" if i % 2 == 0 else "staff",
                 "message": {"text": f"Hello {i}"},
             },
-            created_at=datetime.now(),
-        )
-        chats.append(chat)
+            "created_at": datetime.now().isoformat(),
+        }
+        chats.append(chat_dict)
     return chats
