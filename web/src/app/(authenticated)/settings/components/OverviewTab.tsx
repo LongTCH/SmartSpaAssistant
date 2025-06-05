@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -26,10 +26,15 @@ export function OverviewTab() {
 
   const [isSaving, setIsSaving] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
+  const loadingRef = useRef(false);
 
   // Load settings on component mount
   useEffect(() => {
     const loadSettings = async () => {
+      // Prevent duplicate calls
+      if (loadingRef.current) return;
+      loadingRef.current = true;
+
       try {
         const settingsData = await settingsService.getSettings();
         setSettings(settingsData);
@@ -37,6 +42,7 @@ export function OverviewTab() {
         toast.error("Không thể tải cài đặt. Vui lòng thử lại sau!");
       } finally {
         setIsLoading(false);
+        loadingRef.current = false;
       }
     };
 

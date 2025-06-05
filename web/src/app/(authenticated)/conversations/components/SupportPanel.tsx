@@ -63,6 +63,7 @@ export default function SupportPanel({
   const [isInterestsLoading, setIsInterestsLoading] = useState(false);
   const interestsContainerRef = useRef<HTMLDivElement | null>(null);
   const [isInterestsDropdownOpen, setIsInterestsDropdownOpen] = useState(false);
+  const loadingInterestsRef = useRef(false); // Prevent concurrent interests API calls
 
   const fetchGuestInfo = async (guestId: string) => {
     try {
@@ -97,9 +98,12 @@ export default function SupportPanel({
       setIsLoading(false);
     }
   };
-
   const fetchAllInterests = async () => {
+    // Prevent concurrent API calls
+    if (loadingInterestsRef.current) return;
+
     try {
+      loadingInterestsRef.current = true;
       setIsInterestsLoading(true);
       const response = await interestService.getAllPublishedInterests();
       setAvailableInterests(response);
@@ -107,6 +111,7 @@ export default function SupportPanel({
       toast.error("Không thể tải danh sách sở thích.");
     } finally {
       setIsInterestsLoading(false);
+      loadingInterestsRef.current = false;
     }
   };
 

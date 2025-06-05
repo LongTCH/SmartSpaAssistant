@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { downloadFile } from "@/lib/file-utils";
 
-
 import {
   Dialog,
   DialogClose,
@@ -15,14 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-
-import {
-  Plus,
-  Trash2,
-  AlertTriangle,
-  FileDown,
-  FileUp,
-} from "lucide-react";
+import { Plus, Trash2, AlertTriangle, FileDown, FileUp } from "lucide-react";
 import { AddScriptModal } from "./AddScriptModal";
 import { EditScriptModal } from "./EditScriptModal";
 import { UploadScriptModal } from "./UploadScriptModal";
@@ -55,14 +47,15 @@ export function ScriptsTab() {
   const [isDeleting, setIsDeleting] = useState(false);
   const [selectedScriptId, setSelectedScriptId] = useState<string | null>(null); // State for file upload modal
   const [showUploadModal, setShowUploadModal] = useState(false);
-
   // Sử dụng useRef để theo dõi trạng thái đã tải
   const hasInitialFetch = useRef(false);
+  const loadingRef = useRef(false);
 
   // Fetch scripts data from API
   const fetchScripts = useCallback(async () => {
     // Nếu đang tải, không fetch thêm
-    if (isLoading) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setIsLoading(true);
     try {
       const response = await scriptService.getPaginationScript(
@@ -78,8 +71,9 @@ export function ScriptsTab() {
       toast.error("Không thể tải danh sách kịch bản.");
     } finally {
       setIsLoading(false);
+      loadingRef.current = false;
     }
-  }, [currentPage, status, isLoading]);
+  }, [currentPage, status]); // Removed isLoading to prevent infinite loop
 
   // Fetch data when page or status changes
   useEffect(() => {

@@ -151,13 +151,10 @@ async def get_guest_by_id(db: AsyncSession, guest_id: str) -> Guest:
 async def update_guest_by_id(db: AsyncSession, guest_id: str, body: dict) -> Guest:
     guest = await guest_repository.get_guest_by_id(db, guest_id)
     if not guest:
-        return None
-
-    # Lấy hoặc tạo GuestInfo nếu chưa có
+        return None  # Lấy hoặc tạo GuestInfo nếu chưa có
     if not guest.info:
-        guest_info = GuestInfo()
+        guest_info = GuestInfo(guest_id=guest.id)
         guest_info = await guest_info_repository.insert_guest_info(db, guest_info)
-        guest.info_id = guest_info.id
     else:
         guest_info = guest.info
 
@@ -217,73 +214,54 @@ async def update_guest_by_id(db: AsyncSession, guest_id: str, body: dict) -> Gue
 
 
 async def get_pagination_guests_with_interests(
-    db: AsyncSession, page: int, limit: int, filter_params=None
+    db: AsyncSession, page: int, limit: int, interest_ids: list[str]
 ) -> PaginationDto:
-    if (
-        filter_params
-        and filter_params.get("keyword")
-        and filter_params.get("interest_ids")
-    ):
-        # Lọc theo interest_ids và keyword
-        interest_ids = filter_params.get("interest_ids")
-        keyword = process_keyword(filter_params.get("keyword"))
-        count = await guest_repository.count_guests_by_interests_and_keywords(
-            db, interest_ids, keyword
-        )
-        if count == 0:
-            return PaginationDto(page=page, limit=limit, total=0, data=[])
-        skip = (page - 1) * limit
-        data = await guest_repository.get_guests_by_interests_and_keywords(
-            db, interest_ids, keyword, skip, limit
-        )
-        data_dict = [
-            guest.to_dict(include=["interests", "info", "last_chat_message"])
-            for guest in data
-        ]
-        return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
-    elif filter_params and filter_params.get("keyword"):
-        # Sử dụng full-text search với PGroonga
-        keyword = process_keyword(filter_params.get("keyword"))
-        count = await guest_repository.count_search_guests(db, keyword)
-        if count == 0:
-            return PaginationDto(page=page, limit=limit, total=0, data=[])
+    # Lọc theo interest_ids
+    count = await guest_repository.count_guests_by_interests(db, interest_ids)
+    if count == 0:
+        return PaginationDto(page=page, limit=limit, total=0, data=[])
+    skip = (page - 1) * limit
+    data = await guest_repository.get_guests_by_interests(db, interest_ids, skip, limit)
+    data_dict = [
+        guest.to_dict(include=["interests", "info", "last_chat_message"])
+        for guest in data
+    ]
+    return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
 
-        skip = (page - 1) * limit
-        data = await guest_repository.search_guests_by_keywords(
-            db, keyword, skip, limit
-        )
-        data_dict = [
-            guest.to_dict(include=["interests", "info", "last_chat_message"])
-            for guest in data
-        ]
-        return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
-    elif filter_params and filter_params.get("interest_ids"):
-        # Lọc theo interest_ids
-        interest_ids = filter_params.get("interest_ids")
-        count = await guest_repository.count_guests_by_interests(db, interest_ids)
-        if count == 0:
-            return PaginationDto(page=page, limit=limit, total=0, data=[])
-        skip = (page - 1) * limit
-        data = await guest_repository.get_guests_by_interests(
-            db, interest_ids, skip, limit
-        )
-        data_dict = [
-            guest.to_dict(include=["interests", "info", "last_chat_message"])
-            for guest in data
-        ]
-        return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
-    else:
-        # Phân trang bình thường
-        count = await guest_repository.count_guests(db)
-        if count == 0:
-            return PaginationDto(page=page, limit=limit, total=0, data=[])
-        skip = (page - 1) * limit
-        data = await guest_repository.get_paging_guests_with_interests(db, skip, limit)
-        data_dict = [
-            guest.to_dict(include=["interests", "info", "last_chat_message"])
-            for guest in data
-        ]
-        return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
+
+async def get_pagination_guests_with_keywords(
+    db: AsyncSession, page: int, limit: int, keyword: str
+) -> PaginationDto:
+    count = await guest_repository.count_guests_by_keywords(db, keyword)
+    if count == 0:
+        return PaginationDto(page=page, limit=limit, total=0, data=[])
+
+    skip = (page - 1) * limit
+    data = await guest_repository.search_guests_by_keywords(db, keyword, skip, limit)
+    data_dict = [
+        guest.to_dict(include=["interests", "info", "last_chat_message"])
+        for guest in data
+    ]
+    return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
+
+
+async def get_pagination_guests_with_interests_keywords(
+    db: AsyncSession, page: int, limit: int, interest_ids: list[str], keyword: str
+) -> PaginationDto:
+    count = await guest_repository.count_guests_by_interests_and_keywords(
+        db, interest_ids, keyword
+    )
+    if count == 0:
+        return PaginationDto(page=page, limit=limit, total=0, data=[])
+    skip = (page - 1) * limit
+    data = await guest_repository.get_guests_by_interests_and_keywords(
+        db, interest_ids, keyword, skip, limit
+    )
+    data_dict = [
+        guest.to_dict(include=["interests", "info", "last_chat_message"])
+        for guest in data
+    ]
+    return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
 
 
 async def get_pagination_guests(
@@ -293,9 +271,12 @@ async def get_pagination_guests(
     if count == 0:
         return PaginationDto(page=page, limit=limit, total=0, data=[])
     skip = (page - 1) * limit
-    data = await guest_repository.get_paging_guests(db, skip, limit)
     # Convert objects to dictionaries without including interests
-    data_dict = [guest.to_dict() for guest in data]
+    data = await guest_repository.get_paging_guests(db, skip, limit)
+    data_dict = [
+        guest.to_dict(include=["interests", "info", "last_chat_message"])
+        for guest in data
+    ]
     return PaginationDto(page=page, limit=limit, total=count, data=data_dict)
 
 

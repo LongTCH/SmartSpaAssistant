@@ -1,15 +1,17 @@
-import { Menu } from "lucide-react";
+import { Menu, Wifi, WifiOff } from "lucide-react";
 
 interface ChatHeaderProps {
   title: string;
   toggleMobileSidebar: () => void;
   isMobile: boolean;
+  isWebSocketConnected?: boolean;
 }
 
 export function ChatHeader({
   title,
   toggleMobileSidebar,
   isMobile,
+  isWebSocketConnected = false,
 }: ChatHeaderProps) {
   return (
     <div className="py-2 px-4 sm:px-6 border-b flex items-center justify-between bg-white z-10 relative">
@@ -25,9 +27,26 @@ export function ChatHeader({
         <h2 className="text-lg font-medium text-gray-800">{title}</h2>
       </div>
       <div className="flex items-center space-x-2">
-        <div className="hidden sm:flex items-center text-xs text-gray-500 bg-gray-50 py-1 px-2.5 rounded-full">
-          <span className="w-1.5 h-1.5 bg-green-500 rounded-full mr-1.5"></span>
-          Online
+        <div
+          className={`flex items-center text-xs py-1 px-2.5 rounded-full ${
+            isWebSocketConnected
+              ? "text-green-700 bg-green-50"
+              : "text-red-700 bg-red-50"
+          }`}
+        >
+          {isWebSocketConnected ? (
+            <>
+              <Wifi size={12} className="mr-1.5" />
+              <span className="hidden sm:inline">Đã kết nối</span>
+              <span className="sm:hidden">Online</span>
+            </>
+          ) : (
+            <>
+              <WifiOff size={12} className="mr-1.5" />
+              <span className="hidden sm:inline">Mất kết nối</span>
+              <span className="sm:hidden">Offline</span>
+            </>
+          )}
         </div>
       </div>
     </div>

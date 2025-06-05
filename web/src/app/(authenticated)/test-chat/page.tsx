@@ -21,10 +21,7 @@ import {
 import { ChatHeader } from "./components/ChatHeader";
 import { ChatInput } from "./components/ChatInput";
 // Use a type alias to distinguish local Conversation from global Conversation
-import {
-  Chat,
-  ChatAttachment,
-} from "@/types/conversation"; // Added ChatAttachment
+import { Chat, ChatAttachment } from "@/types/conversation"; // Added ChatAttachment
 import { Conversation as LocalConversation } from "./components/ConversationSidebar";
 
 export default function TestChatPage() {
@@ -37,6 +34,8 @@ export default function TestChatPage() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentConversationId, setCurrentConversationId] =
     useState<string>(""); // ID of the currently active conversation
+  const [wasDisconnected, setWasDisconnected] = useState(false); // Track if was previously disconnected
+  const [connectionCheckAttempts, setConnectionCheckAttempts] = useState(0); // Track connection attempts
 
   // Check if mobile view
   const isMobile = !useMediaQuery("(min-width: 640px)");
@@ -62,9 +61,7 @@ export default function TestChatPage() {
     isWebSocketConnected,
     setActiveNavTab,
     setPageLoading,
-  } = useApp();
-
-  // Set active tab when component mounts and handle loading state
+  } = useApp(); // Set active tab when component mounts and handle loading state
   useEffect(() => {
     setActiveNavTab("test-chat");
     // Turn off loading after a short delay to ensure UI is ready
@@ -72,8 +69,13 @@ export default function TestChatPage() {
       setPageLoading(false);
     }, 500);
 
+    // Check initial WebSocket connection status
+    if (!isWebSocketConnected) {
+      setWasDisconnected(true);
+    }
+
     return () => clearTimeout(timer);
-  }, [setActiveNavTab, setPageLoading]);
+  }, [setActiveNavTab, setPageLoading, isWebSocketConnected]);
 
   // Create a new conversation
   const handleNewConversation = useCallback(
@@ -94,7 +96,7 @@ export default function TestChatPage() {
       setConversations(loadConversations()); // Reload to get the new list
     },
     // saveConversation & loadConversations are stable imports, setConversations, setCurrentConversationId, setMessages are stable state setters
-     
+
     []
   );
 
@@ -255,7 +257,30 @@ export default function TestChatPage() {
       addMessage,
       setProcessingConversationId,
     ]
-  );
+  ); // Monitor WebSocket connection status changes
+  useEffect(() => {
+    if (!isWebSocketConnected && !wasDisconnected) {
+      // Connection lost
+      setWasDisconnected(true);
+      setConnectionCheckAttempts(0);
+    } else if (isWebSocketConnected && wasDisconnected) {
+      // Connection restored
+      setWasDisconnected(false);
+      setConnectionCheckAttempts(0);
+      // No automatic staff message - UI will show connection status
+    }
+  }, [isWebSocketConnected, wasDisconnected]);
+  // Auto-retry connection check after extended disconnection
+  useEffect(() => {
+    if (!isWebSocketConnected && wasDisconnected) {
+      const timer = setTimeout(() => {
+        setConnectionCheckAttempts((prev) => prev + 1);
+        // Connection status is shown in UI - no automatic staff message needed
+      }, 10000); // Check every 10 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [isWebSocketConnected, wasDisconnected, connectionCheckAttempts]);
 
   // Register WebSocket message handler (must be after addMessage is defined)
   useEffect(() => {
@@ -303,8 +328,7 @@ export default function TestChatPage() {
               chatData.content.message.attachments // Pass attachments
             );
           }
-        } catch {
-        }
+        } catch {}
       }
     );
     return unregister;
@@ -321,7 +345,6 @@ export default function TestChatPage() {
       chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
     }
   }, [messages]);
-
   // Handle sending a message
   const handleSendMessage = useCallback(
     async (messageText: string) => {
@@ -331,16 +354,9 @@ export default function TestChatPage() {
         processingConversationId === currentConversationId
       ) {
         return;
-      }
-
-      // Kiểm tra kết nối WebSocket trước khi gửi tin nhắn
+      } // Kiểm tra kết nối WebSocket trước khi gửi tin nhắn
       if (!isWebSocketConnected) {
-        addMessage(
-          currentConversationId,
-          "staff", // 'staff' for Assistant messages
-          "Xin lỗi, kết nối đến máy chủ đã bị mất. Vui lòng làm mới trang và thử lại."
-          // "ai" // type removed
-        );
+        // Connection status is shown in UI - user will see the reconnecting status
         return;
       }
 
@@ -445,7 +461,6 @@ export default function TestChatPage() {
     },
     []
   );
-
   // Handle sample question click
   const handleSampleQuestionClick = useCallback(
     (question: string) => {
@@ -481,14 +496,16 @@ export default function TestChatPage() {
           !isMobile && sidebarOpen ? "ml-72" : "ml-0"
         }`}
       >
+        {" "}
         {/* Chat header - made sticky */}
         <div className="sticky top-0 z-10 bg-white border-b">
           <ChatHeader
             title={chatHeaderTitle} // Use dynamic title
             toggleMobileSidebar={toggleSidebar}
             isMobile={isMobile}
+            isWebSocketConnected={isWebSocketConnected}
           />
-        </div>
+        </div>{" "}
         {/* Messages container - only this scrolls */}
         <div
           ref={chatBoxRef}
@@ -510,7 +527,7 @@ export default function TestChatPage() {
                 ))}
                 {processingConversationId === currentConversationId && (
                   <TypingIndicator />
-                )}
+                )}{" "}
               </>
             )}
           </div>
@@ -524,6 +541,7 @@ export default function TestChatPage() {
             }
             sendMessage={handleSendMessage}
             placeholder="Type your message here..."
+            isWebSocketConnected={isWebSocketConnected}
           />
         </div>
       </div>

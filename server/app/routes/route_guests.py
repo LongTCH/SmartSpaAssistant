@@ -17,15 +17,21 @@ async def filter_guests(request: Request, db: AsyncSession = Depends(get_session
     keyword = body.get("keyword", None)
     interest_ids = body.get("interest_ids", None)
 
-    filter_params = {}
-    if keyword:
-        filter_params["keyword"] = keyword
-    if interest_ids:
-        filter_params["interest_ids"] = interest_ids
-
-    guests = await guest_service.get_pagination_guests_with_interests(
-        db, page, limit, filter_params
-    )
+    guests = []
+    if keyword and interest_ids:
+        guests = await guest_service.get_pagination_guests_with_interests_keywords(
+            db, page, limit, interest_ids, keyword
+        )
+    elif keyword:
+        guests = await guest_service.get_pagination_guests_with_keywords(
+            db, page, limit, keyword
+        )
+    elif interest_ids:
+        guests = await guest_service.get_pagination_guests_with_interests(
+            db, page, limit, interest_ids
+        )
+    else:
+        guests = await guest_service.get_pagination_guests(db, page, limit)
 
     return guests
 

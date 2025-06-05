@@ -1,9 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef } from "react";
 import { Button } from "@/components/ui/button";
 import { downloadFile } from "@/lib/file-utils";
-
 
 import {
   Dialog,
@@ -15,12 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-
-import {
-  Plus,
-  Trash2,
-  AlertTriangle,
-} from "lucide-react";
+import { Plus, Trash2, AlertTriangle } from "lucide-react";
 import { MultiStepAddSpreadsheetModal } from "./MultiStepAddSpreadsheetModal";
 import { MultiStepEditSpreadsheetModal } from "./MultiStepEditSpreadsheetModal";
 import { PreviewSheetModal } from "./PreviewSheetModal";
@@ -52,10 +46,10 @@ export function SpreadsheetsTab() {
   const [showEditSpreadsheetModal, setShowEditSpreadsheetModal] =
     useState(false);
   const [editingSheet, setEditingSheet] = useState<Sheet | null>(null);
-
   // State cho modal xem trước bảng tính
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [previewingSheet, setPreviewingSheet] = useState<Sheet | null>(null);
+  const loadingRef = useRef(false);
 
   const handleAddSpreadsheetClick = () => {
     // Directly open the multi-step modal
@@ -68,9 +62,9 @@ export function SpreadsheetsTab() {
   };
 
   const fetchSheets = useCallback(async () => {
-    // REMOVED: if (isLoading) return;
-    // This check is problematic: if isLoading is not a dependency, it uses a stale value.
-    // If isLoading IS a dependency, it causes the infinite loop.
+    // Prevent concurrent API calls
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setIsLoading(true);
     try {
       const response = await sheetService.getPaginationSheet(
@@ -86,16 +80,9 @@ export function SpreadsheetsTab() {
       toast.error("Không thể tải danh sách trang tính.");
     } finally {
       setIsLoading(false);
+      loadingRef.current = false;
     }
-  }, [
-    currentPage,
-    status,
-    // REMOVED: isLoading, // This was the primary cause of the infinite loop
-    setIsLoading, // Stable setter, can be included
-    setSheets, // Stable setter, can be included
-    setTotalPages, // Stable setter, can be included
-    setTotalItems, // Stable setter, can be included
-  ]);
+  }, [currentPage, status]); // Removed problematic dependencies
 
   // Fetch data when page or status changes
   useEffect(() => {

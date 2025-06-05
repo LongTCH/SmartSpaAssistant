@@ -206,7 +206,7 @@ async def get_all_available_sheets() -> str:
 
 async def execute_query_on_sheet_rows(
     explain: str, sql_query: str
-) -> list[dict[str, any]]:
+) -> list[dict[str, any]] | str:
     """
     Use this tool to query from {sheet.table_name} when you know the table_name via the sheet you are querying. FROM "{sheet.table_name}" is the table name you need to query from.
     You can use other fields of {table_name} specified in {sheet.column_config}, with normal operations to filter the query.
@@ -282,9 +282,9 @@ async def execute_query_on_sheet_rows(
             rows = result.mappings().all()
             # if rows is empty, raise ModelRetry
             if not rows:
-                raise ModelRetry(
+                return (
                     "No data found. Please check your query again."
-                    "Or consider using `rag_hybrid_search` tool to search for relevant data."
+                    "Or consider using *rag_hybrid_search* tool to search for relevant data."
                 )
             return [dict(row) for row in rows]
     except ModelRetry as model_retry:
@@ -292,7 +292,7 @@ async def execute_query_on_sheet_rows(
     except Exception as e:
         print(f"Error executing query: {e}")
         raise ModelRetry(
-            f"Error executing query: {str(e)}. Please reanalyze sheets structure using `get_all_available_sheets` tool."
+            f"Error executing query: {str(e)}. Please reanalyze sheets structure using *get_all_available_sheets* tool."
         )
 
 

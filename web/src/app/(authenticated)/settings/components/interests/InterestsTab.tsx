@@ -4,7 +4,6 @@ import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { downloadFile } from "@/lib/file-utils";
 
-
 import {
   Dialog,
   DialogClose,
@@ -15,14 +14,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-
-import {
-  Plus,
-  Trash2,
-  AlertTriangle,
-  FileDown,
-  FileUp,
-} from "lucide-react";
+import { Plus, Trash2, AlertTriangle, FileDown, FileUp } from "lucide-react";
 import { AddInterestModal } from "./AddInterestModal";
 import { EditInterestModal } from "./EditInterestModal";
 import { UploadInterestModal } from "./UploadInterestModal";
@@ -58,14 +50,15 @@ export function InterestsTab() {
   );
   // File upload modal
   const [showUploadModal, setShowUploadModal] = useState(false);
-
   // Sử dụng useRef để theo dõi trạng thái đã tải
   const hasInitialFetch = useRef(false);
+  const loadingRef = useRef(false);
 
   // Fetch interests data from API
   const fetchInterests = useCallback(async () => {
     // Nếu đang tải, không fetch thêm
-    if (isLoading) return;
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setIsLoading(true);
     try {
       const response = await interestService.getPaginationInterest(
@@ -81,8 +74,9 @@ export function InterestsTab() {
       toast.error("Không thể tải danh sách nhãn");
     } finally {
       setIsLoading(false);
+      loadingRef.current = false;
     }
-  }, [currentPage, status, isLoading]);
+  }, [currentPage, status]); // Removed isLoading to prevent infinite loop
 
   // Fetch data when page or status changes
   useEffect(() => {
@@ -249,7 +243,7 @@ export function InterestsTab() {
       // Dismiss loading toast and show success
       toast.dismiss(loadingToast);
       toast.success("Tải xuống nhãn thành công");
-    } catch  {
+    } catch {
       toast.dismiss(loadingToast);
       toast.error("Không thể tải xuống nhãn");
     }

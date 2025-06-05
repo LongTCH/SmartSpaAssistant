@@ -1,8 +1,7 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Button } from "@/components/ui/button";
-
 
 import {
   Dialog,
@@ -14,14 +13,7 @@ import {
   DialogTitle,
 } from "@/components/ui/dialog";
 
-
-import {
-  Plus,
-  Trash2,
-  AlertTriangle,
-  FileDown,
-  FileUp,
-} from "lucide-react";
+import { Plus, Trash2, AlertTriangle, FileDown, FileUp } from "lucide-react";
 import { toast } from "sonner";
 import { notificationService } from "@/services/api/notification.service";
 import { Notification } from "@/types";
@@ -57,9 +49,13 @@ export function NotificationsTab() {
   const [selectedNotificationId, setSelectedNotificationId] = useState<
     string | null
   >(null);
+  const loadingRef = useRef(false);
 
   // Fetch notifications with pagination
   const fetchNotifications = useCallback(async () => {
+    // Prevent concurrent API calls
+    if (loadingRef.current) return;
+    loadingRef.current = true;
     setIsLoading(true);
     try {
       const response = await notificationService.getPaginationNotification(
@@ -74,6 +70,7 @@ export function NotificationsTab() {
       toast.error("Không thể tải danh sách thông báo.");
     } finally {
       setIsLoading(false);
+      loadingRef.current = false;
     }
   }, [currentPage, status]);
 
@@ -131,7 +128,7 @@ export function NotificationsTab() {
       const blob = await notificationService.downloadNotifications();
       downloadFile(blob, `Cài đặt thông báo.xlsx`);
       toast.success("Đã tải xuống file Excel thành công");
-    } catch  {
+    } catch {
       toast.error("Không thể tải xuống file Excel");
     } finally {
       setIsDownloading(false);

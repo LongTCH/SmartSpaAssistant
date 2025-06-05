@@ -3,6 +3,7 @@ from typing import Dict, Literal, Union
 from app.configs import env_config
 from pydantic_ai.models.gemini import GeminiModel
 from pydantic_ai.models.openai import OpenAIModel
+from pydantic_ai.providers.deepseek import DeepSeekProvider
 from pydantic_ai.providers.google_gla import GoogleGLAProvider
 from pydantic_ai.providers.openai import OpenAIProvider
 
@@ -20,6 +21,7 @@ ModelName = Literal[
     "gpt-4.1",
     "gemini-1.5-flash-8b",
     "gpt-4o",
+    "deepseek-reasoner",
 ]
 ModelType = Union[OpenAIModel, GeminiModel]
 
@@ -39,9 +41,11 @@ model_hub: Dict[ModelName, ModelType] = {
     ),
     "deepseek-chat": OpenAIModel(
         "deepseek-chat",
-        provider=OpenAIProvider(
-            base_url="https://api.deepseek.com", api_key=env_config.DEEPSEEK_API_KEY
-        ),
+        provider=DeepSeekProvider(api_key=env_config.DEEPSEEK_API_KEY),
+    ),
+    "deepseek-reasoner": OpenAIModel(
+        "deepseek-reasoner",
+        provider=DeepSeekProvider(api_key=env_config.DEEPSEEK_API_KEY),
     ),
     "qwen-2.5-coder": OpenAIModel(
         "qwen/qwen-2.5-coder-32b-instruct:free",

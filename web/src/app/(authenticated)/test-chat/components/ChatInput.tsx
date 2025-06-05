@@ -5,22 +5,33 @@ interface ChatInputProps {
   disabled: boolean;
   sendMessage: (message: string) => void;
   placeholder?: string;
+  isWebSocketConnected?: boolean;
 }
 
 export function ChatInput({
   disabled,
   sendMessage,
   placeholder = "Type your message here...",
+  isWebSocketConnected = true,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
+  const isInputDisabled = disabled || !isWebSocketConnected;
+  const inputPlaceholder = !isWebSocketConnected
+    ? "Đang kết nối lại..."
+    : placeholder;
+
   const handleSendMessage = useCallback(() => {
-    if (textareaRef.current && textareaRef.current.value.trim() && !disabled) {
+    if (
+      textareaRef.current &&
+      textareaRef.current.value.trim() &&
+      !isInputDisabled
+    ) {
       sendMessage(textareaRef.current.value);
       textareaRef.current.value = "";
       textareaRef.current.style.height = "auto";
     }
-  }, [sendMessage, disabled]);
+  }, [sendMessage, isInputDisabled]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -41,21 +52,22 @@ export function ChatInput({
   }, []);
   return (
     <div className="p-3 bg-white">
+      {" "}
       <div className="bg-gray-50 rounded-lg border flex items-end overflow-hidden focus-within:ring-2 focus-within:ring-indigo-300 focus-within:border-indigo-400 transition-all shadow-sm">
         <textarea
           ref={textareaRef}
-          placeholder={placeholder}
+          placeholder={inputPlaceholder}
           className="py-3 px-4 bg-transparent flex-1 min-h-[48px] max-h-[150px] focus:outline-none resize-none text-sm"
           onKeyDown={handleKeyDown}
           onInput={handleInput}
-          disabled={disabled}
+          disabled={isInputDisabled}
           rows={1}
         />
         <button
           onClick={handleSendMessage}
-          disabled={disabled}
+          disabled={isInputDisabled}
           className={`px-4 py-3 text-white rounded-tr-lg rounded-br-lg flex-shrink-0 transition-colors ${
-            disabled
+            isInputDisabled
               ? "bg-gray-300"
               : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"
           }`}

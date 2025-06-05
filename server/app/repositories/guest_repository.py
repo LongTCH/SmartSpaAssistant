@@ -8,13 +8,13 @@ from sqlalchemy.sql import text
 
 def construct_chain_conditionstatement_pgroonga(guest_info_alias: str) -> str:
     """
-    Xây dựng câu lệnh SQL cho PGroonga với xử lý NULL
+    Xây dựng câu lệnh SQL cho PGroonga, xử lý NULL đúng cách mà không phá kiểu dữ liệu.
     """
     return f"""(
-        COALESCE({guest_info_alias}.fullname, '') &@~ :keywords OR
-        COALESCE({guest_info_alias}.phone, '') &@~ :keywords OR
-        COALESCE({guest_info_alias}.email, '') &@~ :keywords OR
-        COALESCE({guest_info_alias}.address, '') &@~ :keywords
+        {guest_info_alias}.fullname IS NOT NULL AND {guest_info_alias}.fullname &@~ :keywords OR
+        {guest_info_alias}.phone IS NOT NULL AND {guest_info_alias}.phone &@~ :keywords OR
+        {guest_info_alias}.email IS NOT NULL AND {guest_info_alias}.email &@~ :keywords OR
+        {guest_info_alias}.address IS NOT NULL AND {guest_info_alias}.address &@~ :keywords
     )"""
 
 
@@ -66,7 +66,13 @@ async def count_guests_by_interests_and_keywords(
 
 async def get_paging_guests(db: AsyncSession, skip: int, limit: int) -> list[Guest]:
     # Eager load guest_info
-    stmt = select(Guest).options(joinedload(Guest.info)).offset(skip).limit(limit)
+    stmt = (
+        select(Guest)
+        .options(joinedload(Guest.info), selectinload(Guest.interests))
+        .order_by(Guest.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+    )
     result = await db.execute(stmt)
     return result.scalars().all()
 
@@ -234,11 +240,11 @@ async def search_guests_by_keywords(
     return guests
 
 
-async def count_search_guests(db: AsyncSession, keywords: str) -> int:
+async def count_guests_by_keywords(db: AsyncSession, keywords: str) -> int:
     """
     Đếm số lượng kết quả tìm kiếm
 
-    Hỗ trợ đếm kết quả khi tìm kiếm nhiều interests cùng lúc
+    Hỗ trợ đếm kết quả khi tìm kiếm nhiều keywords cùng lúc
     """
     stmt = text(
         f"""

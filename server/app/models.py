@@ -133,12 +133,10 @@ class Guest(Base):
     # Foreign Keys for relationships
     last_message_id = Column(
         String, ForeignKey("chats.id", ondelete="SET NULL"), nullable=True
-    )
-
-    # Relationships
+    )  # Relationships
     # uselist=False được thêm vào để đảm bảo mối quan hệ một-một từ phía Guest
     info: Mapped[GuestInfo] = relationship(
-        "GuestInfo", back_populates="guest", uselist=False
+        "GuestInfo", back_populates="guest", uselist=False, cascade="all, delete-orphan"
     )
 
     # Quan hệ với Interest chuyển sang GuestInfo

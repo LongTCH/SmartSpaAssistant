@@ -43,11 +43,11 @@ async def get_instruction(context: RunContext[SyntheticAgentDeps]) -> str:
         customer_address = ""
         customer_birthday = ""
     else:
-        customer_name = guest_info.fullname
-        customer_gender = guest_info.gender
-        customer_phone = guest_info.phone
-        customer_email = guest_info.email
-        customer_address = guest_info.address
+        customer_name = guest_info.fullname or ""
+        customer_gender = guest_info.gender or ""
+        customer_phone = guest_info.phone or ""
+        customer_email = guest_info.email or ""
+        customer_address = guest_info.address or ""
         customer_birthday = (
             guest_info.birthday.strftime("%Y-%m-%d") if guest_info.birthday else ""
         )

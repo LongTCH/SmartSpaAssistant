@@ -20,7 +20,7 @@ import { LoadingScreen } from "@/components/loading-screen";
 import { GuestInfoModal } from "../../../components/guest-info/GuestInfoModal";
 import { guestService } from "@/services/api/guest.service";
 import { interestService } from "@/services/api/interest.service";
-import { Conversation } from "@/types";
+import { Conversation, Interest } from "@/types";
 import { toast } from "sonner";
 
 export default function CustomerManagement() {
@@ -53,7 +53,6 @@ export default function CustomerManagement() {
   useEffect(() => {
     setPendingKeywords(selectedKeywords);
   }, [selectedKeywords, setPendingKeywords]);
-
   // Biến cờ để theo dõi lần fetch đầu tiên và các lần fetch tiếp theo
   const _initialLoadRef = useRef({
     hasFetchedInitial: false,
@@ -67,10 +66,45 @@ export default function CustomerManagement() {
 
   // Sử dụng useRef để theo dõi trạng thái đã tải
   const hasInitialFetch = useRef(false);
+  const loadingRef = useRef(false); // Prevent concurrent API calls
+  // Helper function to convert keyword names to IDs
+  const convertKeywordsToIds = async (
+    keywords: string[]
+  ): Promise<string[]> => {
+    if (keywords.length === 0) {
+      return [];
+    }
 
+    try {
+      const interests = await interestService.getAllPublishedInterests();
+      return interests
+        .filter((interest) => keywords.includes(interest.name))
+        .map((interest) => interest.id);
+    } catch {
+      toast.error("Không thể lấy danh sách từ khóa");
+      return [];
+    }
+  };
+  // Cache interests to avoid duplicate API calls
+  const interestsCache = useRef<{ [key: string]: string }>({});
+  const convertKeywordsToIdsFromCache = (keywords: string[]): string[] => {
+    return keywords
+      .map((keyword) => interestsCache.current[keyword])
+      .filter(Boolean);
+  };
+  // Callback to populate cache when interests are loaded in KeywordFilter
+  const handleInterestsLoaded = useCallback((interests: Interest[]) => {
+    interests.forEach((interest) => {
+      interestsCache.current[interest.name] = interest.id;
+    });
+  }, []);
   // Fetch customers from API
   const fetchCustomers = useCallback(async () => {
+    // Prevent concurrent API calls
+    if (loadingRef.current) return;
+
     try {
+      loadingRef.current = true;
       setLoading(true);
       const response = await guestService.getGuestsWithInterests(
         pagination.page,
@@ -94,6 +128,7 @@ export default function CustomerManagement() {
       toast.error("Không thể tải danh sách khách hàng");
     } finally {
       setLoading(false);
+      loadingRef.current = false;
     }
   }, [pagination.page, pagination.limit, searchQuery, interestIds]);
 
@@ -115,28 +150,11 @@ export default function CustomerManagement() {
       hasInitialFetch.current = true;
     }
   }, [pagination.page, searchQuery, interestIds, fetchCustomers]);
-
   // Effect to convert selected keyword names to IDs when they change
   useEffect(() => {
     const updateInterestIds = async () => {
-      if (selectedKeywords.length === 0) {
-        setInterestIds([]);
-        return;
-      }
-
-      try {
-        // Get all published interests
-        const interests = await interestService.getAllPublishedInterests();
-
-        // Filter to get only the IDs of interests that match our selected keywords
-        const filteredIds = interests
-          .filter((interest) => selectedKeywords.includes(interest.name))
-          .map((interest) => interest.id);
-
-        setInterestIds(filteredIds);
-      } catch {
-        toast.error("Không thể lấy danh sách từ khóa");
-      }
+      const newInterestIds = await convertKeywordsToIds(selectedKeywords);
+      setInterestIds(newInterestIds);
     };
 
     updateInterestIds();
@@ -250,44 +268,45 @@ export default function CustomerManagement() {
   return (
     <Suspense fallback={<LoadingScreen />}>
       <div className="flex-1 overflow-auto p-6">
-        <h1 className="text-3xl font-bold mb-6">QUẢN LÍ KHÁCH HÀNG</h1>
-
-        <div className="flex items-center space-x-4 mb-6">
-          <div className="relative">
+        <h1 className="text-3xl font-bold mb-6">QUẢN LÍ KHÁCH HÀNG</h1>{" "}
+        <div className="flex flex-col lg:flex-row items-start lg:items-center space-y-4 lg:space-y-0 lg:space-x-4 mb-6">
+          <div className="flex items-center space-x-4">
+            <div className="relative">
+              <Button
+                variant="outline"
+                size="icon"
+                className="h-10 w-10"
+                disabled={selectedCustomers.length === 0}
+                onClick={() => setDeleteConfirmOpen(true)}
+              >
+                <Trash2
+                  className={`h-5 w-5 ${
+                    selectedCustomers.length > 0
+                      ? "text-red-500"
+                      : "text-gray-500"
+                  }`}
+                />
+              </Button>
+              <div
+                className={`absolute -top-2 -right-2 w-5 h-5 rounded-full ${
+                  selectedCustomers.length > 0 ? "bg-red-500" : "bg-gray-300"
+                } text-white flex items-center justify-center text-xs`}
+              >
+                {selectedCustomers.length}
+              </div>
+            </div>
             <Button
               variant="outline"
-              size="icon"
-              className="h-10 w-10"
-              disabled={selectedCustomers.length === 0}
-              onClick={() => setDeleteConfirmOpen(true)}
+              className="space-x-2"
+              onClick={exportCustomersData}
             >
-              <Trash2
-                className={`h-5 w-5 ${
-                  selectedCustomers.length > 0
-                    ? "text-red-500"
-                    : "text-gray-500"
-                }`}
-              />
+              <Download className="h-4 w-4" />
+              <span>Export file</span>
             </Button>
-            <div
-              className={`absolute -top-2 -right-2 w-5 h-5 rounded-full ${
-                selectedCustomers.length > 0 ? "bg-red-500" : "bg-gray-300"
-              } text-white flex items-center justify-center text-xs`}
-            >
-              {selectedCustomers.length}
-            </div>
           </div>
-          <Button
-            variant="outline"
-            className="space-x-2"
-            onClick={exportCustomersData}
-          >
-            <Download className="h-4 w-4" />
-            <span>Export file</span>
-          </Button>
 
-          <div className="flex flex-1 items-center gap-2">
-            <div className="flex-1">
+          <div className="flex flex-col sm:flex-row flex-1 w-full items-start sm:items-center gap-2">
+            <div className="flex-1 w-full">
               <Input
                 type="text"
                 placeholder="Tìm kiếm khách hàng..."
@@ -295,62 +314,64 @@ export default function CustomerManagement() {
                 onChange={(e) => setPendingSearchQuery(e.target.value)}
                 className="w-full"
               />
-            </div>
-
-            <KeywordFilter
-              selectedKeywords={pendingKeywords}
-              onChange={setPendingKeywords}
-            />
-
+            </div>{" "}
+            <div className="w-full sm:w-auto sm:min-w-[250px] sm:max-w-[400px]">
+              <KeywordFilter
+                selectedKeywords={pendingKeywords}
+                onChange={setPendingKeywords}
+                onInterestsLoaded={handleInterestsLoaded}
+              />
+            </div>{" "}
             <Button
               onClick={async () => {
                 // Tạo một bản sao của pagination với page = 1
                 const newPagination = { ...pagination, page: 1 };
 
+                // Try to use cached interests first, fallback to API call if cache is empty
+                let newInterestIds: string[] = [];
+                if (pendingKeywords.length > 0) {
+                  // First try to use cached data
+                  const cachedIds =
+                    convertKeywordsToIdsFromCache(pendingKeywords);
+
+                  if (cachedIds.length === pendingKeywords.length) {
+                    // All keywords found in cache
+                    newInterestIds = cachedIds;
+                  } else {
+                    // Need to fetch from API and update cache
+                    try {
+                      const interests =
+                        await interestService.getAllPublishedInterests();
+                      // Update cache
+                      interests.forEach((interest) => {
+                        interestsCache.current[interest.name] = interest.id;
+                      });
+                      // Get IDs for current keywords
+                      newInterestIds = interests
+                        .filter((interest) =>
+                          pendingKeywords.includes(interest.name)
+                        )
+                        .map((interest) => interest.id);
+                    } catch {
+                      toast.error("Không thể lấy danh sách từ khóa");
+                    }
+                  }
+                }
+
                 // Cập nhật tất cả state trong một lần render
+                // The useEffect will automatically trigger fetchCustomers when these values change
                 setPagination(newPagination);
                 setSearchQuery(pendingSearchQuery);
                 setSelectedKeywords(pendingKeywords);
-
-                // Gọi fetchCustomers trực tiếp với dữ liệu mới thay vì chờ useEffect
-                try {
-                  setLoading(true);
-                  const response = await guestService.getGuestsWithInterests(
-                    1, // Luôn sử dụng page 1 khi tìm kiếm mới
-                    pagination.limit,
-                    pendingSearchQuery || "",
-                    // Filter theo từ khóa mới
-                    // interestIds sẽ được cập nhật sau bởi useEffect, nên ta sử dụng dữ liệu hiện có
-                    interestIds
-                  );
-
-                  // Đảm bảo không có dữ liệu trùng lặp
-                  const uniqueCustomers = Array.from(
-                    new Map(
-                      response.data.map((item) => [item.id, item])
-                    ).values()
-                  );
-
-                  setCustomers(uniqueCustomers);
-                  setPagination({
-                    ...newPagination,
-                    totalPages: response.total_pages,
-                    total: response.total,
-                  });
-                } catch {
-                  toast.error("Không thể tải danh sách khách hàng");
-                } finally {
-                  setLoading(false);
-                }
+                setInterestIds(newInterestIds);
               }}
-              className="bg-[#6366F1] text-white"
+              className="bg-[#6366F1] text-white w-full sm:w-auto px-4"
             >
-              <Search className="h-4 w-4 mr-2" />
-              Tìm kiếm
+              <Search className="h-4 w-4 mr-0 sm:mr-2" />
+              <span className="hidden sm:inline">Tìm kiếm</span>
             </Button>
           </div>
         </div>
-
         {/* Customer Table Component */}
         <CustomerTable
           customers={customers}
@@ -363,7 +384,6 @@ export default function CustomerManagement() {
           onDelete={handleCustomerDelete}
           formatBirthday={formatBirthday}
         />
-
         {/* Pagination Component */}
         {!loading && customers.length > 0 && (
           <CustomerPagination
