@@ -5,9 +5,11 @@ from app.configs.database import get_session
 from app.services import sheet_service
 from app.services.integrations import sheet_rag_service
 from app.utils import asyncio_utils
+from app.validations.sheet_validations import validate_sheet_creation_data
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response as HttpResponse
 from fastapi.responses import StreamingResponse
+from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/sheets", tags=["Sheets"])
@@ -41,7 +43,7 @@ async def get_sheet_by_id(
     return sheet
 
 
-@router.post("")
+@router.post("", status_code=201)
 async def create_sheet(request: Request, db: AsyncSession = Depends(get_session)):
     """
     Upload a spreadsheet file and create a new sheet in the database.
@@ -77,26 +79,34 @@ async def create_sheet(request: Request, db: AsyncSession = Depends(get_session)
             raise HTTPException(
                 status_code=400,
                 detail="Invalid file type. Only Excel files are supported.",
-            )
-
-        # Read file contents
+            )  # Read file contents
         file_contents = await file.read()
 
-        # Process the sheet data in the service layer
+        # Validate sheet data using Pydantic
+        try:
+            validated_sheet_data = validate_sheet_creation_data(
+                name, description, column_config, status
+            )
+        except ValueError as e:
+            raise HTTPException(status_code=400, detail=str(e))
+        except ValidationError as e:
+            # Process the sheet data in the service layer
+            raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
         sheet_data = {
-            "name": name,
-            "description": description,
-            "status": status,
-            "column_config": column_config,
+            "name": validated_sheet_data.name,
+            "description": validated_sheet_data.description,
+            "status": validated_sheet_data.status,
+            "column_config": [col.dict() for col in validated_sheet_data.column_config],
             "file": file_contents,
-        }
-
-        # Create new Sheet record using the service
+        }  # Create new Sheet record using the service
         new_sheet_id = await sheet_service.insert_sheet(db, sheet_data)
 
         asyncio_utils.run_background(sheet_rag_service.insert_sheet, new_sheet_id)
         return new_sheet_id
 
+    except HTTPException:
+        # Re-raise HTTPExceptions (like validation errors) without modification
+        raise
     except Exception as e:
         print(f"Error creating sheet: {e}")
         raise HTTPException(status_code=500, detail=f"Error processing spreadsheet")
