@@ -105,7 +105,6 @@ export default function AlertsPage() {
       {/* Alert List Section */}
       <Card className="shadow-sm">
         <CardContent className="p-3">
-          {" "}
           {/* Content padding for the list card */}
           <AlertList
             onSelectAlert={handleSelectAlert}

@@ -54,6 +54,7 @@ async def insert_notification(
 ) -> Notification:
     db.add(notification)
     await db.flush()
+    await db.refresh(notification)
     return notification
 
 
@@ -61,6 +62,8 @@ async def update_notification(
     db: AsyncSession, notification: Notification
 ) -> Notification:
     db.add(notification)
+    await db.flush()
+    await db.refresh(notification)
     return notification
 
 
@@ -70,6 +73,7 @@ async def delete_notification(db: AsyncSession, notification_id: str) -> None:
     notification = result.scalars().first()
     if notification:
         await db.delete(notification)
+        await db.flush()
     return None
 
 
@@ -81,6 +85,7 @@ async def delete_multiple_notifications(
     notifications = result.scalars().all()
     for notification in notifications:
         await db.delete(notification)
+    await db.flush()
     return None
 
 

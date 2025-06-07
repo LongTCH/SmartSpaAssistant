@@ -41,7 +41,6 @@ export function KeywordFilter({
         // Share loaded interests with parent component
         onInterestsLoaded?.(response);
       } catch {
-        // console.error("Error fetching keywords:", error);
         toast.error("Không thể tải từ khóa.");
       } finally {
         setIsLoading(false);

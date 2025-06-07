@@ -16,6 +16,9 @@ class ColumnConfigSchema(BaseModel):
     description: str = Field(
         ..., min_length=1, description="Column description cannot be empty"
     )
+    is_index: bool = Field(
+        default=False, description="Whether this column should be indexed"
+    )
 
     @field_validator("column_name")
     @classmethod

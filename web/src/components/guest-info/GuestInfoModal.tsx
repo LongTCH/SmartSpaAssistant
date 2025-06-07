@@ -383,7 +383,7 @@ export function GuestInfoModal({
               onReset={resetField}
             />
             <EditableInterestsRow
-              label="Sở thích"
+              label="Nhãn"
               isEditable={editableFields.interests}
               fieldName="interests"
               onToggleEdit={toggleEditField}

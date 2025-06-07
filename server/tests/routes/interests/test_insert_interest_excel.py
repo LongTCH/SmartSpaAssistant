@@ -1,8 +1,25 @@
+import os
+import sys
 from datetime import datetime
 from unittest.mock import patch
 
+from base_excel_test import BaseExcelTest
 from fastapi.testclient import TestClient
-from tests.base_excel_test import BaseExcelTest
+
+# Add parent directories to path
+current_dir = os.path.dirname(os.path.abspath(__file__))
+server_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+tests_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
+if server_root not in sys.path:
+    sys.path.insert(0, server_root)
+if tests_root not in sys.path:
+    sys.path.insert(0, tests_root)
+
+
+# Import from tests directory
+sys.path.append(os.path.join(server_root, "tests"))
+
+print("Interest test module: Imports successful")
 
 
 class InsertInterestExcelTester(BaseExcelTest):
@@ -20,20 +37,20 @@ class InsertInterestExcelTester(BaseExcelTest):
         else:
             self.client = TestClient(app_or_client)
 
-    def execute_test_case(self, test_case):
+    def execute_test_case(self, test_case: dict) -> dict:
         """Execute a single test case for insert_interest API"""
         try:
             # Extract test data
-            test_case.get("TestCaseName", "")
-            name = test_case.get("Name")
-            color = test_case.get("Color")
+            name = test_case.get("Name", "")
+            color = test_case.get("Color", "")
             expected_result = str(test_case.get("ExpectedResult", "")).strip()
 
-            # Prepare request payload
+            # Prepare request payload matching InterestCreate schema
             payload = {
                 "name": name,
                 "color": color,
-                "related_terms": "test terms",  # Add required field
+                "related_terms": "Test interest related terms",
+                "status": "published",
             }
 
             # Remove None values from payload
@@ -101,11 +118,12 @@ class InsertInterestExcelTester(BaseExcelTest):
 
 def test_insert_interest_from_excel():
     """Test insert_interest API using Excel test data"""
+    print("Interest test: Starting test function")
     tester = InsertInterestExcelTester()
-    results = tester.run_all_tests()  # Use standardized run_all_tests
+    results = tester.run_all_tests()
     summary = tester.get_test_summary(results)
 
-    print(f"\\nTest Summary for insert_interest API:")
+    print(f"\nTest Summary for insert_interest API:")
     print(f"Total tests: {summary['total']}")
     print(f"Passed: {summary['passed']}")
     print(f"Failed: {summary['failed']}")
@@ -118,25 +136,19 @@ def test_insert_interest_from_excel():
     ), f"{summary['failed']} tests did not match expected outcomes. Check {tester.test_file_path}"
 
 
+print("Interest test module: Function defined")
+
+
 if __name__ == "__main__":
-    import os
-    import sys
+    print("Interest test: Running as main")
 
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-    server_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
-    if server_root not in sys.path:
-        sys.path.insert(0, server_root)
+    tester = InsertInterestExcelTester()
+    results = tester.run_all_tests()
+    summary = tester.get_test_summary(results)
 
-    def main():
-        tester = InsertInterestExcelTester()
-        results = tester.run_all_tests()
-        summary = tester.get_test_summary(results)
-
-        print(f"\\nTest Summary for insert_interest API:")
-        print(f"Total tests: {summary['total']}")
-        print(f"Passed: {summary['passed']}")
-        print(f"Failed: {summary['failed']}")
-        print(f"Pass rate: {summary['pass_rate']}")
-        print(f"Results written to: {tester.test_file_path}")
-
-    main()
+    print(f"\nTest Summary for insert_interest API:")
+    print(f"Total tests: {summary['total']}")
+    print(f"Passed: {summary['passed']}")
+    print(f"Failed: {summary['failed']}")
+    print(f"Pass rate: {summary['pass_rate']}")
+    print(f"Results written to: {tester.test_file_path}")

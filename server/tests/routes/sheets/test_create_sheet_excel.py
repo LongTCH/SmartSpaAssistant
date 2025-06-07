@@ -60,13 +60,11 @@ class CreateSheetExcelTester(BaseExcelTest):
                     BytesIO(test_file_content),
                     "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
                 )
-            }
-
-            # Mock the service call and make API request
+            }  # Mock the service call and make API request
             with patch("app.services.sheet_service.insert_sheet") as mock_insert, patch(
                 "app.utils.asyncio_utils.run_background"
             ) as mock_background:
-                mock_insert.return_value = {"id": "test-sheet-id"}
+                mock_insert.return_value = "test-sheet-id"  # Return string ID, not dict
                 response = self.client.post("/sheets", data=form_data, files=files)
 
                 # Determine test result

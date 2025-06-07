@@ -3,7 +3,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
 import uvicorn
 from app.configs import database, env_config
 from app.middleware import catch_exceptions_middleware
@@ -25,7 +24,49 @@ async def lifespan(app: FastAPI):
 
 
 # Create FastAPI app instance at module level for ASGI servers to import
-app = FastAPI(lifespan=lifespan)
+app = FastAPI(
+    title="Graduation Project API",
+    description="""
+## Graduation Project API Documentation
+
+This API provides comprehensive endpoints for managing guests, interests, notifications, scripts, and sheets.
+
+### Features:
+- **Guest Management**: CRUD operations for guest data with filtering and pagination
+- **Interest Management**: Handle interest categories with Excel import/export
+- **Notification System**: Manage notifications with status tracking
+- **Script Management**: Store and manage scripts with RAG integration
+- **Sheet Management**: Dynamic sheet creation and management
+- **File Operations**: Excel import/export capabilities
+- **Real-time Updates**: WebSocket support for live updates
+
+### Authentication:
+Currently, the API does not require authentication for most endpoints.
+
+### Response Format:
+All endpoints return JSON responses with consistent error handling and proper HTTP status codes.
+    """.strip(),
+    version="1.0.0",
+    terms_of_service="https://example.com/terms/",
+    contact={
+        "name": "API Support",
+        "url": "https://example.com/contact/",
+        "email": "support@example.com",
+    },
+    license_info={
+        "name": "MIT",
+        "url": "https://opensource.org/licenses/MIT",
+    },
+    servers=[
+        {
+            "url": f"http://localhost:{env_config.SERVER_PORT}",
+            "description": "Development server (Local)",
+        },
+        {"url": "http://localhost/api", "description": "Local proxy server"},
+        {"url": "https://farando.ddns.net/api", "description": "Production server"},
+    ],
+    lifespan=lifespan,
+)
 
 # CORS is handled by nginx proxy, but FastAPI still needs to handle OPTIONS
 # Nginx hides FastAPI CORS headers, so no conflict

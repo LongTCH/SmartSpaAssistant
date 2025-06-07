@@ -32,13 +32,30 @@ class InsertScriptExcelTester(BaseExcelTest):
 
             # Prepare request payload
             payload = {"name": name, "description": description, "solution": solution}
-
-            # Remove None values from payload
+            # Mock script services functions
             payload = {k: v for k, v in payload.items() if v is not None}
+            with patch(
+                "app.services.script_service.insert_script"
+            ) as mock_insert_script, patch(
+                "app.services.script_service.get_script_by_id"
+            ) as mock_get_script, patch(
+                "app.services.integrations.script_rag_service.insert_script"
+            ) as mock_rag_insert_script:
+                mock_insert_script.return_value = "test-script-id"
+                mock_rag_insert_script.return_value = None
 
-            # Make API request using TestClient
-            with patch("app.services.script_service.insert_script") as mock_insert:
-                mock_insert.return_value = "test-script-id"
+                # Mock the created script response
+                mock_script_response = {
+                    "id": "test-script-id",
+                    "name": name,
+                    "description": description,
+                    "solution": solution,
+                    "status": "published",
+                    "created_at": "2024-01-01T00:00:00Z",
+                    "updated_at": "2024-01-01T00:00:00Z",
+                }
+                mock_get_script.return_value = mock_script_response
+
                 response = self.client.post("/scripts", json=payload)
 
             # Determine test result

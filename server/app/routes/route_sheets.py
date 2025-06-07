@@ -1,12 +1,23 @@
+import json
 from io import BytesIO
 from urllib.parse import quote
 
 from app.configs.database import get_session
+from app.dtos import ErrorDetail, SheetDeleteMultipleRequest, SheetUpdate
 from app.services import sheet_service
 from app.services.integrations import sheet_rag_service
 from app.utils import asyncio_utils
 from app.validations.sheet_validations import validate_sheet_creation_data
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import (
+    APIRouter,
+    Depends,
+    File,
+    Form,
+    HTTPException,
+    Query,
+    UploadFile,
+    status,
+)
 from fastapi.responses import Response as HttpResponse
 from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
@@ -15,25 +26,88 @@ from sqlalchemy.ext.asyncio import AsyncSession
 router = APIRouter(prefix="/sheets", tags=["Sheets"])
 
 
-@router.get("")
-async def get_sheets(request: Request, db: AsyncSession = Depends(get_session)):
+@router.get(
+    "",
+    summary="Get sheets with pagination",
+    description="Retrieves a paginated list of sheets. Can be filtered by status.",
+    responses={
+        status.HTTP_200_OK: {
+            "description": "Successfully retrieved sheets",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "page": 1,
+                        "limit": 10,
+                        "total": 20,
+                        "data": [
+                            {
+                                "id": "sheet-123",
+                                "name": "Bảng dữ liệu khách hàng",
+                                "description": "Bảng chứa thông tin khách hàng",
+                                "status": "published",
+                                "column_config": [
+                                    {
+                                        "name": "name",
+                                        "display_name": "Tên",
+                                        "data_type": "String",
+                                        "is_required": True,
+                                        "is_index": False,
+                                    }
+                                ],
+                                "created_at": "2024-01-01T00:00:00Z",
+                                "updated_at": "2024-01-01T12:30:00Z",
+                            }
+                        ],
+                        "has_next": True,
+                        "has_prev": False,
+                        "next_page": 2,
+                        "prev_page": None,
+                        "total_pages": 2,
+                    }
+                }
+            },
+        },
+        status.HTTP_500_INTERNAL_SERVER_ERROR: {
+            "model": ErrorDetail,
+            "description": "Error fetching sheets",
+            "content": {
+                "application/json": {
+                    "example": {
+                        "detail": "Error fetching sheets: Database connection failed"
+                    }
+                }
+            },
+        },
+    },
+)
+async def get_sheets(
+    page: int = Query(1, ge=1, description="Page number (starts from 1)"),
+    limit: int = Query(10, ge=1, le=100, description="Number of items per page"),
+    status: str = Query(
+        "all", description="Filter by status: 'all', 'published', 'draft', 'archived'"
+    ),
+    db: AsyncSession = Depends(get_session),
+):
     """
-    Get all sheets from the database.
+    Get paginated list of sheets from the database.
     """
-    page = int(request.query_params.get("page", 1))
-    limit = int(request.query_params.get("limit", 10))
-    status = request.query_params.get("status", "all")
-    if status == "all":
-        sheets = await sheet_service.get_sheets(db, page, limit)
-        return sheets
-    sheets = await sheet_service.get_sheets_by_status(db, page, limit, status)
-    return sheets
+    try:
+        if status == "all":
+            sheets_page = await sheet_service.get_sheets(db, page, limit)
+        else:
+            sheets_page = await sheet_service.get_sheets_by_status(
+                db, page, limit, status
+            )
+
+        # Return the original format - sheets_page is a PaginationDto that contains the data
+        return sheets_page
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error fetching sheets: {str(e)}")
 
 
 @router.get("/{sheet_id}")
-async def get_sheet_by_id(
-    request: Request, sheet_id: str, db: AsyncSession = Depends(get_session)
-):
+async def get_sheet_by_id(sheet_id: str, db: AsyncSession = Depends(get_session)):
     """
     Get sheet by sheet_id from the database.
     """
@@ -44,29 +118,30 @@ async def get_sheet_by_id(
 
 
 @router.post("", status_code=201)
-async def create_sheet(request: Request, db: AsyncSession = Depends(get_session)):
+async def create_sheet(
+    name: str = Form(..., description="Name of the sheet"),
+    description: str = Form(..., description="Description of the sheet"),
+    status: str = Form(
+        "published", description="Status of the sheet (published or draft)"
+    ),
+    column_config: str = Form(None, description="JSON string of column configuration"),
+    file: UploadFile = File(..., description="Excel file to upload"),
+    db: AsyncSession = Depends(get_session),
+):
     """
     Upload a spreadsheet file and create a new sheet in the database.
 
     Expects multipart/form-data with:
-    - name: Name of the sheet
-    - description: Description of the sheet
-    - status: Status of the sheet (published or draft)
-    - file: Excel file
+    - **name**: Name of the sheet
+    - **description**: Description of the sheet
+    - **status**: Status of the sheet (published or draft)
+    - **column_config**: Optional JSON string of column configuration
+    - **file**: Excel file (.xlsx or .xls)
+
+    Returns the ID of the created sheet.
     """
     try:
-        # Parse the multipart form data
-        form = await request.form()
-
-        # Get form fields
-        name = form.get("name")
-        description = form.get("description")
-        status = form.get("status", "published")
-        column_config = form.get("column_config")
-
-        # Get the uploaded file
-        file = form.get("file")
-
+        # Validate required fields
         if not name or not description or not file:
             raise HTTPException(status_code=400, detail="Missing required fields")
 
@@ -79,7 +154,9 @@ async def create_sheet(request: Request, db: AsyncSession = Depends(get_session)
             raise HTTPException(
                 status_code=400,
                 detail="Invalid file type. Only Excel files are supported.",
-            )  # Read file contents
+            )
+
+        # Read file contents
         file_contents = await file.read()
 
         # Validate sheet data using Pydantic
@@ -90,18 +167,23 @@ async def create_sheet(request: Request, db: AsyncSession = Depends(get_session)
         except ValueError as e:
             raise HTTPException(status_code=400, detail=str(e))
         except ValidationError as e:
-            # Process the sheet data in the service layer
-            raise HTTPException(status_code=400, detail=f"Validation error: {str(e)}")
+            raise HTTPException(
+                status_code=400, detail=f"Validation error: {str(e)}"
+            )  # Prepare sheet data
         sheet_data = {
             "name": validated_sheet_data.name,
             "description": validated_sheet_data.description,
             "status": validated_sheet_data.status,
-            "column_config": [col.dict() for col in validated_sheet_data.column_config],
+            "column_config": json.dumps(
+                [col.model_dump() for col in validated_sheet_data.column_config]
+            ),
             "file": file_contents,
         }  # Create new Sheet record using the service
         new_sheet_id = await sheet_service.insert_sheet(db, sheet_data)
 
+        # Index the sheet for search (background task)
         asyncio_utils.run_background(sheet_rag_service.insert_sheet, new_sheet_id)
+
         return new_sheet_id
 
     except HTTPException:
@@ -114,20 +196,27 @@ async def create_sheet(request: Request, db: AsyncSession = Depends(get_session)
 
 @router.put("/{sheet_id}")
 async def update_sheet(
-    request: Request, sheet_id: str, db: AsyncSession = Depends(get_session)
+    sheet_id: str, sheet_data: SheetUpdate, db: AsyncSession = Depends(get_session)
 ):
     """
     Update an existing sheet in the database.
     """
-    body = await request.json()
-    await sheet_service.update_sheet(db, sheet_id, body)
+    # Convert Pydantic model to dict, excluding None values
+    update_data = sheet_data.model_dump(exclude_unset=True)
+
+    # Convert column_config if present
+    if "column_config" in update_data and update_data["column_config"]:
+        update_data["column_config"] = [
+            col.dict() if hasattr(col, "dict") else col
+            for col in update_data["column_config"]
+        ]
+
+    await sheet_service.update_sheet(db, sheet_id, update_data)
     return HttpResponse(status_code=204)
 
 
 @router.delete("/{sheet_id}")
-async def delete_sheet(
-    request: Request, sheet_id: str, db: AsyncSession = Depends(get_session)
-):
+async def delete_sheet(sheet_id: str, db: AsyncSession = Depends(get_session)):
     """
     Delete a sheet from the database by its ID.
     """
@@ -144,15 +233,12 @@ async def delete_sheet(
 
 @router.post("/delete-multiple")
 async def delete_multiple_sheets(
-    request: Request, db: AsyncSession = Depends(get_session)
+    request_data: SheetDeleteMultipleRequest, db: AsyncSession = Depends(get_session)
 ):
     """
     Delete multiple sheets from the database by their IDs.
     """
-    body = await request.json()
-    sheet_ids = body.get("sheet_ids", [])
-    if not sheet_ids:
-        raise HTTPException(status_code=400, detail="sheet_ids is required")
+    sheet_ids = request_data.sheet_ids
     await sheet_service.delete_multiple_sheets(db, sheet_ids)
     asyncio_utils.run_background(sheet_rag_service.delete_sheets, sheet_ids)
     return HttpResponse(status_code=204)
@@ -160,10 +246,14 @@ async def delete_multiple_sheets(
 
 @router.get("/{sheet_id}/rows")
 async def get_sheet_rows(
-    request: Request, sheet_id: str, db: AsyncSession = Depends(get_session)
+    sheet_id: str,
+    skip: int = Query(0, ge=0, description="Number of rows to skip"),
+    limit: int = Query(10, ge=1, le=100, description="Number of rows to return"),
+    db: AsyncSession = Depends(get_session),
 ):
-    skip = int(request.query_params.get("skip", 0))
-    limit = int(request.query_params.get("limit", 10))
+    """
+    Get paginated rows from a specific sheet.
+    """
     sheet_rows = await sheet_service.get_sheet_rows_by_sheet_id(
         db, sheet_id, skip, limit
     )
@@ -171,17 +261,14 @@ async def get_sheet_rows(
 
 
 @router.get("/{sheet_id}/download")
-async def download_sheet(
-    sheet_id: str, request: Request, db: AsyncSession = Depends(get_session)
-):
+async def download_sheet(sheet_id: str, db: AsyncSession = Depends(get_session)):
     """
-    Download multiple sheets as a single Excel file.
+    Download a sheet as an Excel file.
 
     Returns:
         Excel file as a StreamingResponse
     """
     try:
-        # Get query parameters
         # Get the sheet data from the service
         sheet = await sheet_service.get_sheet_by_id(db, sheet_id)
         if not sheet:

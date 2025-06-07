@@ -31,30 +31,47 @@ export default function AlertList({
   });
   // Get WebSocket context
   const { registerMessageHandler, setHasNewAlerts } = useApp();
-
-  // loadingRef to prevent calling performFetch if already loading, without adding loading to useCallback deps
+  // Use refs to prevent unnecessary re-renders and API calls
   const loadingRef = useRef(loading);
+  const skipRef = useRef(skip);
+  const activeFilterRef = useRef(activeFilter);
+  const selectedNotificationIdRef = useRef(selectedNotificationId);
+  const isFirstRender = useRef(true);
+  const performFetchRef = useRef<any>(null);
+  const prevActiveFilterForEffect = useRef(activeFilter);
+  const prevSelectedNotificationIdForEffect = useRef(selectedNotificationId);
+
+  // Update refs when values change
   useEffect(() => {
     loadingRef.current = loading;
   }, [loading]);
 
+  useEffect(() => {
+    skipRef.current = skip;
+  }, [skip]);
+
+  useEffect(() => {
+    activeFilterRef.current = activeFilter;
+  }, [activeFilter]);
+
+  useEffect(() => {
+    selectedNotificationIdRef.current = selectedNotificationId;
+  }, [selectedNotificationId]);
   const performFetch = useCallback(
     async (fetchSkip: number, isReset: boolean) => {
-      if (loadingRef.current && !isReset) {
-        // Allow reset calls to interrupt, or use a more sophisticated queue/cancel
-        // For simplicity, if loading and not a reset, just return.
-        // A reset implies filter change, which should take precedence.
-        // If it's a reset, we might want to cancel ongoing non-reset fetches.
-        // For now, let's ensure loading state is respected.
-        if (!isReset && fetchSkip > 0) return; // Don't interrupt for load more if already loading
+      // Prevent multiple simultaneous calls
+      if (loadingRef.current) {
+        return;
       }
+
       setLoading(true);
+
       try {
-        const apiType = activeFilter; // "all", "system", or "custom"
-        // For "system" or "all" types, notification_id is "all".
-        // For "custom" type, it's the selectedNotificationId (which can also be "all").
+        const apiType = activeFilterRef.current; // "all", "system", or "custom"
         const apiNotificationId =
-          activeFilter === "custom" ? selectedNotificationId : "all";
+          activeFilterRef.current === "custom"
+            ? selectedNotificationIdRef.current
+            : "all";
 
         const response = await alertService.getPagingAlert(
           fetchSkip,
@@ -73,51 +90,53 @@ export default function AlertList({
         if (response.has_next) {
           setSkip(fetchSkip + response.data.length);
         } else {
-          // If no more data
           if (isReset) {
-            setSkip(0); // Reset skip to 0 if it was a reset operation
+            setSkip(0);
           }
-          // If it was a load more (isReset=false) and no more data,
-          // skip is already fetchSkip + response.data.length (which is fetchSkip if data is empty)
-          // and hasMore is false, so no further action on skip needed.
         }
-      } catch (error) {
-        console.error("Failed to fetch alerts:", error);
-        setHasMore(false); // Stop trying to load more on error
+      } catch {
+        setHasMore(false);
         if (isReset) {
-          setAlerts([]); // Clear alerts on error if it was a reset
+          setAlerts([]);
           setSkip(0);
         }
       } finally {
         setLoading(false);
       }
     },
-    [
-      activeFilter,
-      selectedNotificationId,
-      limit,
-      // setLoading, // Removed as per your manual edit, assuming loadingRef handles it
-      // setAlerts, // Removed
-      // setHasMore, // Removed
-      // setSkip, // Removed
-      // Ensure all dependencies used inside performFetch are listed if they can change and should trigger re-creation of performFetch
-      // For example, if 'limit' could change, it should be here.
-      // The state setters (setAlerts, setHasMore, setSkip, setLoading) are generally stable and don't need to be deps
-      // but if you are directly using their state values (e.g. `skip` instead of `fetchSkip`) then those values should be deps.
-      // Based on your provided snippet, activeFilter, selectedNotificationId, limit are direct deps.
-    ]
+    [limit]
   );
 
-  // Effect for initial load and filter changes (always resets)
+  // Store function in ref to avoid dependency issues
+  performFetchRef.current = performFetch;
+
+  // Initial load and filter change effect
   useEffect(() => {
-    performFetch(0, true); // Always fetch from skip 0 and reset
-  }, [activeFilter, selectedNotificationId, performFetch]);
-  // Effect for infinite scrolling (load more)
-  useEffect(() => {
-    if (inView && hasMore && !loading) {
-      performFetch(skip, false); // Fetch from current `skip` and append
+    if (isFirstRender.current) {
+      performFetchRef.current?.(0, true);
+      isFirstRender.current = false;
+      prevActiveFilterForEffect.current = activeFilter;
+      prevSelectedNotificationIdForEffect.current = selectedNotificationId;
+      return; // Crucial for preventing fall-through on initial render
     }
-  }, [inView, hasMore, loading, skip, performFetch]); // Track when new alerts are added via WebSocket
+
+    // This block runs for subsequent effect executions
+    if (
+      activeFilter !== prevActiveFilterForEffect.current ||
+      selectedNotificationId !== prevSelectedNotificationIdForEffect.current
+    ) {
+      performFetchRef.current?.(0, true);
+      prevActiveFilterForEffect.current = activeFilter;
+      prevSelectedNotificationIdForEffect.current = selectedNotificationId;
+    }
+  }, [activeFilter, selectedNotificationId]);
+
+  // Infinite scrolling effect
+  useEffect(() => {
+    if (inView && hasMore && !loading && skip > 0) {
+      performFetchRef.current?.(skip, false);
+    }
+  }, [inView, hasMore, loading, skip]); // Track when new alerts are added via WebSocket
   const [hasNewWebSocketAlert, setHasNewWebSocketAlert] = useState(false);
 
   // WebSocket message handler for new alerts
@@ -125,8 +144,6 @@ export default function AlertList({
     const unregister = registerMessageHandler(
       WS_MESSAGES.ALERT,
       (data: any) => {
-        console.log("Received ALERT WebSocket message:", data);
-
         // Ensure data is a valid Alert object
         if (data && typeof data === "object" && data.id && data.content) {
           const newAlert = data as Alert;
@@ -145,8 +162,6 @@ export default function AlertList({
 
           // Set flag to trigger notification in the next effect
           setHasNewWebSocketAlert(true);
-        } else {
-          console.error("Received invalid alert data:", data);
         }
       }
     );
@@ -176,8 +191,7 @@ export default function AlertList({
         );
         // Proceed with original navigation/selection logic
         onSelectAlert(updatedAlert); // Pass the updated alert
-      } catch (error) {
-        console.error("Failed to mark alert as read:", error);
+      } catch {
         // Optionally, still proceed with navigation even if marking as read fails
         onSelectAlert(alert);
       }

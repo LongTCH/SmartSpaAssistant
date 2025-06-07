@@ -64,6 +64,15 @@ export function AddScriptModal({
       };
 
       fetchData();
+    } else {
+      // Reset scriptData when modal is closed to ensure clean state
+      setScriptData({
+        name: "",
+        description: "",
+        solution: "",
+        status: "published",
+        related_script_ids: [], // Always empty array, never null
+      });
     }
   }, [open]);
 
@@ -76,7 +85,7 @@ export function AddScriptModal({
 
   const toggleRelatedScript = (scriptId: string) => {
     setScriptData((prev) => {
-      const currentIds = prev.related_script_ids || [];
+      const currentIds = prev.related_script_ids || []; // Ensure we have an array
       const newIds = currentIds.includes(scriptId)
         ? currentIds.filter((id) => id !== scriptId)
         : [...currentIds, scriptId];
@@ -90,7 +99,7 @@ export function AddScriptModal({
 
   const removeRelatedScript = (scriptId: string) => {
     setScriptData((prev) => {
-      const currentIds = prev.related_script_ids;
+      const currentIds = prev.related_script_ids || []; // Ensure we have an array
       return {
         ...prev,
         related_script_ids: currentIds.filter((id) => id !== scriptId),
@@ -107,7 +116,14 @@ export function AddScriptModal({
         setIsSubmitting(false);
         return;
       }
-      await scriptService.createScript(scriptData);
+
+      // Ensure related_script_ids is always an array, never null
+      const submitData: ScriptData = {
+        ...scriptData,
+        related_script_ids: scriptData.related_script_ids || [],
+      };
+
+      await scriptService.createScript(submitData);
       toast.success("Đã thêm kịch bản mới thành công");
 
       // Call onSuccess callback if provided
@@ -188,7 +204,7 @@ Nghỉ chủ nhật và các ngày lễ"
           <RelatedDropdown
             label="Kịch bản liên quan"
             items={availableScripts}
-            selectedIds={scriptData.related_script_ids}
+            selectedIds={scriptData.related_script_ids || []} // Ensure always array
             onToggleItem={toggleRelatedScript}
             onRemoveItem={removeRelatedScript}
             badgeClassName="bg-blue-100 text-blue-800 border-blue-200"

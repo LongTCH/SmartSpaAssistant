@@ -1,7 +1,6 @@
 from datetime import datetime
 from unittest.mock import patch
 
-from app.validations.notification_validations import validate_notification_data
 from fastapi.testclient import TestClient
 from tests.base_excel_test import BaseExcelTest
 
@@ -29,37 +28,38 @@ class InsertNotificationExcelTester(BaseExcelTest):
             description = test_case.get("Description", "")
             param_name = test_case.get("ParamName", "")
             param_type = test_case.get("ParamType", "")
+            # Prepare request payload matching NotificationCreate schema
             param_description = test_case.get("ParamDescription", "")
-
-            # Prepare request payload
-            notification = {
+            payload = {
                 "label": label,
                 "description": description,
+                "color": "#2196F3",  # Default color
+                "content": "Test notification content with {{param_name}}",
                 "params": [
                     {
-                        "param_name": param_name,
-                        "param_type": param_type,
-                        "description": param_description,
+                        "index": 0,
+                        "param_name": param_name if param_name else "",
+                        "param_type": param_type if param_type else "String",
+                        "description": param_description if param_description else "",
                     }
                 ],
+                "status": "published",
             }
 
-            # Validate input first
-            errors = validate_notification_data(notification)
+            # Remove None values from payload
+            payload = {k: v for k, v in payload.items() if v is not None}
 
-            # Make API call only if no validation errors
-            if not errors:
-                with patch(
-                    "app.services.notification_service.insert_notification"
-                ) as mock_insert:
-                    mock_insert.return_value = {"id": "test-notification-id"}
-                    response = self.client.post("/notifications", json=notification)
-                    status_code = response.status_code
-            else:
-                status_code = 400
+            # Make API request using TestClient
+            with patch(
+                "app.services.notification_service.insert_notification"
+            ) as mock_insert:
+                mock_insert.return_value = None
+                response = self.client.post("/notifications", json=payload)
 
             # Determine test result
-            logical_test_result = self._determine_test_result(test_case, status_code)
+            logical_test_result = self._determine_test_result(
+                test_case, response.status_code
+            )
 
             # Create result record with standardized format
             result_record = test_case.copy()
@@ -70,14 +70,24 @@ class InsertNotificationExcelTester(BaseExcelTest):
             )
 
             # Standardize ExpectedResult format
-            expected = str(test_case.get("ExpectedResult", "")).strip().lower()
-            result_record["ExpectedResult"] = "True" if expected == "true" else "False"
+            expected_result = str(test_case.get("ExpectedResult", "")).strip()
+            if expected_result.lower() == "true":
+                result_record["ExpectedResult"] = "True"
+            elif expected_result.lower() == "false":
+                result_record["ExpectedResult"] = "False"
+            else:
+                result_record["ExpectedResult"] = expected_result
 
             # Standardize error logging in 'Log' column
-            if status_code != 201:
-                result_record["Log"] = (
-                    "; ".join(errors) if errors else f"HTTP {status_code}"
-                )
+            if response.status_code != 201:
+                try:
+                    error_detail = response.json().get("detail", {})
+                    if isinstance(error_detail, dict) and "errors" in error_detail:
+                        result_record["Log"] = "; ".join(error_detail["errors"])
+                    else:
+                        result_record["Log"] = str(error_detail)
+                except:
+                    result_record["Log"] = f"HTTP {response.status_code}"
             else:
                 result_record["Log"] = None
 
@@ -93,6 +103,7 @@ class InsertNotificationExcelTester(BaseExcelTest):
 
             # Ensure all expected columns are present
             for key in [
+                "TestCaseName",
                 "Label",
                 "Description",
                 "ParamName",
@@ -112,7 +123,7 @@ class InsertNotificationExcelTester(BaseExcelTest):
 def test_insert_notification_from_excel():
     """Test insert_notification API using Excel test data"""
     tester = InsertNotificationExcelTester()
-    results = tester.run_all_tests()
+    results = tester.run_all_tests()  # Use standardized run_all_tests
     summary = tester.get_test_summary(results)
 
     print(f"\nTest Summary for insert_notification API:")
@@ -137,16 +148,13 @@ if __name__ == "__main__":
     if server_root not in sys.path:
         sys.path.insert(0, server_root)
 
-    def main():
-        tester = InsertNotificationExcelTester()
-        results = tester.run_all_tests()
-        summary = tester.get_test_summary(results)
+    tester = InsertNotificationExcelTester()
+    results = tester.run_all_tests()
+    summary = tester.get_test_summary(results)
 
-        print(f"\nTest Summary for insert_notification API:")
-        print(f"Total tests: {summary['total']}")
-        print(f"Passed: {summary['passed']}")
-        print(f"Failed: {summary['failed']}")
-        print(f"Pass rate: {summary['pass_rate']}")
-        print(f"Results written to: {tester.test_file_path}")
-
-    main()
+    print(f"\nTest Summary for insert_notification API:")
+    print(f"Total tests: {summary['total']}")
+    print(f"Passed: {summary['passed']}")
+    print(f"Failed: {summary['failed']}")
+    print(f"Pass rate: {summary['pass_rate']}")
+    print(f"Results written to: {tester.test_file_path}")

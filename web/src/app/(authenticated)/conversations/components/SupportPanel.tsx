@@ -9,10 +9,10 @@ import type { Interest } from "@/types/interest";
 import { toast } from "sonner";
 
 // Import editable row components
-import { EditableInputRow } from "../../../../components/guest-info/modal-parts/EditableInputRow";
-import { EditableGenderRow } from "../../../../components/guest-info/modal-parts/EditableGenderRow";
-import { EditableBirthdayRow } from "../../../../components/guest-info/modal-parts/EditableBirthdayRow";
-import { EditableInterestsRow } from "../../../../components/guest-info/modal-parts/EditableInterestsRow";
+import { EditableInputRow } from "@/components/guest-info/modal-parts/EditableInputRow";
+import { EditableGenderRow } from "@/components/guest-info/modal-parts/EditableGenderRow";
+import { EditableBirthdayRow } from "@/components/guest-info/modal-parts/EditableBirthdayRow";
+import { EditableInterestsRow } from "@/components/guest-info/modal-parts/EditableInterestsRow";
 import { Button } from "@/components/ui/button";
 
 // Define the type where 'info' is mandatory

@@ -14,6 +14,7 @@ import {
   VolumeX,
   Volume2,
 } from "lucide-react";
+import { toast } from "sonner";
 
 interface MediaViewerProps {
   attachment: ChatAttachment;
@@ -83,8 +84,10 @@ export function MediaViewer({
   const handleDownload = () => {
     if (attachment.payload?.url) {
       const fileName = attachment.payload.url.split("/").pop() || "download";
-      downloadFile(attachment.payload.url, fileName).catch((error) =>
-        console.error("Error downloading file:", error)
+      downloadFile(attachment.payload.url, fileName).catch(() =>
+        toast.error("Lỗi tải file", {
+          description: "Không thể tải file về, vui lòng thử lại.",
+        })
       );
     }
   };

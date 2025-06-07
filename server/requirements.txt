@@ -19,3 +19,4 @@ langfuse==2.60.5
 unidecode==1.4.0
 Jinja2==3.1.6
 cloudinary==1.44.0
+email-validator==2.2.0

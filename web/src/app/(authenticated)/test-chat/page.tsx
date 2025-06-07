@@ -229,7 +229,6 @@ export default function TestChatPage() {
         const timeoutId = setTimeout(() => {
           const entry = responseMapRef.current[conversationId];
           if (entry) {
-            console.log("Request timed out for conversation:", conversationId);
             entry.reject(new Error("Response timeout"));
             delete responseMapRef.current[conversationId];
             // Tự động xóa trạng thái xử lý khi timeout
@@ -243,7 +242,6 @@ export default function TestChatPage() {
             );
           }
         }, 150000);
-        console.log("Sending message for conversation:", conversationId);
         responseMapRef.current[conversationId] = { resolve, reject, timeoutId };
         sendWebSocketMessage({
           message: WS_MESSAGES.TEST_CHAT,
@@ -287,12 +285,9 @@ export default function TestChatPage() {
     const unregister = registerMessageHandler(
       WS_MESSAGES.TEST_CHAT,
       (data: any) => {
-        console.log("Received message:", data);
         let chatData = data as Chat;
         try {
           // Phương pháp mới: xử lý tất cả các định dạng dữ liệu có thể có
-          console.log("Raw data type:", typeof data);
-
           if (
             data &&
             typeof data === "object" &&
@@ -303,7 +298,6 @@ export default function TestChatPage() {
           ) {
             chatData = data;
           } else {
-            console.error("Received data is not a valid Chat object:", data);
             return;
           }
 
@@ -313,10 +307,6 @@ export default function TestChatPage() {
           }
           const entry = responseMapRef.current[chatData.guest_id];
           if (entry) {
-            console.log(
-              "Found pending request, clearing timeout for conversation:",
-              chatData.guest_id
-            );
             clearTimeout(entry.timeoutId);
             entry.resolve(chatData);
             delete responseMapRef.current[chatData.guest_id];

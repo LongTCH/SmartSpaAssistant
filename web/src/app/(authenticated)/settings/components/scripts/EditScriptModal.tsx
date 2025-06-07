@@ -55,7 +55,19 @@ export function EditScriptModal({
   // Fetch script data when scriptId changes
   useEffect(() => {
     const fetchScriptData = async () => {
-      if (!scriptId || !open) return;
+      if (!scriptId || !open) {
+        // Reset to clean state when no scriptId or modal is closed
+        setScriptData({
+          id: "",
+          name: "",
+          description: "",
+          solution: "",
+          status: "published",
+          created_at: "",
+          related_script_ids: [], // Always empty array, never null
+        });
+        return;
+      }
 
       setIsLoading(true);
 
@@ -67,6 +79,7 @@ export function EditScriptModal({
         }
 
         // Convert related_scripts to related_script_ids if it exists
+        // Ensure it's always an array, never null
         const related_script_ids = script.related_scripts
           ? script.related_scripts.map((relatedScript) => relatedScript.id)
           : [];
@@ -147,6 +160,7 @@ export function EditScriptModal({
       }
 
       // Prepare data for the API
+      // Ensure related_script_ids is always an array, never null
       const updateData: ScriptData = {
         name: scriptData.name,
         description: scriptData.description,
