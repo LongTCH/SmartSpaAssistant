@@ -3,6 +3,7 @@ from urllib.parse import quote
 
 from app.configs.database import get_session
 from app.services import interest_service
+from app.validations.interest_validations import validate_interest_data
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response as HttpResponse
 from fastapi.responses import StreamingResponse
@@ -151,6 +152,12 @@ async def insert_interest(request: Request, db: AsyncSession = Depends(get_sessi
     Insert a new interest into the database.
     """
     body = await request.json()
+
+    # Validate interest data
+    validation_errors = validate_interest_data(body)
+    if validation_errors:
+        raise HTTPException(status_code=400, detail={"errors": validation_errors})
+
     await interest_service.insert_interest(db, body)
     return HttpResponse(status_code=201)
 

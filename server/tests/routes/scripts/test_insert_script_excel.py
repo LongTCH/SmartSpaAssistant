@@ -1,17 +1,16 @@
 from datetime import datetime
 from unittest.mock import patch
 
-from app.validations.notification_validations import validate_notification_data
 from fastapi.testclient import TestClient
 from tests.base_excel_test import BaseExcelTest
 
 
-class InsertNotificationExcelTester(BaseExcelTest):
-    """Excel tester for insert_notification API"""
+class InsertScriptExcelTester(BaseExcelTest):
+    """Excel tester for insert_script API"""
 
     def __init__(self, app_or_client=None):
         """Initialize with app or client"""
-        super().__init__("insert_notification_test_data")
+        super().__init__("insert_script_test_data")
         if app_or_client is None:
             from app.main import app
 
@@ -21,45 +20,31 @@ class InsertNotificationExcelTester(BaseExcelTest):
         else:
             self.client = TestClient(app_or_client)
 
-    def execute_test_case(self, test_case: dict) -> dict:
-        """Execute a single test case for insert_notification API"""
+    def execute_test_case(self, test_case):
+        """Execute a single test case for insert_script API"""
         try:
             # Extract test data
-            label = test_case.get("Label", "")
-            description = test_case.get("Description", "")
-            param_name = test_case.get("ParamName", "")
-            param_type = test_case.get("ParamType", "")
-            param_description = test_case.get("ParamDescription", "")
+            test_case.get("TestCaseName", "")
+            name = test_case.get("Name")
+            description = test_case.get("Description")
+            solution = test_case.get("Solution")
+            expected_result = str(test_case.get("ExpectedResult", "")).strip()
 
             # Prepare request payload
-            notification = {
-                "label": label,
-                "description": description,
-                "params": [
-                    {
-                        "param_name": param_name,
-                        "param_type": param_type,
-                        "description": param_description,
-                    }
-                ],
-            }
+            payload = {"name": name, "description": description, "solution": solution}
 
-            # Validate input first
-            errors = validate_notification_data(notification)
+            # Remove None values from payload
+            payload = {k: v for k, v in payload.items() if v is not None}
 
-            # Make API call only if no validation errors
-            if not errors:
-                with patch(
-                    "app.services.notification_service.insert_notification"
-                ) as mock_insert:
-                    mock_insert.return_value = {"id": "test-notification-id"}
-                    response = self.client.post("/notifications", json=notification)
-                    status_code = response.status_code
-            else:
-                status_code = 400
+            # Make API request using TestClient
+            with patch("app.services.script_service.insert_script") as mock_insert:
+                mock_insert.return_value = "test-script-id"
+                response = self.client.post("/scripts", json=payload)
 
             # Determine test result
-            logical_test_result = self._determine_test_result(test_case, status_code)
+            logical_test_result = self._determine_test_result(
+                test_case, response.status_code
+            )
 
             # Create result record with standardized format
             result_record = test_case.copy()
@@ -70,14 +55,23 @@ class InsertNotificationExcelTester(BaseExcelTest):
             )
 
             # Standardize ExpectedResult format
-            expected = str(test_case.get("ExpectedResult", "")).strip().lower()
-            result_record["ExpectedResult"] = "True" if expected == "true" else "False"
+            if expected_result.lower() == "true":
+                result_record["ExpectedResult"] = "True"
+            elif expected_result.lower() == "false":
+                result_record["ExpectedResult"] = "False"
+            else:
+                result_record["ExpectedResult"] = expected_result
 
             # Standardize error logging in 'Log' column
-            if status_code != 201:
-                result_record["Log"] = (
-                    "; ".join(errors) if errors else f"HTTP {status_code}"
-                )
+            if response.status_code != 201:
+                try:
+                    error_detail = response.json().get("detail", {})
+                    if isinstance(error_detail, dict) and "errors" in error_detail:
+                        result_record["Log"] = "; ".join(error_detail["errors"])
+                    else:
+                        result_record["Log"] = str(error_detail)
+                except:
+                    result_record["Log"] = f"HTTP {response.status_code}"
             else:
                 result_record["Log"] = None
 
@@ -93,11 +87,10 @@ class InsertNotificationExcelTester(BaseExcelTest):
 
             # Ensure all expected columns are present
             for key in [
-                "Label",
+                "TestCaseName",
+                "Name",
                 "Description",
-                "ParamName",
-                "ParamType",
-                "ParamDescription",
+                "Solution",
                 "ExpectedResult",
             ]:
                 if key not in failed_result:
@@ -109,13 +102,13 @@ class InsertNotificationExcelTester(BaseExcelTest):
         return "True" if status_code == 201 else "False"
 
 
-def test_insert_notification_from_excel():
-    """Test insert_notification API using Excel test data"""
-    tester = InsertNotificationExcelTester()
+def test_insert_script_from_excel():
+    """Test insert_script API using Excel test data"""
+    tester = InsertScriptExcelTester()
     results = tester.run_all_tests()
     summary = tester.get_test_summary(results)
 
-    print(f"\nTest Summary for insert_notification API:")
+    print(f"\nTest Summary for insert_script API:")
     print(f"Total tests: {summary['total']}")
     print(f"Passed: {summary['passed']}")
     print(f"Failed: {summary['failed']}")
@@ -138,11 +131,11 @@ if __name__ == "__main__":
         sys.path.insert(0, server_root)
 
     def main():
-        tester = InsertNotificationExcelTester()
+        tester = InsertScriptExcelTester()
         results = tester.run_all_tests()
         summary = tester.get_test_summary(results)
 
-        print(f"\nTest Summary for insert_notification API:")
+        print(f"\nTest Summary for insert_script API:")
         print(f"Total tests: {summary['total']}")
         print(f"Passed: {summary['passed']}")
         print(f"Failed: {summary['failed']}")

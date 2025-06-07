@@ -5,6 +5,7 @@ from app.configs.database import get_session
 from app.services import script_service
 from app.services.integrations import script_rag_service
 from app.utils import asyncio_utils
+from app.validations.script_validations import validate_script_data
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response as HttpResponse
 from fastapi.responses import StreamingResponse
@@ -174,6 +175,12 @@ async def insert_script(request: Request, db: AsyncSession = Depends(get_session
     Insert a new script into the database.
     """
     body = await request.json()
+
+    # Validate script data
+    validation_errors = validate_script_data(body)
+    if validation_errors:
+        raise HTTPException(status_code=400, detail={"errors": validation_errors})
+
     new_script_id = await script_service.insert_script(db, body)
     asyncio_utils.run_background(script_rag_service.insert_script, new_script_id)
     return HttpResponse(status_code=201)
