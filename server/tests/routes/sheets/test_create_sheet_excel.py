@@ -84,7 +84,17 @@ class CreateSheetExcelTester(BaseExcelTest):
 
                 # Create result record
                 result_record = test_case.copy()
-                result_record["ActualResult"] = logical_test_result
+                # Ensure ActualResult is always 'True' or 'False' (capitalized)
+                if str(logical_test_result).upper() == "TRUE":
+                    result_record["ActualResult"] = "True"
+                else:
+                    result_record["ActualResult"] = "False"
+                # Ensure ExpectedResult is always 'True' or 'False' (capitalized)
+                expected = str(test_case.get("ExpectedResult", "")).strip().lower()
+                if expected == "true":
+                    result_record["ExpectedResult"] = "True"
+                elif expected == "false":
+                    result_record["ExpectedResult"] = "False"
 
                 # Determine 'Status' (error details or None)
                 status_detail_value = None
@@ -146,10 +156,10 @@ class CreateSheetExcelTester(BaseExcelTest):
     def _determine_test_result(self, test_case: dict, status_code: int) -> str:
         """
         Ghi nhận trạng thái thực tế của API:
-        - Nếu status_code == 201: ActualResult = 'Pass'
-        - Nếu status_code != 201: ActualResult = 'Fail'
+        - Nếu status_code == 201: ActualResult = 'True'
+        - Nếu status_code != 201: ActualResult = 'False'
         """
-        return "Pass" if status_code == 201 else "Fail"
+        return "True" if status_code == 201 else "False"
 
 
 @pytest.mark.asyncio

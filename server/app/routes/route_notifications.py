@@ -3,12 +3,15 @@ from urllib.parse import quote
 
 from app.configs.database import get_session
 from app.services import notification_service
-from fastapi import APIRouter, Depends, HTTPException, Request
+from app.validations.notification_validations import validate_notification_data
+from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import Response as HttpResponse
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/notifications", tags=["Notifications"])
+
+ALLOWED_PARAM_TYPES = ["String", "Integer", "Numeric", "Boolean", "DateTime"]
 
 
 @router.get("")
@@ -101,11 +104,14 @@ async def get_notification_by_id(id: str, db: AsyncSession = Depends(get_session
 
 @router.post("")
 async def insert_notification(
-    notification: dict, db: AsyncSession = Depends(get_session)
+    notification: dict = Body(...), db: AsyncSession = Depends(get_session)
 ):
     """
     Insert a new notification into the database.
     """
+    errors = validate_notification_data(notification)
+    if errors:
+        raise HTTPException(status_code=400, detail=errors)
     await notification_service.insert_notification(db, notification)
     return HttpResponse(status_code=201)
 
