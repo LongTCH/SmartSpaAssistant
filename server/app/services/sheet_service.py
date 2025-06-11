@@ -72,30 +72,27 @@ async def insert_sheet(db: AsyncSession, sheet: dict) -> str:
         ]
         sheet_file = sheet["file"]
 
-        # If user requested information about available sheets, return that instead
-        if sheet.get("get_sheet_names", False):
-            # Read all sheet names from the Excel file
-            xls = pd.ExcelFile(BytesIO(sheet_file))
-            return {"sheet_names": xls.sheet_names}
-
         # Check available sheets in the Excel file
         xls = pd.ExcelFile(BytesIO(sheet_file))
         available_sheets = xls.sheet_names
 
-        # Priority order for reading sheets:
-        # 1. Use sheet_name from request if provided
-        # 2. Use 'data' sheet if it exists
-        # 3. Fall back to the first sheet (index 0)
-        if sheet.get("sheet_name"):
-            sheet_name = sheet.get("sheet_name")
-        elif "data" in available_sheets:
+        if "data" in available_sheets:
             sheet_name = "data"
         else:
             sheet_name = 0  # Default to first sheet
 
+        # Prepare dtype specification for pandas read_excel
+        dtype_spec = {}
+        for col_config in columns:
+            if col_config.column_type in ["String", "Text"]:
+                dtype_spec[col_config.column_name] = str
+
         # Read the Excel file with the selected sheet
         excel_data = pd.read_excel(
-            BytesIO(sheet_file), engine="openpyxl", sheet_name=sheet_name
+            BytesIO(sheet_file),
+            engine="openpyxl",
+            sheet_name=sheet_name,
+            dtype=dtype_spec,  # Ensure columns are read with specified types
         )
 
         # Define SQLAlchemy column types mapping

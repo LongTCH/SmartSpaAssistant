@@ -19,11 +19,11 @@ from app.utils.agent_utils import (
     normalize_postgres_query,
     normalize_tool_name,
 )
-from fuzzywuzzy import process
 from pydantic_ai import RunContext, Tool
 from pydantic_ai.exceptions import ModelRetry
 from pydantic_ai.tools import ToolDefinition
 from sqlalchemy import text
+from thefuzz import process
 
 
 @dataclass

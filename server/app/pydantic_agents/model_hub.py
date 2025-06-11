@@ -22,6 +22,7 @@ ModelName = Literal[
     "gemini-1.5-flash-8b",
     "gpt-4o",
     "deepseek-reasoner",
+    "o3",
 ]
 ModelType = Union[OpenAIModel, GeminiModel]
 
@@ -101,5 +102,9 @@ model_hub: Dict[ModelName, ModelType] = {
         provider=GoogleGLAProvider(
             api_key=env_config.GEMINI_API_KEY,
         ),
+    ),
+    "o3": OpenAIModel(
+        "o3",
+        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
     ),
 }
