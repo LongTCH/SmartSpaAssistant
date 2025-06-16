@@ -34,7 +34,7 @@ async def get_embeddings(texts: str | list[str]) -> list[list[float]]:
     data = {
         "model": "jina-embeddings-v3",
         "truncate": True,
-        "dimensions": 384,
+        "dimensions": 1024,
         "task": "text-matching",
         "input": texts,
     }

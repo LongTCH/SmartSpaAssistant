@@ -197,32 +197,22 @@ export default function CustomerManagement() {
         toast.success(
           `Đã xóa ${selectedCustomers.length} khách hàng thành công`
         );
-
-        // Update UI by removing deleted customers
-        setCustomers(
-          customers.filter((c) => !selectedCustomers.includes(c.id))
-        );
-        setSelectedCustomers([]);
-        setIsAllSelected(false);
+        setSelectedCustomers([]); // Reset selected customers
+        setIsAllSelected(false); // Reset select all state
       } else if (customerToDelete) {
         // Delete single customer
         await guestService.deleteGuest(customerToDelete);
-
         toast.success("Đã xóa khách hàng thành công");
-
-        // Update UI by removing deleted customer
-        setCustomers(customers.filter((c) => c.id !== customerToDelete));
-        setSelectedCustomers(
-          selectedCustomers.filter((id) => id !== customerToDelete)
-        );
+        setCustomerToDelete(null); // Reset single customer to delete
       }
-
-      setDeleteConfirmOpen(false);
-      setCustomerToDelete(null);
-    } catch {
-      toast.error("Không thể xóa khách hàng");
+      // Refresh the customer list
+      fetchCustomers();
+    } catch (error) {
+      toast.error("Không thể xóa khách hàng. Vui lòng thử lại.");
+      console.error("Error deleting customer(s):", error);
     } finally {
       setIsDeleting(false);
+      setDeleteConfirmOpen(false);
     }
   };
 

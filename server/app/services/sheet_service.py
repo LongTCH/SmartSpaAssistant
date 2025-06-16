@@ -540,7 +540,7 @@ async def agent_sheets_to_xml(sheets: list[Sheet]) -> str:
         columns_elem = ET.SubElement(sheet_elem, "column_config")
         for col in sheet_dict.get("column_config", []):
             col_elem = ET.SubElement(columns_elem, "column")
-            for col_key in ["is_index", "column_name", "column_type", "description"]:
+            for col_key in ["column_name", "column_type", "description"]:
                 col_child = ET.SubElement(col_elem, col_key)
                 val = col.get(col_key, "")
                 if isinstance(val, bool):

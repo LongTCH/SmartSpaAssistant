@@ -3,7 +3,11 @@ from app.configs.database import async_session, with_session
 from app.models import Script
 from app.pydantic_agents.memory import MemoryAgentDeps, memory_agent
 from app.pydantic_agents.synthetic import SyntheticAgentDeps, create_synthetic_agent
-from app.repositories import chat_history_repository, guest_repository
+from app.repositories import (
+    chat_history_repository,
+    guest_repository,
+    script_repository,
+)
 from app.services import (
     alert_service,
     chat_history_service,
@@ -11,9 +15,11 @@ from app.services import (
     script_service,
 )
 from app.services.integrations import script_rag_service
+from app.stores.store import get_local_data
 from app.utils import asyncio_utils
 from app.utils.agent_utils import MessagePart
 from pydantic_ai.messages import ModelMessage, ModelMessagesTypeAdapter
+from pydantic_ai.usage import UsageLimits
 
 logfire.configure(send_to_logfire="if-token-present")
 logger = logfire.instrument_pydantic_ai()
@@ -42,10 +48,11 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             )
             chat_histories = chat_histories[::-1]
             message_history: list[ModelMessage] = []
+            old_script_ids: set[str] = set()
             for message in chat_histories:
                 model_message = ModelMessagesTypeAdapter.validate_json(message.content)
                 message_history.extend(model_message)
-
+                old_script_ids.update(message.used_scripts.split(","))
             # message_rewrite_summaries = await with_session(
             #     lambda db: chat_history_repository.get_long_term_memory(
             #         db, user_id, skip=0, limit=SUMMARY_FOR_REWRITE
@@ -58,11 +65,24 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             #     await message_rewrite_agent.run(user_input, deps=message_rewrite_deps)
             # )
             # user_input = message_rewrite_agent_output.output
+            local_data = get_local_data()
             scripts: list[Script] = await script_rag_service.search_script_chunks(
-                user_input, limit=7
+                user_input, limit=local_data.max_script_retrieval
             )
-            script_context = await script_service.agent_scripts_to_xml(scripts)
-
+            script_ids = [script.id for script in scripts]
+            script_ids_in_old_but_not_in_new = old_script_ids - set(script_ids)
+            if script_ids_in_old_but_not_in_new:
+                scripts.extend(
+                    await with_session(
+                        lambda db: script_repository.get_scripts_by_ids(
+                            db, script_ids_in_old_but_not_in_new
+                        )
+                    )
+                )
+            if scripts:
+                script_context = await script_service.agent_scripts_to_xml(scripts)
+            else:
+                script_context = ""
             chat_summaries = await with_session(
                 lambda db: chat_history_repository.get_long_term_memory(
                     db, user_id, skip=MAX_HISTORY_MESSAGES, limit=LONG_TERM_MEMORY_LIMIT
@@ -76,9 +96,20 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
                 script_context=script_context,
                 context_memory=memory,
             )
+            # if script_context:
+            #     assistant_messages = [ModelResponse(
+            #         parts=[TextPart(
+            #             content=f"Related scripts in XML format. Important information needs to be reranked and filtered to answer the customer.\n{script_context}"),
+            #         ]
+            #     )]
+            #     message_history.extend(assistant_messages)
+            user_input_str = f"Related scripts in XML format. Important information needs to be reranked and filtered to answer the customer.\n{script_context}\n**Customer input:** {user_input}"
             synthetic_agent = await create_synthetic_agent(user_id)
             synthetic_result = await synthetic_agent.run(
-                user_input, message_history=message_history, deps=synthetic_agent_deps
+                user_input_str,
+                message_history=message_history,
+                deps=synthetic_agent_deps,
+                usage_limits=UsageLimits(request_limit=50),
             )
 
             message_parts = synthetic_result.output
@@ -86,8 +117,13 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             chat_content = await chat_history_service.agent_messages_to_xml(
                 user_input, message_parts
             )
+            script_ids_str = ",".join(script_ids)
             asyncio_utils.run_background(
-                run_memory, user_id, chat_content, synthetic_result.new_messages_json()
+                run_memory,
+                user_id,
+                chat_content,
+                synthetic_result.new_messages_json(),
+                script_ids_str,
             )
 
             return message_parts
@@ -99,7 +135,7 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             return [MessagePart(type="text", payload="Xin lỗi, vui lòng thử lại sau")]
 
 
-async def run_memory(user_id, chat_content, new_messages):
+async def run_memory(user_id, chat_content, new_messages, script_ids):
     async with async_session() as session:
         summaries = await chat_history_repository.get_long_term_memory(
             session, user_id, skip=0, limit=OLD_MEMORY_LENGTH_FOR_UPDATE_MEMORY
@@ -109,6 +145,6 @@ async def run_memory(user_id, chat_content, new_messages):
         )
         summary = memory_agent_output.output
         await chat_history_repository.insert_chat_history(
-            session, user_id, new_messages, summary
+            session, user_id, new_messages, summary, script_ids
         )
         await session.commit()

@@ -86,7 +86,7 @@ async def create_synthetic_agent(
         output_type=list[MessagePart],
         output_retries=2,
         model_settings=GoogleModelSettings(
-            google_thinking_config={"thinking_budget": 16000},
+            # google_thinking_config={"thinking_budget": 16000},
             temperature=0.0,
         ),
         # model_settings=OpenAIModelSettings(

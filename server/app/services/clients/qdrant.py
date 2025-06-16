@@ -15,7 +15,8 @@ async def init_qdrant():
     if not await client.collection_exists(env_config.QDRANT_SCRIPT_COLLECTION_NAME):
         await client.create_collection(
             collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
-            vectors_config=VectorParams(size=384, distance=Distance.COSINE),
+            vectors_config={"jina": VectorParams(size=1024, distance=Distance.COSINE)},
+            sparse_vectors_config={"bm25": SparseVectorParams(modifier=Modifier.IDF)},
         )
 
     if not await client.collection_exists(env_config.QDRANT_SHEET_COLLECTION_NAME):

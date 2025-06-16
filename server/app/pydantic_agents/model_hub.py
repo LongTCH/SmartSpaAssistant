@@ -6,6 +6,7 @@ from pydantic_ai.models.openai import OpenAIModel
 from pydantic_ai.providers.deepseek import DeepSeekProvider
 from pydantic_ai.providers.google_gla import GoogleGLAProvider
 from pydantic_ai.providers.openai import OpenAIProvider
+from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 ModelName = Literal[
     "gpt-4o-mini",
@@ -20,6 +21,7 @@ ModelName = Literal[
     "o4-mini",
     "gpt-4.1",
     "gemini-1.5-flash-8b",
+    "gemini-1.5-flash",
     "gpt-4o",
     "deepseek-reasoner",
     "o3",
@@ -50,15 +52,12 @@ model_hub: Dict[ModelName, ModelType] = {
     ),
     "qwen-2.5-coder": OpenAIModel(
         "qwen/qwen-2.5-coder-32b-instruct:free",
-        provider=OpenAIProvider(
-            base_url="https://openrouter.ai/api/v1",
-            api_key=env_config.OPENROUTER_API_KEY,
-        ),
+        provider=OpenRouterProvider(api_key=env_config.OPENROUTER_API_KEY),
     ),
-    "gemini-2.0-flash-lite": GeminiModel(
-        "gemini-2.0-flash-lite",
-        provider=GoogleGLAProvider(
-            api_key=env_config.GEMINI_API_KEY,
+    "gemini-2.0-flash-lite": OpenAIModel(
+        "google/gemini-2.0-flash-lite-001",
+        provider=OpenRouterProvider(
+            api_key=env_config.OPENROUTER_API_KEY,
         ),
     ),
     "gpt-4.1": OpenAIModel(
@@ -92,7 +91,7 @@ model_hub: Dict[ModelName, ModelType] = {
         ),
     ),
     "gemini-2.5-pro": GeminiModel(
-        "gemini-2.5-pro-preview-05-06",
+        "gemini-2.5-pro-preview-06-05",
         provider=GoogleGLAProvider(
             api_key=env_config.GEMINI_API_KEY,
         ),
@@ -101,6 +100,12 @@ model_hub: Dict[ModelName, ModelType] = {
         "gemini-1.5-flash-8b",
         provider=GoogleGLAProvider(
             api_key=env_config.GEMINI_API_KEY,
+        ),
+    ),
+    "gemini-1.5-flash": OpenAIModel(
+        "google/gemini-flash-1.5",
+        provider=OpenRouterProvider(
+            api_key=env_config.OPENROUTER_API_KEY,
         ),
     ),
     "o3": OpenAIModel(

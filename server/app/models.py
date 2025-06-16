@@ -300,6 +300,7 @@ class ChatHistory(Base):
     guest_id = Column(String, nullable=False)
     content = Column(LargeBinary, nullable=False)
     summary = Column(Text, nullable=False)
+    used_scripts = Column(Text, nullable=True)
     created_at = Column(DateTime, default=datetime.datetime.now)
 
 

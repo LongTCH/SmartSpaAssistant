@@ -14,7 +14,6 @@ from app.services import alert_service, sheet_service
 from app.services.integrations import sheet_rag_service
 from app.utils import string_utils
 from app.utils.agent_utils import (
-    CurrentTimeResponse,
     is_read_only_sql,
     normalize_postgres_query,
     normalize_tool_name,
@@ -101,16 +100,18 @@ def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) 
 
 async def get_current_local_time(
     context: RunContext[SyntheticAgentDeps],
-) -> CurrentTimeResponse:
+) -> str:
     """
-    Get the current local time (ISO Format) at local timezone.
+    Get the current local time (ISO Format) at local timezone in XML format.
     """
     tz = pytz.timezone(context.deps.timezone)
     local_time = datetime.now(tz)
-    return CurrentTimeResponse(
-        timezone=context.deps.timezone,
-        current_time=local_time.isoformat(),
-    )
+
+    # Return XML formatted string instead of object
+    return f"""<current_time>
+    <timezone>{context.deps.timezone}</timezone>
+    <time>{local_time.isoformat()}</time>
+</current_time>"""
 
 
 async def get_notify_tools(guest_id: str) -> list[Tool]:
@@ -192,11 +193,7 @@ async def get_all_available_sheets() -> str:
         )
         if not sheets:
             return ""
-        context = (
-            "Here is relevant sheets in XML Format that help you to decide if we need query from sheets:\n"
-            "Carefully study the description description and column description of each sheet.\n"
-        )
-        context += await sheet_service.agent_sheets_to_xml(sheets)
+        context = await sheet_service.agent_sheets_to_xml(sheets)
 
         return context
     except Exception as e:
@@ -205,7 +202,7 @@ async def get_all_available_sheets() -> str:
 
 
 async def execute_query_on_sheet_rows(
-    explain: str, sql_query: str
+    key_points_from_description: str, explain: str, sql_query: str
 ) -> list[dict[str, any]] | str:
     """
     Use this tool to query from {sheet.table_name} when you know the table_name via the sheet you are querying. FROM "{sheet.table_name}" is the table name you need to query from.
@@ -263,6 +260,7 @@ async def execute_query_on_sheet_rows(
     WHERE tb."product_price" > 100
 
     Args:
+        key_points_from_description: The key points extracted from the sheet's description.
         explain: The detailed explaination of the sql_query.
         sql_query: The PostgreSQL valid query string to search for.
     """
@@ -366,10 +364,7 @@ async def update_guest_fullname(
         except Exception as e:
             await session.rollback()
 
-        return {
-            "status": "success",
-            "message": f"Guest fullname updated to {fullname}",
-        }
+        return f"""<result>\n  <status>success</status>\n  <message>Guest fullname updated to {fullname}</message>\n</result>"""
 
 
 async def update_guest_birthday(
@@ -395,10 +390,7 @@ async def update_guest_birthday(
         except Exception as e:
             await session.rollback()
 
-        return {
-            "status": "success",
-            "message": f"Guest birthday updated to {birthday}",
-        }
+        return f"""<result>\n  <status>success</status>\n  <message>Guest birthday updated to {birthday}</message>\n</result>"""
 
 
 async def update_guest_phone(
@@ -422,10 +414,7 @@ async def update_guest_phone(
         except Exception as e:
             await session.rollback()
 
-        return {
-            "status": "success",
-            "message": f"Guest phone updated to {phone}",
-        }
+        return f"""<result>\n  <status>success</status>\n  <message>Guest phone updated to {phone}</message>\n</result>"""
 
 
 async def update_guest_email(
@@ -449,10 +438,7 @@ async def update_guest_email(
         except Exception as e:
             await session.rollback()
 
-        return {
-            "status": "success",
-            "message": f"Guest email updated to {email}",
-        }
+        return f"""<result>\n  <status>success</status>\n  <message>Guest email updated to {email}</message>\n</result>"""
 
 
 async def update_guest_address(
@@ -476,10 +462,7 @@ async def update_guest_address(
         except Exception as e:
             await session.rollback()
 
-        return {
-            "status": "success",
-            "message": f"Guest address updated to {address}",
-        }
+        return f"""<result>\n  <status>success</status>\n  <message>Guest address updated to {address}</message>\n</result>"""
 
 
 async def update_guest_gender(
@@ -505,7 +488,4 @@ async def update_guest_gender(
         except Exception as e:
             await session.rollback()
 
-        return {
-            "status": "success",
-            "message": f"Guest gender updated to {gender}",
-        }
+        return f"""<result>\n  <status>success</status>\n  <message>Guest gender updated to {gender}</message>\n</result>"""

@@ -4,9 +4,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def insert_chat_history(
-    db: AsyncSession, guest_id: str, content: str, summary: str
+    db: AsyncSession, guest_id: str, content: str, summary: str, script_ids: str
 ) -> ChatHistory:
-    chat_history = ChatHistory(guest_id=guest_id, content=content, summary=summary)
+    chat_history = ChatHistory(
+        guest_id=guest_id, content=content, summary=summary, used_scripts=script_ids
+    )
     db.add(chat_history)
     await db.flush()
     return chat_history
