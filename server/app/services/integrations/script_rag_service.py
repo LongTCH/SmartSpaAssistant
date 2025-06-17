@@ -218,6 +218,7 @@ async def search_script_chunks(query: str, limit: int = 5) -> list[Script]:
                     using="bm25",
                 ),
             ],
+            score_threshold=0.5,
             limit=1000,
         )
         search_result = search_result.points

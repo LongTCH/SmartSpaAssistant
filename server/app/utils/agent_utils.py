@@ -23,7 +23,7 @@ class MessagePart(BaseModel):
     payload: str = Field(
         description="""
         The content is a string if the type is "text".
-        The content is a URL if the type is "image", "video", "audio", or "file".
+        The content is just an valid URL if the type is "image", "video", "audio", or "file".
         """,
     )
 
@@ -134,10 +134,24 @@ def dump_json(data: Any, *, indent: int = None, exclude_none: bool = False) -> s
     :param exclude_none: Loại bỏ các trường có giá trị None nếu đặt là True.
     :return: Chuỗi JSON đại diện cho dữ liệu.
     """
-    adapter = TypeAdapter(type(data))
-    return adapter.dump_json(data, indent=indent, exclude_none=exclude_none).decode(
+    return dump_json_bytes(data, indent=indent, exclude_none=exclude_none).decode(
         "utf-8"
     )
+
+
+def dump_json_bytes(
+    data: Any, *, indent: int = None, exclude_none: bool = False
+) -> bytes:
+    """
+    Tuần tự hóa dữ liệu thành bytes, hỗ trợ các kiểu dữ liệu phức tạp.
+
+    :param data: Dữ liệu cần tuần tự hóa (có thể là mô hình Pydantic, danh sách, từ điển, v.v.).
+    :param indent: Số khoảng trắng để thụt lề trong chuỗi JSON (mặc định là None).
+    :param exclude_none: Loại bỏ các trường có giá trị None nếu đặt là True.
+    :return: Chuỗi JSON đại diện cho dữ liệu.
+    """
+    adapter = TypeAdapter(type(data))
+    return adapter.dump_json(data, indent=indent, exclude_none=exclude_none)
 
 
 def normalize_tool_name(text: str) -> str:

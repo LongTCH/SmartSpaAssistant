@@ -1,6 +1,5 @@
 import os
 
-from app.configs.database import with_session
 from app.pydantic_agents.model_hub import model_hub
 from app.pydantic_agents.synthetic_tools import (
     SyntheticAgentDeps,
@@ -16,9 +15,7 @@ from app.pydantic_agents.synthetic_tools import (
     update_guest_gender,
     update_guest_phone,
 )
-from app.repositories import guest_info_repository
 from app.stores.store import get_local_data
-from app.utils.agent_utils import MessagePart
 from jinja2 import Environment, FileSystemLoader
 from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.models.google import GoogleModelSettings
@@ -30,51 +27,24 @@ async def get_instruction(context: RunContext[SyntheticAgentDeps]) -> str:
     # Tạo Jinja environment từ thư mục đó
     env = Environment(loader=FileSystemLoader(current_dir))
     guest_id = context.deps.user_id
-    guest_info = await with_session(
-        lambda session: guest_info_repository.get_guest_info_by_guest_id(
-            session, guest_id
-        )
-    )
-    if not guest_info:
-        customer_name = ""
-        customer_gender = ""
-        customer_phone = ""
-        customer_email = ""
-        customer_address = ""
-        customer_birthday = ""
-    else:
-        customer_name = guest_info.fullname or ""
-        customer_gender = guest_info.gender or ""
-        customer_phone = guest_info.phone or ""
-        customer_email = guest_info.email or ""
-        customer_address = guest_info.address or ""
-        customer_birthday = (
-            guest_info.birthday.strftime("%Y-%m-%d") if guest_info.birthday else ""
-        )
+
     local_data = get_local_data()
     bot_identity = local_data.identity
     bot_instructions = local_data.instructions
     # Load template
     template = env.get_template("synthetic_prompt.j2")
     rendered = template.render(
+        customer_id=guest_id,
         bot_identity=bot_identity,
         bot_instructions=bot_instructions,
-        customer_name=customer_name,
-        customer_gender=customer_gender,
-        customer_phone=customer_phone,
-        customer_email=customer_email,
-        customer_address=customer_address,
-        customer_birthday=customer_birthday,
-        memory_context=context.deps.context_memory,
-        scripts_context=context.deps.script_context,
-        sheets_context=await get_all_available_sheets(),
+        sheets_context=await get_all_available_sheets(context),
     )
     return rendered
 
 
 async def create_synthetic_agent(
     guest_id: str,
-) -> Agent[SyntheticAgentDeps, list[MessagePart]]:
+) -> Agent[SyntheticAgentDeps, str]:
 
     notify_tools = await get_notify_tools(guest_id)
 
@@ -83,11 +53,12 @@ async def create_synthetic_agent(
         model=model,
         instructions=get_instruction,
         retries=2,
-        output_type=list[MessagePart],
+        output_type=str,
         output_retries=2,
         model_settings=GoogleModelSettings(
             # google_thinking_config={"thinking_budget": 16000},
             temperature=0.0,
+            # max_tokens=50000
         ),
         # model_settings=OpenAIModelSettings(
         #     # openai_reasoning_effort="high",
@@ -96,7 +67,7 @@ async def create_synthetic_agent(
         tools=[
             Tool(
                 get_all_available_sheets,
-                takes_ctx=False,
+                takes_ctx=True,
             ),
             Tool(
                 execute_query_on_sheet_rows,

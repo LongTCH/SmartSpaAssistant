@@ -4,7 +4,16 @@ from typing import List
 
 from app.configs.constants import CHAT_ASSIGNMENT
 from app.configs.database import Base
-from sqlalchemy import Column, DateTime, ForeignKey, LargeBinary, String, Table, Text
+from sqlalchemy import (
+    Column,
+    DateTime,
+    ForeignKey,
+    Integer,
+    LargeBinary,
+    String,
+    Table,
+    Text,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, relationship
 
@@ -301,6 +310,7 @@ class ChatHistory(Base):
     content = Column(LargeBinary, nullable=False)
     summary = Column(Text, nullable=False)
     used_scripts = Column(Text, nullable=True)
+    history_count = Column(Integer, default=0)
     created_at = Column(DateTime, default=datetime.datetime.now)
 
 

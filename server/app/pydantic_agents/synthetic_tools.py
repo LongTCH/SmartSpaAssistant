@@ -1,4 +1,5 @@
 import re
+import xml.etree.ElementTree as ET
 from dataclasses import dataclass
 from datetime import datetime
 from typing import Any, Dict, Literal
@@ -14,6 +15,7 @@ from app.services import alert_service, sheet_service
 from app.services.integrations import sheet_rag_service
 from app.utils import string_utils
 from app.utils.agent_utils import (
+    dump_json,
     is_read_only_sql,
     normalize_postgres_query,
     normalize_tool_name,
@@ -29,8 +31,6 @@ from thefuzz import process
 class SyntheticAgentDeps:
     user_input: str
     user_id: str
-    script_context: str
-    context_memory: str
     timezone: str = "Asia/Ho_Chi_Minh"
 
 
@@ -55,11 +55,14 @@ def get_description_from_param(param_type: str, description: str) -> str:
 
 
 def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) -> Tool:
-    async def tool_function(**kwargs):
+    async def tool_function(**kwargs) -> str:
+        # Remove tool_description from kwargs if present
+        kwargs.pop("tool_description", "")
+
         empty_params = []
         # loop all params in kwargs to check find all empty params
         for param_name in tool_info["parameters"]["properties"]:
-            if param_name not in kwargs or not kwargs[param_name]:
+            if param_name != "tool_description" and param_name not in kwargs:
                 empty_params.append(param_name)
         if empty_params:
             raise ModelRetry(
@@ -74,10 +77,13 @@ def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) 
             await alert_service.insert_custom_alert(
                 session, guest_id, notification_id, alert_content
             )
-            return {
-                "status": "success",
-                "message": f"Alert {notification.label} has been sent with content:\n\n{alert_content}",
-            }
+            return f"""<result>
+  <status>success</status>
+  <message>Alert '{notification.label}' has been sent with content:
+
+{alert_content}
+  </message>
+</result>"""
 
     this_tool_def = ToolDefinition(
         name=tool_info["name"],
@@ -94,6 +100,7 @@ def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) 
         prepare=prepare_tool,
         takes_ctx=False,
         function=tool_function,
+        max_retries=2,
     )
     return tool
 
@@ -136,6 +143,11 @@ async def get_notify_tools(guest_id: str) -> list[Tool]:
                 ),
             }
             tool_json["parameters"]["required"].append(param["param_name"])
+        # tool_json["parameters"]["properties"]["tool_description"] = {
+        #     "type": "string",
+        #     "description": "Tell me the details about the tool you are using.",
+        # }
+        # tool_json["parameters"]["required"].append("tool_description")
         notify_tools_json.append(tool_json)
     notify_tools = [
         create_tool(tool_info["notification_id"], guest_id, tool_info)
@@ -144,7 +156,7 @@ async def get_notify_tools(guest_id: str) -> list[Tool]:
     return notify_tools
 
 
-async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> list[str]:
+async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> str:
     """
     Only use this tool if cannot find the data from SQL query.
     Use this tool to query from the RAG (Retrieval-Augmented Generation) database.
@@ -158,7 +170,7 @@ async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> list[str]:
     Args:
         sheet_id: The ID of the sheet to query.
         query: The query string to search for.
-        limit: The maximum number of results to return.
+        limit: The maximum number of results to return. Must be enough large number to search relative data.
     """
     # replace _ to - in sheet_id
     sheet_id = sheet_id.replace("_", "-")
@@ -180,10 +192,29 @@ async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> list[str]:
         query=query,
         limit=limit,
     )
-    return [sheet_chunk.chunk for sheet_chunk in sheet_chunks]
+    return dump_json([sheet_chunk.chunk for sheet_chunk in sheet_chunks])
 
 
-async def get_all_available_sheets() -> str:
+def rows_to_xml(rows: list[dict[str, Any]]) -> str:
+    """
+    Converts a list of dictionaries (rows) into an XML string.
+    Each dictionary is converted to a <row> element,
+    and its key-value pairs become child elements.
+    """
+    root = ET.Element("results")
+    for row_data in rows:
+        row_element = ET.SubElement(root, "row")
+        for key, value in row_data.items():
+            # Ensure element names are valid XML names (e.g., no spaces, not starting with numbers if not careful)
+            # For simplicity, assuming keys are valid or need sanitization if not.
+            # A basic sanitization could be to replace invalid characters or prefix numbers.
+            # For now, we'll assume keys are simple enough.
+            col_element = ET.SubElement(row_element, str(key))
+            col_element.text = str(value)  # Ensure value is a string
+    return ET.tostring(root, encoding="unicode")
+
+
+async def get_all_available_sheets(context: RunContext[SyntheticAgentDeps]) -> str:
     """
     Get all available sheets in XML Format from the database to analyze structure in order to construct sql query.
     """
@@ -201,10 +232,9 @@ async def get_all_available_sheets() -> str:
         return f"Error fetching sheets: {str(e)}"
 
 
-async def execute_query_on_sheet_rows(
-    key_points_from_description: str, explain: str, sql_query: str
-) -> list[dict[str, any]] | str:
+async def execute_query_on_sheet_rows(sql_query: str) -> str:
     """
+    Carefully study the sheet_description before thinking about the SQL query.
     Use this tool to query from {sheet.table_name} when you know the table_name via the sheet you are querying. FROM "{sheet.table_name}" is the table name you need to query from.
     You can use other fields of {table_name} specified in {sheet.column_config}, with normal operations to filter the query.
     You should use &@~ instead of = ,LIKE, ILIKE against string, text field of "{sheet.table_name}" to perform fulltext search, examine 'sheet.column_config' field of that sheet in 'sheets' table to know about these columns.
@@ -260,8 +290,6 @@ async def execute_query_on_sheet_rows(
     WHERE tb."product_price" > 100
 
     Args:
-        key_points_from_description: The key points extracted from the sheet's description.
-        explain: The detailed explaination of the sql_query.
         sql_query: The PostgreSQL valid query string to search for.
     """
     try:
@@ -284,7 +312,7 @@ async def execute_query_on_sheet_rows(
                     "No data found. Please check your query again."
                     "Or consider using *rag_hybrid_search* tool to search for relevant data."
                 )
-            return [dict(row) for row in rows]
+            return rows_to_xml([dict(r) for r in rows])
     except ModelRetry as model_retry:
         raise model_retry
     except Exception as e:
@@ -345,7 +373,7 @@ def replace_table_if_needed(
 
 async def update_guest_fullname(
     context: RunContext[SyntheticAgentDeps], fullname: str
-) -> None:
+) -> str:
     """
     Update the current guest's fullname in the database.
 
@@ -369,7 +397,7 @@ async def update_guest_fullname(
 
 async def update_guest_birthday(
     context: RunContext[SyntheticAgentDeps], birthday: str
-) -> None:
+) -> str:
     """
     Update the current guest's birthday in the database. If just the year is provided, set the birthday to the first day of that year.
     If the birthday is not in the correct format, raise an exception.
@@ -395,7 +423,7 @@ async def update_guest_birthday(
 
 async def update_guest_phone(
     context: RunContext[SyntheticAgentDeps], phone: str
-) -> None:
+) -> str:
     """
     Update the current guest's phone number in the database.
 
@@ -419,7 +447,7 @@ async def update_guest_phone(
 
 async def update_guest_email(
     context: RunContext[SyntheticAgentDeps], email: str
-) -> None:
+) -> str:
     """
     Update the current guest's email in the database.
 
@@ -443,7 +471,7 @@ async def update_guest_email(
 
 async def update_guest_address(
     context: RunContext[SyntheticAgentDeps], address: str
-) -> None:
+) -> str:
     """
     Update the current guest's address in the database.
 
@@ -467,7 +495,7 @@ async def update_guest_address(
 
 async def update_guest_gender(
     context: RunContext[SyntheticAgentDeps], gender: Literal["male", "female"]
-) -> None:
+) -> str:
     """
     Update the current guest's gender in the database.
 

@@ -17,6 +17,7 @@ export function ChatInput({
   const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   const isInputDisabled = disabled || !isWebSocketConnected;
+  const isTextareaDisabled = !isWebSocketConnected; // Changed: Textarea only disabled if websocket is not connected
   const inputPlaceholder = !isWebSocketConnected
     ? "Đang kết nối lại..."
     : placeholder;
@@ -60,7 +61,7 @@ export function ChatInput({
           className="py-3 px-4 bg-transparent flex-1 min-h-[48px] max-h-[150px] focus:outline-none resize-none text-sm"
           onKeyDown={handleKeyDown}
           onInput={handleInput}
-          disabled={isInputDisabled}
+          disabled={isTextareaDisabled} // Changed: Use isTextareaDisabled for the textarea
           rows={1}
         />
         <button

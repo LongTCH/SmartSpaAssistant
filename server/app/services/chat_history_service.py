@@ -29,3 +29,20 @@ async def agent_messages_to_xml(user_input: str, message_parts: list[MessagePart
         payload_elem = ET.SubElement(message_elem, "payload")
         payload_elem.text = message_part.payload
     return ET.tostring(root, encoding="unicode")
+
+
+async def agent_output_to_xml(message_parts: list[MessagePart]) -> str:
+    """
+    Converts a list of MessagePart objects from an agent's output to an XML string.
+    """
+    root = ET.Element("messages")
+
+    for message_part in message_parts:
+        message_elem = ET.SubElement(root, "message")
+        type_elem = ET.SubElement(message_elem, "type")
+        type_elem.text = message_part.type
+        payload_elem = ET.SubElement(message_elem, "payload")
+        # Ensure payload is a string, as ET.Element.text expects a string
+        payload_elem.text = str(message_part.payload)
+
+    return ET.tostring(root, encoding="unicode")

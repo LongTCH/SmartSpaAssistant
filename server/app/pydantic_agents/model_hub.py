@@ -9,22 +9,25 @@ from pydantic_ai.providers.openai import OpenAIProvider
 from pydantic_ai.providers.openrouter import OpenRouterProvider
 
 ModelName = Literal[
+    "gpt-4o",
     "gpt-4o-mini",
     "deepseek-chat",
-    "gemini-2.0-flash-lite",
-    "gpt-4.1-mini",
-    "gemini-2.0-flash",
-    "gemini-1.5-pro",
-    "gemini-2.5-flash",
-    "gemini-2.5-pro",
-    "qwen-2.5-coder",
-    "o4-mini",
     "gpt-4.1",
+    "gpt-4.1-mini",
+    "gpt-4.1-nano",
+    "o4-mini",
+    "o3",
+    "gemini-2.0-flash",
+    "gemini-2.0-flash-lite",
     "gemini-1.5-flash-8b",
     "gemini-1.5-flash",
-    "gpt-4o",
+    "gemini-1.5-pro",
+    "gemini-2.5-flash",
+    "gemini-2.5-flash-thinking",
+    "gemini-2.5-pro",
+    "qwen-2.5-coder",
     "deepseek-reasoner",
-    "o3",
+    "grok-3-mini-beta",
 ]
 ModelType = Union[OpenAIModel, GeminiModel]
 
@@ -54,10 +57,14 @@ model_hub: Dict[ModelName, ModelType] = {
         "qwen/qwen-2.5-coder-32b-instruct:free",
         provider=OpenRouterProvider(api_key=env_config.OPENROUTER_API_KEY),
     ),
-    "gemini-2.0-flash-lite": OpenAIModel(
+    "gemini-2.5-flash-thinking": OpenAIModel(
+        "google/gemini-2.5-flash-preview-05-20:thinking",
+        provider=OpenRouterProvider(api_key=env_config.OPENROUTER_API_KEY),
+    ),
+    "gemini-2.0-flash-lite": GeminiModel(
         "google/gemini-2.0-flash-lite-001",
-        provider=OpenRouterProvider(
-            api_key=env_config.OPENROUTER_API_KEY,
+        provider=GoogleGLAProvider(
+            api_key=env_config.GEMINI_API_KEY,
         ),
     ),
     "gpt-4.1": OpenAIModel(
@@ -102,10 +109,10 @@ model_hub: Dict[ModelName, ModelType] = {
             api_key=env_config.GEMINI_API_KEY,
         ),
     ),
-    "gemini-1.5-flash": OpenAIModel(
+    "gemini-1.5-flash": GeminiModel(
         "google/gemini-flash-1.5",
-        provider=OpenRouterProvider(
-            api_key=env_config.OPENROUTER_API_KEY,
+        provider=GoogleGLAProvider(
+            api_key=env_config.GEMINI_API_KEY,
         ),
     ),
     "o3": OpenAIModel(
