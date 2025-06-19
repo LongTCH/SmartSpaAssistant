@@ -20,7 +20,7 @@ from fastapi.responses import Response as HttpResponse
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/interests", tags=["Interests"])
+router = APIRouter(prefix="/v1/interests", tags=["Interests"])
 
 
 @router.get(

@@ -188,14 +188,12 @@ class NotificationUploadSuccessResponse(BaseModel):
 
     message: str = Field(..., description="Success message")
     detail: str = Field(..., description="Detailed information about the upload")
-    result: Optional[dict] = Field(None, description="Upload result data")
 
     class Config:
         json_schema_extra = {
             "example": {
                 "message": "Notifications uploaded successfully",
                 "detail": "All notifications from the Excel file have been processed and created.",
-                "result": {},
             }
         }
 

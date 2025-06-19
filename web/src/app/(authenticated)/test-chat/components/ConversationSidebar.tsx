@@ -1,16 +1,9 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import { format } from "date-fns";
-import {
-  ChevronLeft,
-  ChevronRight,
-  Plus,
-  Trash2,
-  Edit2,
-  Check,
-  X,
-} from "lucide-react";
+import { ChevronLeft, ChevronRight, Plus, Trash2 } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
+import { convertUTCToLocal } from "@/lib/helpers";
 import {
   Dialog,
   DialogContent,
@@ -20,13 +13,12 @@ import {
   DialogFooter,
 } from "@/components/ui/dialog"; // DialogClose removed as it's not used directly here, Button is used instead.
 import { Button } from "@/components/ui/button";
-import { Chat } from "@/types/conversation"; // Import global Chat type
 
 export interface Conversation {
   id: string;
-  title: string;
   date: string;
-  messages: Chat[]; // Changed from any[] to Chat[]
+  // Title is now managed in the parent component
+  title?: string;
 }
 
 interface ConversationSidebarProps {
@@ -36,7 +28,6 @@ interface ConversationSidebarProps {
   onNewConversation: (title?: string) => void;
   onDeleteAllConversations: () => void;
   onDeleteConversation: (id: string) => void;
-  onUpdateTitle?: (id: string, newTitle: string) => void;
   sidebarOpen: boolean;
   toggleSidebar: () => void;
   isMobile: boolean;
@@ -49,60 +40,15 @@ export function ConversationSidebar({
   onNewConversation,
   onDeleteAllConversations,
   onDeleteConversation,
-  onUpdateTitle,
   sidebarOpen,
   toggleSidebar,
   isMobile,
 }: ConversationSidebarProps) {
-  const [editingConversationId, setEditingConversationId] = useState<
-    string | null
-  >(null);
-  const [newTitle, setNewTitle] = useState<string>("");
-  const [showNewConversationModal, setShowNewConversationModal] =
-    useState(false);
   const [showDeleteConfirmation, setShowDeleteConfirmation] = useState(false);
   const [conversationToDelete, setConversationToDelete] = useState<
     string | null
   >(null);
   const [isDeletingAll, setIsDeletingAll] = useState(false);
-
-  const handleEditTitle = (conversation: Conversation, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setEditingConversationId(conversation.id);
-    setNewTitle(conversation.title);
-  };
-  const handleSaveTitle = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (editingConversationId && newTitle.trim()) {
-      // Update locally
-      updateConversationTitle(editingConversationId, newTitle.trim());
-
-      // Notify parent component if handler provided
-      if (onUpdateTitle) {
-        onUpdateTitle(editingConversationId, newTitle.trim());
-      }
-      // Duplicate call removed
-      setEditingConversationId(null);
-    }
-  };
-
-  const handleCancelEdit = () => {
-    setEditingConversationId(null);
-  };
-
-  const handleCreateNewConversation = () => {
-    setShowNewConversationModal(true);
-    setNewTitle("New conversation");
-  };
-  const handleStartNewConversation = () => {
-    onNewConversation(newTitle.trim() || "New conversation");
-    // Reset state
-    setShowNewConversationModal(false);
-  };
-
-  const handleCancelNewConversation = () => {
-    setShowNewConversationModal(false);
-  };
 
   const handleDeleteRequest = (id: string) => {
     setConversationToDelete(id);
@@ -151,7 +97,7 @@ export function ConversationSidebar({
                 <h3 className="font-medium text-gray-800">Conversations</h3>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={handleCreateNewConversation}
+                    onClick={() => onNewConversation()}
                     className="p-1.5 rounded-md hover:bg-gray-100"
                     title="New Conversation"
                   >
@@ -178,88 +124,46 @@ export function ConversationSidebar({
                         key={conversation.id} // Add key prop here
                         className="relative"
                       >
-                        {editingConversationId === conversation.id ? (
-                          <form
-                            onSubmit={handleSaveTitle}
-                            className="p-3 bg-white border rounded-lg"
-                          >
-                            <input
-                              type="text"
-                              value={newTitle}
-                              onChange={(e) => setNewTitle(e.target.value)}
-                              className="w-full p-1 border rounded text-sm mb-2 focus:outline-none focus:ring-1 focus:ring-indigo-400"
-                              placeholder="Tên cuộc hội thoại"
-                              autoFocus
-                            />
-                            <div className="flex justify-end space-x-2">
-                              <button
-                                type="button"
-                                onClick={handleCancelEdit}
-                                className="p-1 rounded-md hover:bg-gray-100 text-gray-500"
-                              >
-                                <X size={16} />
-                              </button>
-                              <button
-                                type="submit"
-                                className="p-1 rounded-md hover:bg-gray-100 text-indigo-600"
-                              >
-                                <Check size={16} />
-                              </button>
-                            </div>
-                          </form>
-                        ) : (
-                          <div
-                            onClick={() =>
-                              onConversationSelect(conversation.id)
+                        <div
+                          onClick={() => onConversationSelect(conversation.id)}
+                          className={`group w-full text-left p-3 rounded-lg transition-colors cursor-pointer ${
+                            currentConversationId === conversation.id
+                              ? "bg-indigo-50 text-indigo-700"
+                              : "hover:bg-gray-100 text-gray-700"
+                          }`}
+                          role="button"
+                          tabIndex={0}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              onConversationSelect(conversation.id);
                             }
-                            className={`group w-full text-left p-3 rounded-lg transition-colors cursor-pointer ${
-                              currentConversationId === conversation.id
-                                ? "bg-indigo-50 text-indigo-700"
-                                : "hover:bg-gray-100 text-gray-700"
-                            }`}
-                            role="button"
-                            tabIndex={0}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter" || e.key === " ") {
-                                e.preventDefault();
-                                onConversationSelect(conversation.id);
-                              }
-                            }}
-                          >
-                            <div className="flex items-center justify-between">
-                              <div className="font-medium truncate">
-                                {conversation.title}
-                              </div>
-                              <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
-                                <button
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleDeleteRequest(conversation.id); // Updated
-                                  }}
-                                  className="p-1 rounded-md hover:bg-gray-100 text-red-500 mr-1"
-                                  aria-label={`Delete conversation ${conversation.title}`}
-                                >
-                                  <Trash2 size={14} />
-                                </button>
-                                <button
-                                  onClick={(e) =>
-                                    handleEditTitle(conversation, e)
-                                  }
-                                  className="p-1 rounded-md hover:bg-gray-100"
-                                  aria-label={`Edit title for ${conversation.title}`}
-                                >
-                                  <Edit2 size={14} className="text-gray-500" />
-                                </button>
-                              </div>
+                          }}
+                        >
+                          <div className="flex items-center justify-between">
+                            <div className="font-medium truncate">
+                              {conversation.title}
                             </div>
-                            <div className="text-xs text-gray-500 mt-0.5">
-                              {format(
-                                new Date(conversation.date),
-                                "MMM d, yyyy"
-                              )}
+                            <div className="flex items-center opacity-0 group-hover:opacity-100 transition-opacity">
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleDeleteRequest(conversation.id); // Updated
+                                }}
+                                className="p-1 rounded-md hover:bg-gray-100 text-red-500 mr-1"
+                                aria-label={`Delete conversation ${conversation.title}`}
+                              >
+                                <Trash2 size={14} />
+                              </button>
                             </div>
+                          </div>{" "}
+                          <div className="text-xs text-gray-500 mt-0.5">
+                            {format(
+                              convertUTCToLocal(conversation.date),
+                              "MMM d, yyyy"
+                            )}
                           </div>
-                        )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -354,10 +258,10 @@ export function ConversationSidebar({
                             >
                               <div className="font-medium truncate">
                                 {conversation.title}
-                              </div>
+                              </div>{" "}
                               <div className="text-xs text-gray-500 mt-0.5">
                                 {format(
-                                  new Date(conversation.date),
+                                  convertUTCToLocal(conversation.date),
                                   "MMM d, yyyy"
                                 )}
                               </div>
@@ -396,15 +300,6 @@ export function ConversationSidebar({
         </AnimatePresence>
       )}
 
-      {/* New Conversation Modal */}
-      <NewConversationModal
-        isOpen={showNewConversationModal}
-        onClose={handleCancelNewConversation}
-        onSave={handleStartNewConversation}
-        initialTitle={newTitle}
-        onTitleChange={setNewTitle}
-      />
-
       {/* Delete Confirmation Modal */}
       <Dialog
         open={showDeleteConfirmation}
@@ -436,73 +331,10 @@ export function ConversationSidebar({
   );
 }
 
-// Modal component for creating new conversation
-function NewConversationModal({
-  isOpen,
-  onClose,
-  onSave,
-  initialTitle,
-  onTitleChange,
-}: {
-  isOpen: boolean;
-  onClose: () => void;
-  onSave: () => void;
-  initialTitle: string;
-  onTitleChange: (title: string) => void;
-}) {
-  const [title, setTitle] = useState(initialTitle);
-
-  useEffect(() => {
-    if (isOpen) {
-      setTitle(initialTitle);
-    }
-  }, [isOpen, initialTitle]);
-
-  if (!isOpen) return null;
-
-  return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-      <div className="bg-white rounded-lg p-6 w-full max-w-md">
-        <h2 className="text-xl font-semibold mb-4">New Conversation</h2>
-        <div className="mb-4">
-          <label className="block text-sm font-medium text-gray-700 mb-1">
-            Conversation Title
-          </label>
-          <input
-            type="text"
-            value={title}
-            onChange={(e) => {
-              setTitle(e.target.value);
-              onTitleChange(e.target.value);
-            }}
-            className="w-full p-2 border rounded focus:outline-none focus:ring-1 focus:ring-indigo-400"
-            placeholder="Enter a title for your conversation"
-            autoFocus
-          />
-        </div>
-        <div className="flex justify-end space-x-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 border rounded hover:bg-gray-50"
-          >
-            Cancel
-          </button>
-          <button
-            onClick={onSave}
-            className="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700"
-          >
-            Start Conversation
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 export function saveConversation(conversation: Conversation): void {
   try {
     const existingConversationsJson = localStorage.getItem("conversations");
-    const conversations = existingConversationsJson
+    const conversations: Conversation[] = existingConversationsJson
       ? JSON.parse(existingConversationsJson)
       : [];
 
@@ -510,10 +342,16 @@ export function saveConversation(conversation: Conversation): void {
       (c: Conversation) => c.id === conversation.id
     );
 
+    // Only store id and date
+    const conversationToStore = {
+      id: conversation.id,
+      date: conversation.date,
+    };
+
     if (existingIndex !== -1) {
-      conversations[existingIndex] = conversation;
+      conversations[existingIndex] = conversationToStore;
     } else {
-      conversations.push(conversation);
+      conversations.push(conversationToStore);
     }
     localStorage.setItem("conversations", JSON.stringify(conversations));
   } catch {}

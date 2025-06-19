@@ -11,7 +11,7 @@ from app.services.clients.qdrant import create_qdrant_client
 from app.utils.rag_utils import markdown_splitter
 from fastembed import SparseEmbedding, SparseTextEmbedding
 from qdrant_client import models
-from qdrant_client.http.models import PointStruct
+from qdrant_client.http.models import PointStruct, ScoredPoint
 from qdrant_client.models import (
     FieldCondition,
     Filter,
@@ -95,8 +95,8 @@ async def get_scripts_points_special_chunk(scripts: list[Script]):
     for script in scripts:
         if script.status != "published":
             continue
-        # split script description by comma and strip each part
-        questions = [q.strip() for q in script.description.split(",")]
+        # split script description by newlines and strip each part
+        questions = [q.strip() for q in script.description.split("\n") if q.strip()]
         for question in questions:
             if not question:
                 continue
@@ -108,14 +108,14 @@ async def get_scripts_points_special_chunk(scripts: list[Script]):
                 )
             ]
             chunks.extend(script_chunks)
-        solution_chunks = [
-            ScriptChunkDto(
-                script_id=script.id,
-                script_name=script.name,
-                chunk=script.solution,
-            )
-        ]
-        chunks.extend(solution_chunks)
+        # solution_chunks = [
+        #     ScriptChunkDto(
+        #         script_id=script.id,
+        #         script_name=script.name,
+        #         chunk=script.solution,
+        #     )
+        # ]
+        # chunks.extend(solution_chunks)
     for i in range(0, len(chunks), batch_embedding_size):
         batch_chunks = chunks[i : i + batch_embedding_size]
         points.extend(await get_points_struct_for_embedding(batch_chunks))
@@ -194,34 +194,7 @@ async def search_script_chunks(query: str, limit: int = 5) -> list[Script]:
         count_db_scripts = await script_repository.count_scripts(session)
         if count_db_scripts < limit:
             return await script_repository.get_all_scripts(session)
-        client = create_qdrant_client()
-        sparse_embeddings: Iterable[SparseEmbedding] = (
-            sparse_embedding_model.query_embed(query)
-        )
-        sparse_embedding = next(iter(sparse_embeddings))
-        dense_embeddings = await jina.get_embeddings(query)
-        search_result = await client.query_points(
-            collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
-            query=models.FusionQuery(
-                fusion=models.Fusion.RRF  # we are using reciprocal rank fusion here
-            ),
-            prefetch=[
-                models.Prefetch(
-                    query=dense_embeddings[0],
-                    using="jina",
-                ),
-                models.Prefetch(
-                    query=models.SparseVector(
-                        indices=sparse_embedding.indices.tolist(),
-                        values=sparse_embedding.values.tolist(),
-                    ),
-                    using="bm25",
-                ),
-            ],
-            score_threshold=0.5,
-            limit=1000,
-        )
-        search_result = search_result.points
+        search_result = await query_script_points(query, limit)
 
         # Tạo dict để lưu script_id và điểm cao nhất
         script_scores = {}
@@ -242,18 +215,60 @@ async def search_script_chunks(query: str, limit: int = 5) -> list[Script]:
             lambda session: script_repository.get_scripts_by_ids(session, script_ids)
         )
         final_scripts = {}
-        count = 0
+        # count = 0
         for script in scripts:
             if script.id not in final_scripts:
                 final_scripts[script.id] = script
-                count += 1
-                if count >= limit:
-                    break
+                # count += 1
+                # if count >= limit:
+                #     break
             related_scripts = script.related_scripts
             for related_script in related_scripts:
                 if related_script.id not in final_scripts:
                     final_scripts[related_script.id] = related_script
-                    count += 1
-                    if count >= limit:
-                        break
+                    # count += 1
+                    # if count >= limit:
+                    #     break
         return list(final_scripts.values())
+
+
+async def test_search_script_chunks(query: str, limit: int = 5):
+    async with async_session() as session:
+        search_result = await query_script_points(query, limit)
+        return [
+            {
+                "content": point.payload["content"],
+                "similarity_score": point.score,
+                "script_name": point.payload["script_name"],
+            }
+            for point in search_result
+        ]
+
+
+async def query_script_points(query: str, limit: int = 5) -> list[ScoredPoint]:
+    client = create_qdrant_client()
+    sparse_embeddings: Iterable[SparseEmbedding] = sparse_embedding_model.query_embed(
+        query
+    )
+    sparse_embedding = next(iter(sparse_embeddings))
+    dense_embeddings = await jina.get_embeddings(query)
+    search_result = await client.query_points(
+        collection_name=env_config.QDRANT_SCRIPT_COLLECTION_NAME,
+        query=models.FusionQuery(fusion=models.Fusion.DBSF),
+        prefetch=[
+            models.Prefetch(
+                query=dense_embeddings[0],
+                using="jina",
+            ),
+            models.Prefetch(
+                query=models.SparseVector(
+                    indices=sparse_embedding.indices.tolist(),
+                    values=sparse_embedding.values.tolist(),
+                ),
+                using="bm25",
+            ),
+        ],
+        score_threshold=0.5,
+        limit=limit,
+    )
+    return search_result.points

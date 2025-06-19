@@ -34,9 +34,14 @@ export function WebSocketHandler() {
 
   useEffect(() => {
     if (!isLoggedIn) return;
-
     const connectWebSocket = () => {
-      const wsUrl = process.env.NEXT_PUBLIC_WS_URL || "ws://localhost:8080/ws";
+      const wsUrl = process.env.NEXT_PUBLIC_WS_URL;
+
+      // Return early if websocket URL is empty or undefined
+      if (!wsUrl) {
+        return;
+      }
+
       const ws = new WebSocket(wsUrl);
 
       ws.onopen = () => {

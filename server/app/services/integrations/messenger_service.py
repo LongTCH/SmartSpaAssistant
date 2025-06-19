@@ -218,12 +218,10 @@ async def handle_chat(sender_psid, message, guest: Guest):
     """Handle chat with optional db session"""
 
     if message:
+        await send_action(sender_psid, SENDER_ACTION["mark_seen"])
+        # Start typing indicator in a background task
+        typing_task = asyncio.create_task(keep_typing(sender_psid))
         try:
-            await send_action(sender_psid, SENDER_ACTION["mark_seen"])
-
-            # Start typing indicator in a background task
-            typing_task = asyncio.create_task(keep_typing(sender_psid))
-
             # Handle the message
             message_parts = await invoke_agent(guest.id, message)
             # cancel typing task
@@ -232,12 +230,10 @@ async def handle_chat(sender_psid, message, guest: Guest):
             # send typing_off action
             await send_action(sender_psid, SENDER_ACTION["typing_off"])
 
-            for part in message_parts:
+            for i, part in enumerate(message_parts):
                 if part.type == "text":
-                    part.payload = markdown_to_messenger(part.payload)
-
-            for part in message_parts:
-                if part.type == "text" or part.type == "link":
+                    response = {"text": markdown_to_messenger(part.payload)}
+                elif part.type == "link":
                     response = {"text": part.payload}
                 else:
                     response = {
@@ -253,11 +249,21 @@ async def handle_chat(sender_psid, message, guest: Guest):
                 await call_send_api(sender_psid, response)
                 await send_agent_response_ws(
                     guest.id,
-                    response.get("text", ""),
+                    part.payload if part.type == "text" or part.type == "link" else "",
                     response.get("attachments", []),
                     datetime.now(),
                 )
-                await asyncio.sleep(DELAY_BETWEEN_MESSAGES)
+
+                # Tính delay dựa vào số ký tự của part tiếp theo
+                if i < len(message_parts) - 1:  # Nếu không phải part cuối cùng
+                    next_part = message_parts[i + 1]
+                    char_count = len(str(next_part.payload))
+                    # Cứ 100 ký tự thì đợi 1 giây, tối thiểu 0.5 giây
+                    delay_time = max(0.5, char_count / 100)
+                    delay_typing = asyncio.create_task(keep_typing(sender_psid))
+                    await asyncio.sleep(delay_time)
+                    delay_typing.cancel()
+                    await send_action(sender_psid, SENDER_ACTION["typing_off"])
 
         except Exception as e:
             print(f"Error in handle_chat: {e}")

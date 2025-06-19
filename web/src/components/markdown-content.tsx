@@ -47,29 +47,31 @@ export function MarkdownContent({
   className = "",
   isDarkTheme = false,
 }: MarkdownContentProps) {
+  // Xử lý content để chuyển đổi \n thành hard break mà không ảnh hưởng đến paragraph
+  const processedContent = content.replace(/([^\n])\n([^\n])/g, "$1  \n$2");
   // Xác định các lớp CSS dựa trên theme sáng/tối
   const themeClasses = {
-    // Text colors
-    text: isDarkTheme ? "text-gray-100" : "text-gray-800",
-    textMuted: isDarkTheme ? "text-gray-300" : "text-gray-600",
+    // Text colors - isDarkTheme = true means user message (white text on blue bg)
+    text: isDarkTheme ? "text-white" : "text-gray-800",
+    textMuted: isDarkTheme ? "text-white/80" : "text-gray-600",
 
     // Background colors
     bg: isDarkTheme ? "bg-gray-800" : "bg-white",
     bgSecondary: isDarkTheme ? "bg-gray-700" : "bg-gray-100",
-    bgCode: isDarkTheme ? "bg-gray-900" : "bg-gray-100",
+    bgCode: isDarkTheme ? "bg-black/20" : "bg-gray-100",
 
     // Border colors
-    border: isDarkTheme ? "border-gray-600" : "border-gray-300",
+    border: isDarkTheme ? "border-white/20" : "border-gray-300",
 
     // Link colors
     link: isDarkTheme
-      ? "text-blue-300 hover:text-blue-200"
+      ? "text-white hover:text-white/80 underline"
       : "text-blue-600 hover:text-blue-800",
 
     // Code block colors
-    codeText: isDarkTheme ? "text-gray-100" : "text-gray-800",
+    codeText: isDarkTheme ? "text-white" : "text-gray-800",
     codeInline: isDarkTheme
-      ? "bg-gray-700 text-gray-100"
+      ? "bg-black/20 text-white"
       : "bg-gray-100 text-gray-800",
   };
 
@@ -107,7 +109,7 @@ export function MarkdownContent({
         className={`${themeClasses.link} hover:underline`}
       />
     ),
-    p: ({ ...props }) => <p className="mb-4 last:mb-0" {...props} />,
+    p: ({ ...props }) => <p {...props} />,
     h1: ({ ...props }) => <h1 className="text-xl font-bold mb-2" {...props} />,
     h2: ({ ...props }) => <h2 className="text-lg font-bold mb-2" {...props} />,
     h3: ({ ...props }) => (
@@ -152,9 +154,7 @@ export function MarkdownContent({
     ),
     strong: ({ ...props }) => <strong className="font-bold" {...props} />,
     em: ({ ...props }) => <em className="italic" {...props} />,
-  };
-
-  // Loại bỏ prop className khỏi ReactMarkdown và đặt nó vào div wrapper
+  }; // Loại bỏ prop className khỏi ReactMarkdown và đặt nó vào div wrapper
   return (
     <div className={`${className} ${themeClasses.text}`}>
       <ReactMarkdown
@@ -163,7 +163,7 @@ export function MarkdownContent({
         // @ts-expect-error - Bỏ qua lỗi TypeScript cho components
         components={components}
       >
-        {content}
+        {processedContent}
       </ReactMarkdown>
     </div>
   );

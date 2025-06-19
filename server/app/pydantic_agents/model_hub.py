@@ -17,12 +17,13 @@ ModelName = Literal[
     "gpt-4.1-nano",
     "o4-mini",
     "o3",
+    "o3-mini",
     "gemini-2.0-flash",
     "gemini-2.0-flash-lite",
     "gemini-1.5-flash-8b",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-2.5-flash",
+    "gemini-2.5-flash-lite" "gemini-2.5-flash",
     "gemini-2.5-flash-thinking",
     "gemini-2.5-pro",
     "qwen-2.5-coder",
@@ -45,6 +46,26 @@ model_hub: Dict[ModelName, ModelType] = {
         "gpt-4.1-nano",
         provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
     ),
+    "gpt-4.1": OpenAIModel(
+        "gpt-4.1",
+        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
+    ),
+    "gpt-4.1-mini": OpenAIModel(
+        "gpt-4.1-mini",
+        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
+    ),
+    "o4-mini": OpenAIModel(
+        "o4-mini",
+        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
+    ),
+    "o3": OpenAIModel(
+        "o3",
+        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
+    ),
+    "o3-mini": OpenAIModel(
+        "o3-mini",
+        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
+    ),
     "deepseek-chat": OpenAIModel(
         "deepseek-chat",
         provider=DeepSeekProvider(api_key=env_config.DEEPSEEK_API_KEY),
@@ -61,23 +82,17 @@ model_hub: Dict[ModelName, ModelType] = {
         "google/gemini-2.5-flash-preview-05-20:thinking",
         provider=OpenRouterProvider(api_key=env_config.OPENROUTER_API_KEY),
     ),
-    "gemini-2.0-flash-lite": GeminiModel(
-        "google/gemini-2.0-flash-lite-001",
+    "gemini-2.5-flash-lite": GeminiModel(
+        "gemini-2.5-flash-lite-preview-06-17",
         provider=GoogleGLAProvider(
             api_key=env_config.GEMINI_API_KEY,
         ),
     ),
-    "gpt-4.1": OpenAIModel(
-        "gpt-4.1",
-        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
-    ),
-    "gpt-4.1-mini": OpenAIModel(
-        "gpt-4.1-mini",
-        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
-    ),
-    "o4-mini": OpenAIModel(
-        "o4-mini",
-        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
+    "gemini-2.0-flash-lite": GeminiModel(
+        "gemini-2.0-flash-lite",
+        provider=GoogleGLAProvider(
+            api_key=env_config.GEMINI_API_KEY,
+        ),
     ),
     "gemini-2.0-flash": GeminiModel(
         "gemini-2.0-flash",
@@ -110,13 +125,9 @@ model_hub: Dict[ModelName, ModelType] = {
         ),
     ),
     "gemini-1.5-flash": GeminiModel(
-        "google/gemini-flash-1.5",
+        "gemini-flash-1.5",
         provider=GoogleGLAProvider(
             api_key=env_config.GEMINI_API_KEY,
         ),
-    ),
-    "o3": OpenAIModel(
-        "o3",
-        provider=OpenAIProvider(api_key=env_config.OPENAI_API_KEY),
     ),
 }

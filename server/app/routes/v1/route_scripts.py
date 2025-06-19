@@ -19,7 +19,7 @@ from fastapi.responses import Response as HttpResponse
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/scripts", tags=["Scripts"])
+router = APIRouter(prefix="/v1/scripts", tags=["Scripts"])
 
 
 @router.get(
@@ -339,7 +339,10 @@ async def upload_script(
 
         file_contents = await file.read()
         script_ids = await script_service.insert_scripts_from_excel(db, file_contents)
+
+        # Chạy RAG service trong background (non-blocking)
         asyncio_utils.run_background(script_rag_service.insert_scripts, script_ids)
+
         return UploadSuccessResponse(
             message="Scripts uploaded successfully.", script_ids=script_ids
         )
@@ -391,6 +394,8 @@ async def insert_script(
     """
     try:
         new_script_id = await script_service.insert_script(db, script_data.model_dump())
+
+        # Chạy RAG service trong background (non-blocking)
         asyncio_utils.run_background(script_rag_service.insert_script, new_script_id)
 
         created_script = await script_service.get_script_by_id(db, new_script_id)
@@ -445,6 +450,8 @@ async def update_script(
         await script_service.update_script(
             db, script_id, script_data.model_dump(exclude_unset=True)
         )
+
+        # Chạy RAG service trong background (non-blocking)
         asyncio_utils.run_background(script_rag_service.update_script, script_id)
 
         updated_script = await script_service.get_script_by_id(db, script_id)
@@ -483,7 +490,10 @@ async def delete_script(script_id: str, db: AsyncSession = Depends(get_session))
     """
     try:
         await script_service.delete_script(db, script_id)
+
+        # Chạy RAG service trong background (non-blocking)
         asyncio_utils.run_background(script_rag_service.delete_script, script_id)
+
         return HttpResponse(status_code=status.HTTP_204_NO_CONTENT)
     except HTTPException:  # If service raises HTTPException (e.g. 404)
         raise
@@ -527,7 +537,10 @@ async def delete_multiple_scripts(
             )
 
         await script_service.delete_multiple_scripts(db, script_ids)
+
+        # Chạy RAG service trong background (non-blocking)
         asyncio_utils.run_background(script_rag_service.delete_scripts, script_ids)
+
         return HttpResponse(status_code=status.HTTP_204_NO_CONTENT)
     except HTTPException:
         raise

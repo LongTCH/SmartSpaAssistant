@@ -8,8 +8,11 @@
 # Start all services for development
 docker-compose up -d
 
-# View logs
+# View all logs
 docker-compose logs -f
+
+# View logs for a specific service (e.g., server, client)
+docker-compose logs -f <service_name>
 
 # Stop services
 docker-compose down
@@ -21,8 +24,11 @@ docker-compose down
 # Deploy to production
 docker-compose -f docker-compose.production.yml up -d
 
-# View logs
+# View all logs
 docker-compose -f docker-compose.production.yml logs -f
+
+# View logs for a specific service (e.g., server, client)
+docker-compose -f docker-compose.production.yml logs -f <service_name>
 
 # Stop services
 docker-compose -f docker-compose.production.yml down
@@ -30,15 +36,14 @@ docker-compose -f docker-compose.production.yml down
 
 ### Reset Database (Optional)
 
-```bash
-# Local development - Uses Dockerfile.dev with development dependencies (includes Faker)
-docker-compose --profile tools up reset-db
+To reset the database with sample data, execute the following command, which runs the reset script directly within the `server` container:
 
-# Production - Uses Dockerfile.dev with development dependencies (includes Faker)
-docker-compose -f docker-compose.production.yml --profile tools up reset-db
+```bash
+# Run the database reset script in the development server container
+docker-compose exec server python sampling/reset_db.py
 ```
 
-**Note**: The reset-db service uses `Dockerfile.dev` which includes both production and development dependencies (like `Faker`) required for generating sample data.
+**Note**: This command is intended for a development environment where the server container is built with development dependencies (`Faker`, etc.). The production server does not include these dependencies.
 
 ## Architecture
 
@@ -46,10 +51,9 @@ docker-compose -f docker-compose.production.yml --profile tools up reset-db
 
 - **Database**: PostgreSQL with PGroonga extension for full-text search
 - **Vector DB**: Qdrant for embeddings and vector search
-- **Backend**: FastAPI server using standard Dockerfile (production dependencies only)
+- **Backend**: FastAPI server using `Dockerfile.dev` with both production and development dependencies.
 - **Frontend**: Next.js with development server and hot reload (Dockerfile.dev)
 - **Proxy**: Nginx with HTTP-only configuration for localhost
-- **Reset Tool**: Database reset utility using Dockerfile.dev (includes development dependencies like Faker)
 
 ### Production (`docker-compose.production.yml`)
 
@@ -58,7 +62,6 @@ docker-compose -f docker-compose.production.yml --profile tools up reset-db
 - **Backend**: FastAPI server optimized for production (standard Dockerfile)
 - **Frontend**: Next.js production build (standard Dockerfile)
 - **Proxy**: Nginx with HTTPS/SSL configuration
-- **Reset Tool**: Database reset utility using Dockerfile.dev (includes development dependencies like Faker)
 
 ## Docker Files
 
@@ -111,12 +114,6 @@ docker-compose up -d --build
 # Build specific services
 docker-compose build server  # Uses Dockerfile
 docker-compose build client  # Uses Dockerfile.dev
-docker-compose build reset-db  # Uses Dockerfile.dev
-
-# View specific service logs
-docker-compose logs -f server
-docker-compose logs -f client
-docker-compose logs -f nginx
 
 # Execute commands in containers
 docker-compose exec server bash
@@ -124,18 +121,9 @@ docker-compose exec client sh
 
 # Stop and remove everything
 docker-compose down -v
-
-# Reset database with sample data
-docker-compose --profile tools up reset-db --build
 ```
 
 ## Troubleshooting
-
-### Reset-db service fails with "ModuleNotFoundError: No module named 'faker'"
-
-- Make sure you're using the latest build of reset-db service
-- The reset-db service should use `Dockerfile.dev` which includes development dependencies
-- Run: `docker-compose build reset-db` then `docker-compose --profile tools up reset-db`
 
 ### Environment files not found in containers
 

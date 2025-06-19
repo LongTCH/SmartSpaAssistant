@@ -2,6 +2,7 @@
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ChatContent, Conversation, ProviderType } from "@/types";
+import { convertUTCToLocal } from "@/lib/helpers";
 import Image from "next/image";
 
 export default function ConversationInfo({
@@ -17,7 +18,8 @@ export default function ConversationInfo({
 }) {
   const getTimeDifference = (date: string) => {
     const now = new Date();
-    const messageDate = new Date(date);
+    // Convert UTC time from server to local timezone using helper function
+    const messageDate = convertUTCToLocal(date);
     const timeDiff = now.getTime() - messageDate.getTime();
     const seconds = Math.floor(timeDiff / 1000);
     const minutes = Math.floor(seconds / 60);

@@ -54,7 +54,7 @@ export function ChatInput({
   return (
     <div className="p-3 bg-white">
       {" "}
-      <div className="bg-gray-50 rounded-lg border flex items-end overflow-hidden focus-within:ring-2 focus-within:ring-indigo-300 focus-within:border-indigo-400 transition-all shadow-sm">
+      <div className="bg-gray-50 rounded-lg border flex items-stretch overflow-hidden focus-within:ring-2 focus-within:ring-indigo-300 focus-within:border-indigo-400 transition-all shadow-sm">
         <textarea
           ref={textareaRef}
           placeholder={inputPlaceholder}
@@ -67,7 +67,7 @@ export function ChatInput({
         <button
           onClick={handleSendMessage}
           disabled={isInputDisabled}
-          className={`px-4 py-3 text-white rounded-tr-lg rounded-br-lg flex-shrink-0 transition-colors ${
+          className={`px-4 text-white rounded-tr-lg rounded-br-lg flex-shrink-0 transition-colors flex items-center justify-center ${
             isInputDisabled
               ? "bg-gray-300"
               : "bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700"

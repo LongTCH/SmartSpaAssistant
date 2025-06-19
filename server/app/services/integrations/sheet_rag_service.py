@@ -6,7 +6,9 @@ from app.configs.database import async_session
 from app.dtos import SheetChunkDto
 from app.models import Sheet
 from app.repositories import sheet_repository
+from app.services.clients import jina
 from app.services.clients.qdrant import create_qdrant_client
+from app.utils import rag_utils
 from fastembed import SparseEmbedding, SparseTextEmbedding
 from qdrant_client import models
 from qdrant_client.http.models import (
@@ -15,6 +17,7 @@ from qdrant_client.http.models import (
     FilterSelector,
     MatchAny,
     MatchValue,
+    ScoredPoint,
 )
 from qdrant_client.models import PointStruct
 
@@ -63,26 +66,6 @@ def get_sheet_row_content_all_column(row: dict) -> str:
     return result.strip()
 
 
-async def get_chunks(
-    sheet_name: str, table_name: str, columns: list[str]
-) -> list[Sheet]:
-    async with async_session() as session:
-        rows = await sheet_repository.get_all_rows_with_sheet_and_columns(
-            session, table_name, columns
-        )
-        return [
-            SheetChunkDto(
-                sheet_id=str(uuid.uuid4()),
-                sheet_name=sheet_name,
-                chunk=get_sheet_row_content(row, columns),
-            )
-            for row in rows
-        ]
-
-
-# Using the imported create_qdrant_client function from app.services.clients.qdrant
-
-
 async def upsert_points(points: list[PointStruct]):
     client = create_qdrant_client()
     await client.upsert(
@@ -91,42 +74,25 @@ async def upsert_points(points: list[PointStruct]):
     )
 
 
-async def insert_sheet_only_text_column(sheet_id: str) -> None:
-    async with async_session() as session:
-        sheet: Sheet = await sheet_repository.get_sheet_by_id(session, sheet_id)
-        table_name = sheet.table_name
-        column_config = sheet.column_config
-        text_data_columns = [
-            column["column_name"]
-            for column in column_config
-            if column["column_type"] in ["String", "Text"]
-        ]
-        if len(text_data_columns) == 0:
-            return None
-        text_data_columns.append("id")
-        sheet_chunks = await get_chunks(sheet.name, table_name, text_data_columns)
-        batch_size = 32
-        for i in range(0, len(sheet_chunks), batch_size):
-            points = await get_points_struct_for_embedding(
-                sheet_chunks[i : i + batch_size]
-            )
-            await upsert_points(points)
-
-
 async def insert_sheet(sheet_id: str) -> None:
     async with async_session() as session:
         sheet: Sheet = await sheet_repository.get_sheet_by_id(session, sheet_id)
         table_name = sheet.table_name
         rows = await sheet_repository.get_all_rows_of_sheet(session, table_name)
-        sheet_chunks = [
-            SheetChunkDto(
-                id=row["id"],
-                sheet_id=sheet.id,
-                sheet_name=sheet.name,
-                chunk=get_sheet_row_content_all_column(row),
+        sheet_chunks = []
+        for row in rows:
+            texts = await rag_utils.markdown_splitter(
+                get_sheet_row_content_all_column(row), 500, 10
             )
-            for row in rows
-        ]
+            for index, text in enumerate(texts):
+                sheet_chunks.append(
+                    SheetChunkDto(
+                        sheet_id=sheet.id,
+                        sheet_name=sheet.name,
+                        chunk=text,
+                        id=f"{row['id']}_{index}",  # Unique ID for each chunk
+                    )
+                )
         batch_size = 100
         for i in range(0, len(sheet_chunks), batch_size):
             points = await get_points_struct_for_embedding(
@@ -162,31 +128,79 @@ async def delete_sheets(sheet_ids: list[str]) -> None:
 async def search_chunks_by_sheet_id(
     sheet_id: str, query: str, limit: int = 5
 ) -> list[SheetChunkDto]:
+    search_result = await query_sheet_points(query, sheet_id, 100)
+    item_ids = set()
+    count = 0
+    for point in search_result:
+        id = point.payload["id"].split("_")[0]  # Get the first part of the ID
+        if id not in item_ids:
+            item_ids.add(id)
+        count += 1
+        if count >= limit:
+            break
+    async with async_session() as session:
+        sheet: Sheet = await sheet_repository.get_sheet_by_id(session, sheet_id)
+        if not sheet:
+            return []
+        # Convert string IDs to integers before passing to repository
+        int_item_ids = [int(id) for id in item_ids]
+        items = await sheet_repository.get_rows_with_ids(
+            session, sheet.table_name, int_item_ids
+        )
+        return [
+            SheetChunkDto(
+                sheet_id=sheet_id,
+                sheet_name=sheet.name,
+                chunk=get_sheet_row_content_all_column(item),
+                id=str(item["id"]),
+            )
+            for item in items
+        ]
+
+
+async def test_search_chunks_by_sheet_id(sheet_id: str, query: str, limit: int = 5):
+    # search_result = await query_sheet_points(query, sheet_id, limit)
+    # return [
+    #     {
+    #         "sheet_id": point.payload["sheet_id"],
+    #         "sheet_name": point.payload["sheet_name"],
+    #         "content": point.payload["content"],
+    #         "id": point.payload["id"],
+    #         "score": point.score,
+    #     }
+    #     for point in search_result
+    # ]
+    return await search_chunks_by_sheet_id(sheet_id, query, limit)
+
+
+async def query_sheet_points(
+    query: str, sheet_id: str, limit: int = 5
+) -> list[ScoredPoint]:
     client = create_qdrant_client()
     sparse_embeddings: Iterable[SparseEmbedding] = sparse_embedding_model.query_embed(
         query
     )
     sparse_embedding = next(iter(sparse_embeddings))
+    dense_embeddings = await jina.get_embeddings(query)
     search_result = await client.query_points(
         collection_name=env_config.QDRANT_SHEET_COLLECTION_NAME,
-        query=models.SparseVector(
-            indices=sparse_embedding.indices.tolist(),
-            values=sparse_embedding.values.tolist(),
-        ),
-        using="bm25",
+        prefetch=[
+            models.Prefetch(
+                query=dense_embeddings[0],
+                using="jina",
+            ),
+            models.Prefetch(
+                query=models.SparseVector(
+                    indices=sparse_embedding.indices.tolist(),
+                    values=sparse_embedding.values.tolist(),
+                ),
+                using="bm25",
+            ),
+        ],
+        query=models.FusionQuery(fusion=models.Fusion.RRF),
         query_filter=Filter(
             must=[FieldCondition(key="sheet_id", match=MatchValue(value=sheet_id))]
         ),
         limit=limit,
-        score_threshold=0.9,
     )
-    search_result = search_result.points
-    return [
-        SheetChunkDto(
-            sheet_id=point.payload["sheet_id"],
-            sheet_name=point.payload["sheet_name"],
-            chunk=point.payload["content"],
-            id=point.payload["id"],
-        )
-        for point in search_result
-    ]
+    return search_result.points

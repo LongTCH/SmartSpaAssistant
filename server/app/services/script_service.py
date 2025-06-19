@@ -396,10 +396,17 @@ async def agent_scripts_to_xml(scripts: list[Script]) -> str:
     for script in scripts:
         script_elem = ET.SubElement(root, "script")
 
-        description = ET.SubElement(script_elem, "description")
-        description.text = script.description
+        questions_elem = ET.SubElement(script_elem, "questions")
 
-        solution = ET.SubElement(script_elem, "solution")
-        solution.text = script.solution
+        # Split description by newlines and create question elements
+        question_lines = script.description.split("\n")
+        for question_line in question_lines:
+            question_line = question_line.strip()
+            if question_line:  # Only add non-empty questions
+                question_elem = ET.SubElement(questions_elem, "question")
+                question_elem.text = question_line
+
+        information = ET.SubElement(script_elem, "information")
+        information.text = script.solution
 
     return ET.tostring(root, encoding="unicode")

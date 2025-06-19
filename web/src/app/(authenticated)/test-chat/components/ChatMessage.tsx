@@ -1,25 +1,28 @@
 import { Bot } from "lucide-react";
-import { motion } from "framer-motion";
 // marked is imported but not used, consider removing if not needed elsewhere.
 // import { marked } from "marked";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { MarkdownContent } from "@/components/markdown-content";
 import { Chat } from "@/types/conversation"; // Import Chat type
 import { AttachmentViewer } from "@/components/attachment-viewer"; // Import AttachmentViewer
+import { convertUTCToLocal } from "@/lib/helpers";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 interface ChatMessageProps {
   message: Chat; // Changed from Message to Chat
-  index: number;
+  index?: number; // Make optional since it's not used
 }
 
-export function ChatMessage({ message, index }: ChatMessageProps) {
+export function ChatMessage({ message }: ChatMessageProps) {
   const isSenderClient = message.content.side === "client";
+  const messageDate = convertUTCToLocal(message.created_at); // Convert UTC to local
 
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.3, delay: index * 0.05 }}
+    <div
       className={`flex ${
         isSenderClient ? "justify-end" : "justify-start" // Use isSenderClient
       }`}
@@ -31,86 +34,112 @@ export function ChatMessage({ message, index }: ChatMessageProps) {
             <AvatarFallback>AI</AvatarFallback>
           </Avatar>
           <div>
-            <div className="bg-gray-200 p-3 rounded-lg shadow-sm">
-              <MarkdownContent
-                content={message.content.message.text} // Use message.content.message.text
-                className="text-sm"
-                isDarkTheme={false}
-              />
-              {message.content.message.attachments &&
-                message.content.message.attachments.length > 0 && (
-                  <div className="mt-2">
-                    <AttachmentViewer
-                      attachments={message.content.message.attachments}
-                      isDarkTheme={false}
-                    />
-                  </div>
-                )}
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="bg-gray-200 p-3 rounded-lg shadow-sm">
+                  <MarkdownContent
+                    content={message.content.message.text} // Use message.content.message.text
+                    className="text-sm"
+                    isDarkTheme={false}
+                  />
+                  {message.content.message.attachments &&
+                    message.content.message.attachments.length > 0 && (
+                      <div className="mt-2">
+                        <AttachmentViewer
+                          attachments={message.content.message.attachments}
+                          isDarkTheme={false}
+                        />
+                      </div>
+                    )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="left">
+                <p>
+                  {messageDate.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}{" "}
+                  {messageDate.toLocaleDateString([], {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  })}
+                </p>
+              </TooltipContent>
+            </Tooltip>
           </div>
         </div>
       ) : (
         // Client/User Message (Dark Theme)
         <div className="flex items-start justify-end space-x-2 max-w-[80%] ml-auto">
           <div>
-            <div className="bg-indigo-500 p-3 rounded-lg shadow-sm">
-              <MarkdownContent
-                content={message.content.message.text} // Use message.content.message.text
-                className="text-sm"
-                isDarkTheme={true}
-              />
-              {message.content.message.attachments &&
-                message.content.message.attachments.length > 0 && (
-                  <div className="mt-2">
-                    <AttachmentViewer
-                      attachments={message.content.message.attachments}
-                      isDarkTheme={true}
-                    />
-                  </div>
-                )}
-            </div>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <div className="bg-indigo-500 p-3 rounded-lg shadow-sm">
+                  <MarkdownContent
+                    content={message.content.message.text} // Use message.content.message.text
+                    className="text-sm"
+                    isDarkTheme={true}
+                  />
+                  {message.content.message.attachments &&
+                    message.content.message.attachments.length > 0 && (
+                      <div className="mt-2">
+                        <AttachmentViewer
+                          attachments={message.content.message.attachments}
+                          isDarkTheme={true}
+                        />
+                      </div>
+                    )}
+                </div>
+              </TooltipTrigger>
+              <TooltipContent side="right">
+                <p>
+                  {messageDate.toLocaleTimeString([], {
+                    hour: "2-digit",
+                    minute: "2-digit",
+                    second: "2-digit",
+                  })}{" "}
+                  {messageDate.toLocaleDateString([], {
+                    day: "2-digit",
+                    month: "2-digit",
+                    year: "numeric",
+                  })}
+                </p>
+              </TooltipContent>
+            </Tooltip>
           </div>
           <Avatar className="w-8 h-8">
             <AvatarImage src="/placeholder.svg?height=32&width=32" />
             <AvatarFallback>U</AvatarFallback>
-          </Avatar>
+          </Avatar>{" "}
         </div>
       )}
-    </motion.div>
+    </div>
   );
 }
 
 export function TypingIndicator() {
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 10 }}
-      animate={{ opacity: 1, y: 0 }}
-      className="flex items-start space-x-2 max-w-[80%]"
-    >
+    <div className="flex items-start space-x-2 max-w-[80%]">
       <Avatar className="w-8 h-8">
         <AvatarImage src="/placeholder.svg?height=40&width=40" />
         <AvatarFallback>AI</AvatarFallback>
-      </Avatar>
+      </Avatar>{" "}
       <div className="bg-gray-200 rounded-lg p-3 shadow-sm">
         <div className="flex items-center space-x-2">
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ repeat: Infinity, duration: 1, delay: 0 }}
-            className="w-2 h-2 bg-indigo-400 rounded-full"
-          ></motion.div>
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ repeat: Infinity, duration: 1, delay: 0.2 }}
-            className="w-2 h-2 bg-indigo-500 rounded-full"
-          ></motion.div>
-          <motion.div
-            animate={{ y: [0, -5, 0] }}
-            transition={{ repeat: Infinity, duration: 1, delay: 0.4 }}
-            className="w-2 h-2 bg-indigo-600 rounded-full"
-          ></motion.div>
+          <div className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"></div>
+          <div
+            className="w-2 h-2 bg-indigo-500 rounded-full animate-bounce"
+            style={{ animationDelay: "0.2s" }}
+          ></div>
+          <div
+            className="w-2 h-2 bg-indigo-600 rounded-full animate-bounce"
+            style={{ animationDelay: "0.4s" }}
+          ></div>
         </div>
       </div>
-    </motion.div>
+    </div>
   );
 }
 

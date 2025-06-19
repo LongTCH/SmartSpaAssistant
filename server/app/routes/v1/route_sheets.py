@@ -23,7 +23,7 @@ from fastapi.responses import StreamingResponse
 from pydantic import ValidationError
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/sheets", tags=["Sheets"])
+router = APIRouter(prefix="/v1/sheets", tags=["Sheets"])
 
 
 @router.get(

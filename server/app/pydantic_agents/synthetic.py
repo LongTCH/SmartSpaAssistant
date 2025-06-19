@@ -48,7 +48,7 @@ async def create_synthetic_agent(
 
     notify_tools = await get_notify_tools(guest_id)
 
-    model = model_hub["gemini-2.5-flash"]
+    model = model_hub["gemini-2.5-flash-thinking"]
     synthetic_agent = Agent(
         model=model,
         instructions=get_instruction,
@@ -56,7 +56,9 @@ async def create_synthetic_agent(
         output_type=str,
         output_retries=2,
         model_settings=GoogleModelSettings(
-            # google_thinking_config={"thinking_budget": 16000},
+            # google_thinking_config=ThinkingConfigDict(
+            #     include_thoughts=True, thinking_budget=-1
+            # ),
             temperature=0.0,
             # max_tokens=50000
         ),
@@ -65,6 +67,10 @@ async def create_synthetic_agent(
         #     temperature=0.1,
         # ),
         tools=[
+            Tool(
+                get_current_local_time,
+                takes_ctx=True,
+            ),
             Tool(
                 get_all_available_sheets,
                 takes_ctx=True,
@@ -77,10 +83,6 @@ async def create_synthetic_agent(
             ),
             Tool(
                 rag_hybrid_search, takes_ctx=False, require_parameter_descriptions=True
-            ),
-            Tool(
-                get_current_local_time,
-                takes_ctx=True,
             ),
             Tool(
                 update_guest_address,

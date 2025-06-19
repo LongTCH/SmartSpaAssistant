@@ -1,9 +1,21 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
+import {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useLayoutEffect,
+} from "react";
 import { useApp } from "@/context/app-context";
 import { useMediaQuery } from "@/hooks/use-media-query";
 import { WS_MESSAGES } from "@/lib/constants";
+import { conversationService } from "@/services/api/conversation.service";
+import { guestService } from "@/services/api/guest.service";
+import { Conversation } from "@/types";
+import {
+  TooltipProvider,
+} from "@/components/ui/tooltip";
 // Import our components
 import {
   ChatMessage,
@@ -21,38 +33,45 @@ import {
 import { ChatHeader } from "./components/ChatHeader";
 import { ChatInput } from "./components/ChatInput";
 // Use a type alias to distinguish local Conversation from global Conversation
-import { Chat, ChatAttachment } from "@/types/conversation"; // Added ChatAttachment
+import { Chat } from "@/types/conversation"; // Added ChatAttachment
 import { Conversation as LocalConversation } from "./components/ConversationSidebar";
+
+interface ConversationWithTitle extends LocalConversation {
+  title: string;
+}
+
+const MESSAGE_LIMIT = 20;
 
 export default function TestChatPage() {
   // State
   const [messages, setMessages] = useState<Chat[]>([]); // Use global Chat type
-  const [processingConversationId, setProcessingConversationId] = useState<
-    string | null
-  >(null);
-  const [conversations, setConversations] = useState<LocalConversation[]>([]); // Use LocalConversation for sidebar
+  const [isLoadingMessages, setIsLoadingMessages] = useState<boolean>(false);
+  const [hasMoreMessages, setHasMoreMessages] = useState<boolean>(false);
+  const [isConversationSwitching, setIsConversationSwitching] = useState(false);
+  const [isTyping, setIsTyping] = useState(false);
+  const [conversations, setConversations] = useState<ConversationWithTitle[]>(
+    []
+  ); // Use LocalConversation for sidebar
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [currentConversationId, setCurrentConversationId] =
     useState<string>(""); // ID of the currently active conversation
   const [wasDisconnected, setWasDisconnected] = useState(false); // Track if was previously disconnected
   const [connectionCheckAttempts, setConnectionCheckAttempts] = useState(0); // Track connection attempts
+  const [initialLoadDone, setInitialLoadDone] = useState(false); // Track if initial load is done
 
   // Check if mobile view
   const isMobile = !useMediaQuery("(min-width: 640px)");
 
   // Refs
   const chatBoxRef = useRef<HTMLDivElement>(null);
-  // Map to track pending responses per conversation
-  const responseMapRef = useRef<
-    Record<
-      string,
-      {
-        resolve: (data: Chat) => void; // Changed from ChatResponse to Chat
-        reject: (error: Error) => void;
-        timeoutId: NodeJS.Timeout;
-      }
-    >
-  >({});
+  const chatListRef = useRef(messages);
+  useEffect(() => {
+    chatListRef.current = messages;
+  }, [messages]);
+  const isLoadingMore = useRef<boolean>(false);
+  const prevScrollHeight = useRef<number>(0);
+  const prevScrollTop = useRef<number>(0);
+  const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // WebSocket from AppContext
   const {
@@ -77,6 +96,59 @@ export default function TestChatPage() {
     return () => clearTimeout(timer);
   }, [setActiveNavTab, setPageLoading, isWebSocketConnected]);
 
+  // Handle updating conversation title
+  const handleUpdateConversationTitle = useCallback(
+    (id: string, newTitle: string) => {
+      updateConversationTitleInStorage(id, newTitle);
+      setConversations((prevConversations) =>
+        prevConversations.map((conv) =>
+          conv.id === id ? { ...conv, title: newTitle } : conv
+        )
+      );
+    },
+    []
+  );
+
+  const fetchConversationMessages = useCallback(
+    async (conversationId: string, loadMore: boolean = false) => {
+      if (!conversationId) return;
+      setIsLoadingMessages(true);
+      try {
+        const currentMessages = chatListRef.current;
+        const skip = loadMore ? currentMessages.length : 0;
+
+        const response = await conversationService.getChatById(
+          conversationId,
+          skip,
+          MESSAGE_LIMIT
+        );
+
+        if (response && response.data) {
+          const newMessages = response.data;
+          // The API returns messages sorted from newest to oldest.
+          // We need to reverse them to display in chronological order.
+          const reversedNewMessages = newMessages.reverse();
+          setMessages((prev) =>
+            loadMore ? [...reversedNewMessages, ...prev] : reversedNewMessages
+          );
+          setHasMoreMessages(response.has_next);
+        } else {
+          if (!loadMore) setMessages([]);
+          setHasMoreMessages(false);
+        }
+      } catch (error) {
+        console.error("Failed to fetch messages:", error);
+        if (!loadMore) setMessages([]);
+        setHasMoreMessages(false);
+        // Re-throw to be handled by the caller for specific actions like 404
+        throw error;
+      } finally {
+        setIsLoadingMessages(false);
+      }
+    },
+    [] // Dependencies are stable setters
+  );
+
   // Create a new conversation
   const handleNewConversation = useCallback(
     (title: string = "New Conversation") => {
@@ -84,16 +156,15 @@ export default function TestChatPage() {
       setCurrentConversationId(newId);
       localStorage.setItem("test-chat-last-opened-id", newId);
       setMessages([]); // messages are global Chat objects
+      setHasMoreMessages(false);
 
       const newConversationEntry: LocalConversation = {
         // For sidebar storage
         id: newId,
-        title: title,
         date: new Date().toISOString(),
-        messages: [], // Will store global Chat objects
       };
       saveConversation(newConversationEntry);
-      setConversations(loadConversations()); // Reload to get the new list
+      setConversations((prev) => [...prev, { ...newConversationEntry, title }]); // Reload to get the new list
     },
     // saveConversation & loadConversations are stable imports, setConversations, setCurrentConversationId, setMessages are stable state setters
 
@@ -104,158 +175,135 @@ export default function TestChatPage() {
   useEffect(() => {
     const loadedConvos: LocalConversation[] = loadConversations();
 
-    if (loadedConvos.length === 0) {
-      // No conversations exist, create a new one.
-      const newInitialConversationId = crypto.randomUUID();
-      const newInitialConversation: LocalConversation = {
-        // For sidebar storage
-        id: newInitialConversationId,
-        title: "New Conversation", // Default title
-        date: new Date().toISOString(),
-        messages: [], // Will store global Chat objects
-      };
-      saveConversation(newInitialConversation);
-      localStorage.setItem(
-        "test-chat-last-opened-id",
-        newInitialConversationId
-      );
-
-      setConversations([newInitialConversation]);
-      setCurrentConversationId(newInitialConversationId);
-      setMessages([]); // Start with empty messages for the new conversation
-    } else {
-      // Conversations exist, load the last opened or most recent.
-      setConversations(loadedConvos);
-
-      let activeConversationIdToSet = "";
-      let activeMessagesToSet: Chat[] = []; // Use global Chat type
-
-      const lastOpenedConvoId = localStorage.getItem(
-        "test-chat-last-opened-id"
-      );
-      const lastOpenedConvo = loadedConvos.find(
-        (c) => c.id === lastOpenedConvoId
-      );
-
-      if (lastOpenedConvo) {
-        activeConversationIdToSet = lastOpenedConvo.id;
-        activeMessagesToSet = lastOpenedConvo.messages || [];
-      } else if (loadedConvos.length > 0) {
-        // Default to the most recent conversation (e.g., first in a sorted list, or just the first one)
-        activeConversationIdToSet = loadedConvos[0].id;
-        activeMessagesToSet = loadedConvos[0].messages || [];
-        localStorage.setItem(
-          "test-chat-last-opened-id",
-          activeConversationIdToSet
-        ); // Update last opened
+    const initialize = async () => {
+      setIsConversationSwitching(true);
+      setInitialLoadDone(false);
+      if (loadedConvos.length === 0) {
+        handleNewConversation();
+        setIsConversationSwitching(false);
+        setInitialLoadDone(true);
+        return;
       }
 
-      setCurrentConversationId(activeConversationIdToSet);
-      setMessages(activeMessagesToSet);
-    }
-  }, []); // Runs once on mount
+      const convosWithTitles: ConversationWithTitle[] = loadedConvos.map(
+        (c) => ({ ...c, title: "Loading..." })
+      );
+      setConversations(convosWithTitles);
+
+      let idToLoad =
+        localStorage.getItem("test-chat-last-opened-id") || loadedConvos[0].id;
+
+      // Verify the idToLoad is actually in our list
+      if (!loadedConvos.find((c) => c.id === idToLoad)) {
+        idToLoad = loadedConvos[0].id;
+      }
+
+      try {
+        setCurrentConversationId(idToLoad);
+        localStorage.setItem("test-chat-last-opened-id", idToLoad);
+        await fetchConversationMessages(idToLoad);
+        setInitialLoadDone(true);
+        const details = await guestService.getGuestInfo(idToLoad);
+        if (details && details.account_name) {
+          handleUpdateConversationTitle(idToLoad, details.account_name);
+        }
+      } catch (error: any) {
+        if (error.response && error.response.status === 404) {
+          const allConvos = loadConversations();
+          if (allConvos.length <= 1) {
+            // This is the only conversation, and it's not on the server.
+            // Treat it as a new conversation. The UI is already clear.
+            setMessages([]);
+            setHasMoreMessages(false);
+            // Update title to "New Conversation" since it's treated as new
+            handleUpdateConversationTitle(idToLoad, "New Conversation");
+          } else {
+            // Multiple conversations exist, this one is invalid.
+            deleteConversation(idToLoad);
+            const remaining = allConvos.filter((c) => c.id !== idToLoad);
+            setConversations(convosWithTitles.filter((c) => c.id !== idToLoad));
+            if (remaining.length > 0) {
+              handleConversationSelect(remaining[0].id);
+            } else {
+              handleNewConversation();
+            }
+          }
+        } else {
+          console.error("Failed to load initial conversation:", error);
+        }
+      } finally {
+        setIsConversationSwitching(false);
+      }
+    };
+
+    initialize(); // Fetch titles for all other conversations in the background
+    loadedConvos.forEach((convo) => {
+      guestService
+        .getGuestInfo(convo.id)
+        .then((details) => {
+          if (details && details.account_name) {
+            handleUpdateConversationTitle(convo.id, details.account_name);
+          }
+        })
+        .catch((err: any) => {
+          if (err.response && err.response.status === 404) {
+            const allConvos = loadConversations();
+            if (allConvos.length > 1) {
+              // Only delete if there are multiple conversations
+              deleteConversation(convo.id);
+              setConversations((prev) => prev.filter((c) => c.id !== convo.id));
+            } else {
+              // Don't delete if it's the only conversation, just log and update title
+              handleUpdateConversationTitle(convo.id, "New Conversation");
+            }
+          }
+        });
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []); // This effect should only run once on mount.
 
   // Refactor addMessage to accept conversationId explicitly and use fresh conversations list
   const addMessage = useCallback(
-    (
-      conversationId: string,
-      senderSide: "client" | "staff",
-      text: string,
-      attachments?: ChatAttachment[] // Added optional attachments parameter
-    ) => {
-      const newMessage: Chat = {
-        id: crypto.randomUUID(),
-        guest_id: conversationId,
-        content: {
-          side: senderSide,
-          message: {
-            text: text,
-            attachments: attachments || [], // Use provided attachments or default to empty array
-          },
-        },
-        created_at: new Date().toISOString(),
-      };
+    (conversationId: string, message: Chat, addToEnd: boolean) => {
+      // 1. Update UI state
+      if (conversationId === currentConversationId) {
+        setMessages((prev) => {
+          // Check if message already exists
+          const existingMessage = prev.find((m) => m.id === message.id);
+          if (existingMessage) {
+            return prev;
+          }
 
-      // Load the latest conversations from storage to avoid stale state
-      const currentStoredConversations: LocalConversation[] =
-        loadConversations();
-      const existingConversation = currentStoredConversations.find(
-        (c) => c.id === conversationId
-      );
-
-      const prevMessages: Chat[] = existingConversation?.messages || [];
-      const updatedMessages = [...prevMessages, newMessage];
-
-      let conversationTitle = existingConversation?.title || "New Conversation";
-      if (
-        senderSide === "client" && // Use senderSide
-        prevMessages.filter((m) => m.content.side === "client").length === 0 && // Check content.side
-        (!existingConversation ||
-          !existingConversation.title ||
-          existingConversation.title === "New Conversation")
-      ) {
-        conversationTitle = text.substring(0, 30) || "New Conversation";
+          return addToEnd ? [...prev, message] : [message, ...prev];
+        });
+      } else {
+        // Message is for different conversation, skip
       }
 
-      const conversationToSave: LocalConversation = {
-        // For sidebar storage
-        id: conversationId,
-        title: conversationTitle,
-        date: existingConversation?.date || new Date().toISOString(),
-        messages: updatedMessages, // Store global Chat objects
-      };
+      // 2. Update localStorage conversation metadata
+      const allConvos = loadConversations();
+      const convoIndex = allConvos.findIndex((c) => c.id === conversationId);
+      if (convoIndex > -1) {
+        const existingConvo = allConvos[convoIndex];
 
-      saveConversation(conversationToSave);
-      setConversations(loadConversations());
-
-      if (conversationId === currentConversationId) {
-        setMessages(updatedMessages);
+        const updatedConvo = {
+          ...existingConvo,
+          date: new Date().toISOString(),
+        };
+        // This assumes saveConversation can update an existing one.
+        saveConversation(updatedConvo);
+        // Refresh sidebar state by updating the date of the relevant conversation
+        setConversations((prev) =>
+          prev.map((c) =>
+            c.id === conversationId ? { ...c, date: updatedConvo.date } : c
+          )
+        );
       }
     },
     [currentConversationId]
   );
 
-  // Get chat response via WebSocket, passing conversationId to differentiate
-  const getChatResponse = useCallback(
-    async (
-      conversationId: string, // This is the conversationId
-      messageText: string
-    ): Promise<Chat> => {
-      // Changed from ChatResponse to Chat
-      if (!conversationId || !messageText || !isWebSocketConnected) {
-        throw new Error("Cannot send message at this time");
-      }
-      return new Promise((resolve, reject) => {
-        const timeoutId = setTimeout(() => {
-          const entry = responseMapRef.current[conversationId];
-          if (entry) {
-            entry.reject(new Error("Response timeout"));
-            delete responseMapRef.current[conversationId];
-            // Tự động xóa trạng thái xử lý khi timeout
-            setProcessingConversationId(null);
-            // Hiển thị thông báo lỗi trong UI
-            addMessage(
-              conversationId,
-              "staff", // 'staff' for Assistant messages
-              "Xin lỗi, đã xảy ra lỗi timeout khi xử lý yêu cầu của bạn. Vui lòng thử lại sau."
-              // "ai" // type removed
-            );
-          }
-        }, 150000);
-        responseMapRef.current[conversationId] = { resolve, reject, timeoutId };
-        sendWebSocketMessage({
-          message: WS_MESSAGES.TEST_CHAT,
-          data: { id: conversationId, message: messageText },
-        });
-      });
-    },
-    [
-      isWebSocketConnected,
-      sendWebSocketMessage,
-      addMessage,
-      setProcessingConversationId,
-    ]
-  ); // Monitor WebSocket connection status changes
+  // Monitor WebSocket connection status changes
   useEffect(() => {
     if (!isWebSocketConnected && !wasDisconnected) {
       // Connection lost
@@ -285,64 +333,116 @@ export default function TestChatPage() {
     const unregister = registerMessageHandler(
       WS_MESSAGES.TEST_CHAT,
       (data: any) => {
-        let chatData = data as Chat;
         try {
-          // Phương pháp mới: xử lý tất cả các định dạng dữ liệu có thể có
+          // The server sends the full Conversation object.
+          const conversation = data as Conversation;
           if (
-            data &&
-            typeof data === "object" &&
-            data.id &&
-            data.guest_id &&
-            data.content &&
-            data.content.message // Ensure message object exists
+            !conversation ||
+            !conversation.id ||
+            !conversation.last_chat_message
           ) {
-            chatData = data;
-          } else {
+            console.warn("Invalid conversation data received from WS:", data);
             return;
           }
 
-          // Dừng hiệu ứng đang xử lý với ID tương ứng (guest_id is the conversationId)
-          if (processingConversationId === chatData.guest_id) {
-            setProcessingConversationId(null);
+          const chatData = conversation.last_chat_message;
+
+          // Stop typing indicator when a real message arrives
+          if (typingTimeoutRef.current) {
+            clearTimeout(typingTimeoutRef.current);
+            typingTimeoutRef.current = null;
           }
-          const entry = responseMapRef.current[chatData.guest_id];
-          if (entry) {
-            clearTimeout(entry.timeoutId);
-            entry.resolve(chatData);
-            delete responseMapRef.current[chatData.guest_id];
-          } else if (chatData.guest_id === currentConversationId) {
-            addMessage(
-              chatData.guest_id,
-              "staff",
-              chatData.content.message.text,
-              chatData.content.message.attachments // Pass attachments
+          setIsTyping(false);
+
+          // If the conversation has a name, update the title in the sidebar
+          if (conversation.account_name) {
+            handleUpdateConversationTitle(
+              conversation.id,
+              conversation.account_name
             );
           }
-        } catch {}
+
+          // Add the incoming message to the conversation
+          addMessage(chatData.guest_id, chatData, true);
+        } catch (e) {
+          console.error("Error processing WebSocket message:", e);
+        }
       }
     );
     return unregister;
+  }, [registerMessageHandler, addMessage, handleUpdateConversationTitle]);
+
+  // Handler for typing actions based on server's keep-alive signal
+  useEffect(() => {
+    const unregister = registerMessageHandler(
+      "SEND_ACTION",
+      (data: { guest_id: string; action: "typing_on" | "typing_off" }) => {
+        if (data.guest_id !== currentConversationId) {
+          return;
+        }
+
+        // Always clear the previous timeout when a new action is received
+        if (typingTimeoutRef.current) {
+          clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = null;
+        }
+        if (data.action === "typing_on") {
+          setIsTyping(true);
+          // The server sends this action every 8s. We'll set a 9s timeout.
+          // If another typing_on arrives, the timeout will be reset.
+          typingTimeoutRef.current = setTimeout(() => {
+            setIsTyping(false);
+            typingTimeoutRef.current = null;
+          }, 9000); // Timeout after 9 seconds
+        } else if (data.action === "typing_off") {
+          // Immediately stop typing if requested
+          setIsTyping(false);
+        }
+      }
+    );
+    return unregister;
+  }, [registerMessageHandler, currentConversationId]);
+
+  // Khôi phục scroll sau khi load thêm tin nhắn (pagination)
+  useEffect(() => {
+    if (
+      chatBoxRef.current &&
+      prevScrollHeight.current > 0 &&
+      isLoadingMore.current === false
+    ) {
+      const newScrollHeight = chatBoxRef.current.scrollHeight;
+      const heightDifference = newScrollHeight - prevScrollHeight.current;
+      chatBoxRef.current.scrollTop = prevScrollTop.current + heightDifference;
+      prevScrollHeight.current = 0;
+      prevScrollTop.current = 0;
+    }
+  }, [messages]); // Depends on messages changing
+
+  // Scroll to bottom sau khi load lần đầu hoặc chuyển conversation
+  useLayoutEffect(() => {
+    if (
+      initialLoadDone &&
+      !isLoadingMessages &&
+      !isConversationSwitching &&
+      messages.length > 0 &&
+      prevScrollHeight.current === 0 // Chỉ scroll xuống cuối khi KHÔNG phải load thêm
+    ) {
+      if (chatBoxRef.current) {
+        chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
+      }
+    }
   }, [
-    registerMessageHandler,
+    initialLoadDone,
+    messages,
     currentConversationId,
-    addMessage,
-    processingConversationId,
+    isLoadingMessages,
+    isConversationSwitching,
   ]);
 
-  // Scroll to bottom when messages change
-  useEffect(() => {
-    if (chatBoxRef.current) {
-      chatBoxRef.current.scrollTop = chatBoxRef.current.scrollHeight;
-    }
-  }, [messages]);
   // Handle sending a message
   const handleSendMessage = useCallback(
     async (messageText: string) => {
-      if (
-        !messageText.trim() ||
-        !currentConversationId || // Ensure there's an active conversation
-        processingConversationId === currentConversationId
-      ) {
+      if (!messageText.trim() || !currentConversationId) {
         return;
       } // Kiểm tra kết nối WebSocket trước khi gửi tin nhắn
       if (!isWebSocketConnected) {
@@ -353,104 +453,167 @@ export default function TestChatPage() {
       const convoIdToSendMessageTo = currentConversationId;
 
       // User sends a message (typically text only from input)
-      addMessage(convoIdToSendMessageTo, "client", messageText);
+      const userMessage: Chat = {
+        id: crypto.randomUUID(),
+        guest_id: convoIdToSendMessageTo,
+        content: {
+          side: "client",
+          message: { text: messageText, attachments: [] },
+        },
+        created_at: new Date().toISOString(),
+      };
+      addMessage(convoIdToSendMessageTo, userMessage, true);
 
-      try {
-        setProcessingConversationId(convoIdToSendMessageTo);
-        const chatRes: Chat = await getChatResponse(
-          convoIdToSendMessageTo,
-          messageText
-        );
-        // Add assistant's response, which might include text and attachments
-        addMessage(
-          chatRes.guest_id,
-          "staff",
-          chatRes.content.message.text,
-          chatRes.content.message.attachments // Pass attachments
-        );
-      } catch {
-        addMessage(
-          convoIdToSendMessageTo,
-          "staff", // 'staff' for Assistant messages
-          "Xin lỗi, tôi không thể xử lý yêu cầu của bạn lúc này. Vui lòng thử lại sau."
-          // "ai" // type removed
-        );
-      } finally {
-        setProcessingConversationId(null);
-      }
+      sendWebSocketMessage({
+        message: WS_MESSAGES.TEST_CHAT,
+        data: { id: convoIdToSendMessageTo, message: messageText },
+      });
     },
     [
       addMessage,
-      getChatResponse,
       currentConversationId,
-      processingConversationId,
       isWebSocketConnected,
+      sendWebSocketMessage,
     ]
   );
   // Handle selecting a conversation
   const handleConversationSelect = useCallback(
-    (id: string) => {
+    async (id: string) => {
+      if (id === currentConversationId) return;
+
+      setIsConversationSwitching(true);
       setCurrentConversationId(id);
       localStorage.setItem("test-chat-last-opened-id", id);
-      setProcessingConversationId(null);
+      setMessages([]); // Clear messages immediately
+      setHasMoreMessages(false); // Reset pagination state
 
-      const allConvos: LocalConversation[] = loadConversations(); // Load fresh conversations
-      const selectedConversation = allConvos.find((conv) => conv.id === id);
-      setMessages(selectedConversation?.messages || []); // messages are global Chat objects
+      try {
+        await fetchConversationMessages(id);
+        const conversationDetails = await guestService.getGuestInfo(id);
+        if (conversationDetails && conversationDetails.account_name) {
+          handleUpdateConversationTitle(id, conversationDetails.account_name);
+        }
+      } catch (error: any) {
+        if (error.response && error.response.status === 404) {
+          deleteConversation(id);
+          const remainingConversations = conversations.filter(
+            (c) => c.id !== id
+          );
+          setConversations(remainingConversations);
+
+          if (remainingConversations.length > 0) {
+            handleConversationSelect(remainingConversations[0].id);
+          } else {
+            handleNewConversation();
+          }
+        } else {
+          console.error("Failed to select conversation:", error);
+        }
+      } finally {
+        setIsConversationSwitching(false);
+      }
     },
-    [] // loadConversations is stable, state setters are stable
+    [
+      currentConversationId,
+      conversations,
+      fetchConversationMessages,
+      handleUpdateConversationTitle,
+      handleNewConversation,
+    ]
   );
 
   // Delete specific conversation
   const handleDeleteConversation = useCallback(
-    (id: string) => {
-      // Xóa conversation từ localStorage
-      deleteConversation(id);
+    async (id: string) => {
+      try {
+        // Call API to delete guest
+        await guestService.deleteGuest(id);
 
-      // Reload danh sách conversation
-      const remainingConversations = loadConversations();
-      setConversations(remainingConversations);
+        // Delete conversation from localStorage
+        deleteConversation(id);
 
-      // Nếu conversation đã xóa là conversation hiện tại
-      if (id === currentConversationId) {
-        // Nếu vẫn còn conversation khác, chuyển sang conversation đầu tiên
-        if (remainingConversations.length > 0) {
-          handleConversationSelect(remainingConversations[0].id);
-        } else {
-          // Nếu không còn conversation nào, tạo conversation mới
-          handleNewConversation();
+        // Update conversation list state
+        const remainingConversations = conversations.filter((c) => c.id !== id);
+        setConversations(remainingConversations);
+
+        // If the deleted conversation was the current one
+        if (id === currentConversationId) {
+          // If there are other conversations, switch to the first one
+          if (remainingConversations.length > 0) {
+            handleConversationSelect(remainingConversations[0].id);
+          } else {
+            // If no conversations are left, create a new one
+            handleNewConversation();
+          }
         }
+      } catch (error) {
+        console.error("Failed to delete conversation:", error);
+        // Optionally, show an error message to the user
       }
     },
-    [currentConversationId, handleNewConversation, handleConversationSelect]
+    [
+      currentConversationId,
+      handleNewConversation,
+      handleConversationSelect,
+      conversations,
+    ]
   );
 
   // Delete all conversations
-  const handleDeleteAllConversations = useCallback(() => {
-    deleteAllConversations();
-    localStorage.removeItem("test-chat-last-opened-id");
-    // After deleting all, create a new default conversation state.
-    // This will also set it as the current one.
-    handleNewConversation();
-  }, [handleNewConversation]);
+  const handleDeleteAllConversations = useCallback(async () => {
+    try {
+      const allConversations = loadConversations();
+      if (allConversations.length > 0) {
+        const guestIds = allConversations.map((c) => c.id);
+        await guestService.deleteGuests(guestIds);
+      }
+
+      deleteAllConversations();
+      localStorage.removeItem("test-chat-last-opened-id");
+
+      // Create a new conversation and reset the state
+      const newId = crypto.randomUUID();
+      const title = "New Conversation";
+      const newConversationEntry: LocalConversation = {
+        id: newId,
+        date: new Date().toISOString(),
+      };
+
+      saveConversation(newConversationEntry);
+      setConversations([{ ...newConversationEntry, title }]);
+      setCurrentConversationId(newId);
+      localStorage.setItem("test-chat-last-opened-id", newId);
+      setMessages([]);
+      setHasMoreMessages(false);
+    } catch (error) {
+      console.error("Failed to delete all conversations:", error);
+      // Optionally, show an error message to the user
+    }
+  }, []);
 
   // Toggle sidebar
   const toggleSidebar = useCallback(() => {
     setSidebarOpen((prev) => !prev);
   }, []);
+  const handleScroll = async () => {
+    if (
+      chatBoxRef.current &&
+      chatBoxRef.current.scrollTop === 0 &&
+      !isLoadingMessages &&
+      hasMoreMessages &&
+      currentConversationId &&
+      !isLoadingMore.current
+    ) {
+      isLoadingMore.current = true;
+      // Lưu lại scrollHeight trước khi load thêm
+      prevScrollHeight.current = chatBoxRef.current.scrollHeight;
+      prevScrollTop.current = chatBoxRef.current.scrollTop;
+      await fetchConversationMessages(currentConversationId, true);
+      // Việc khôi phục scroll sẽ được thực hiện trong useEffect([messages]) phía dưới
+      isLoadingMore.current = false;
+    }
+  };
 
-  // Handle updating conversation title
-  const handleUpdateConversationTitle = useCallback(
-    (id: string, newTitle: string) => {
-      updateConversationTitleInStorage(id, newTitle);
-      setConversations((prevConversations) =>
-        prevConversations.map((conv) =>
-          conv.id === id ? { ...conv, title: newTitle } : conv
-        )
-      );
-    },
-    []
-  );
   // Handle sample question click
   const handleSampleQuestionClick = useCallback(
     (question: string) => {
@@ -475,63 +638,52 @@ export default function TestChatPage() {
         onNewConversation={handleNewConversation}
         onDeleteAllConversations={handleDeleteAllConversations}
         onDeleteConversation={handleDeleteConversation}
-        onUpdateTitle={handleUpdateConversationTitle}
         sidebarOpen={sidebarOpen}
         toggleSidebar={toggleSidebar}
         isMobile={isMobile}
-      />
+      />{" "}
       {/* Main chat area */}
       <div
-        className={`flex-1 flex flex-col transition-all duration-300 ${
+        className={`flex-1 flex flex-col h-full transition-all duration-300 ${
           !isMobile && sidebarOpen ? "ml-72" : "ml-0"
         }`}
       >
-        {" "}
-        {/* Chat header - made sticky */}
-        <div className="sticky top-0 z-10 bg-white border-b">
+        {/* Chat header - fixed */}
+        <div className="flex-shrink-0 bg-white border-b">
           <ChatHeader
             title={chatHeaderTitle} // Use dynamic title
             toggleMobileSidebar={toggleSidebar}
             isMobile={isMobile}
             isWebSocketConnected={isWebSocketConnected}
           />
-        </div>{" "}
+        </div>
         {/* Messages container - only this scrolls */}
         <div
           ref={chatBoxRef}
+          onScroll={handleScroll}
           className="flex-1 overflow-y-auto p-4 space-y-4 bg-gray-50"
         >
-          <div className="flex-1 flex flex-col">
-            {messages.length === 0 ? (
-              <EmptyChatState
-                onSampleQuestionClick={handleSampleQuestionClick}
-              />
-            ) : (
-              <>
-                {messages.map((message, index) => (
-                  <ChatMessage
-                    key={message.id}
-                    message={message}
-                    index={index}
-                  />
-                ))}
-                {processingConversationId === currentConversationId && (
-                  <TypingIndicator />
-                )}{" "}
-              </>
-            )}
-          </div>
+          {isLoadingMessages && messages.length === 0 ? (
+            <div className="flex justify-center items-center h-full">
+              <p>Loading messages...</p>
+            </div>
+          ) : messages.length === 0 ? (
+            <EmptyChatState onSampleQuestionClick={handleSampleQuestionClick} />
+          ) : (
+            <TooltipProvider>
+              {messages.map((message, index) => (
+                <ChatMessage key={message.id} message={message} index={index} />
+              ))}
+              {isTyping && <TypingIndicator />}
+            </TooltipProvider>
+          )}
         </div>
-        {/* Chat input - made sticky */}
-        <div className="sticky bottom-0 z-10 bg-white border-t">
+        {/* Chat input - fixed */}
+        <div className="flex-shrink-0 bg-white border-t">
           <ChatInput
-            disabled={
-              processingConversationId === currentConversationId &&
-              currentConversationId !== null
-            }
+            disabled={isTyping || !isWebSocketConnected}
             sendMessage={handleSendMessage}
             placeholder="Type your message here..."
-            isWebSocketConnected={isWebSocketConnected}
           />
         </div>
       </div>

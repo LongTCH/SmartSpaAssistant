@@ -1,3 +1,5 @@
+from datetime import datetime
+
 from app.models import ChatHistory
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -96,3 +98,49 @@ async def insert_chat_history_without_summary(
     db.add(chat_history)
     await db.flush()
     return chat_history
+
+
+async def get_chat_histories_until_summary(
+    db: AsyncSession, guest_id: str, max_limit: int = 10
+) -> list[ChatHistory]:
+    """
+    Lấy chat histories từ message mới nhất cho đến message có summary khác rỗng.
+    Message có summary khác rỗng sẽ là phần tử cuối cùng của list trả về.
+    Giới hạn tối đa max_limit messages để tránh lấy quá nhiều.
+    """
+    # Lấy chat histories của guest với giới hạn, sắp xếp theo thời gian tạo giảm dần
+    stmt = (
+        select(ChatHistory)
+        .where(ChatHistory.guest_id == guest_id)
+        .order_by(ChatHistory.created_at.desc())
+        .limit(max_limit)
+    )
+    result = await db.execute(stmt)
+    histories = result.scalars().all()
+
+    # Duyệt qua từng history để tìm history đầu tiên có summary khác rỗng
+    histories_until_summary = []
+    for history in histories:
+        histories_until_summary.append(history)
+        # Nếu tìm thấy history có summary khác rỗng, dừng lại
+        if history.summary and history.summary.strip():
+            break
+
+    return histories_until_summary
+
+
+async def get_latest_chat_histories_from_datetime(
+    db: AsyncSession, guest_id: str, datetime: datetime, limit: int = 5
+) -> list[ChatHistory]:
+    """
+    Lấy các chat history mới nhất của guest, bao gồm cả những history có summary khác rỗng.
+    """
+    stmt = (
+        select(ChatHistory)
+        .where(ChatHistory.guest_id == guest_id)
+        .where(ChatHistory.created_at <= datetime)
+        .order_by(ChatHistory.created_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()

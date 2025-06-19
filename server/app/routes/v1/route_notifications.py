@@ -21,7 +21,7 @@ from fastapi.responses import Response as HttpResponse
 from fastapi.responses import StreamingResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/notifications", tags=["Notifications"])
+router = APIRouter(prefix="/v1/notifications", tags=["Notifications"])
 
 ALLOWED_PARAM_TYPES = ["String", "Integer", "Numeric", "Boolean", "DateTime"]
 
@@ -379,14 +379,11 @@ async def upload_notifications_excel(
         file_contents = await file.read()
 
         # Process the file directly without saving to disk
-        result = await notification_service.upload_notifications_from_excel(
-            db, file_contents
-        )
+        await notification_service.upload_notifications_from_excel(db, file_contents)
 
         return NotificationUploadSuccessResponse(
             message="Notifications uploaded successfully",
             detail="All notifications from the Excel file have been processed and created.",
-            result=result,
         )
     except HTTPException as e:
         raise e

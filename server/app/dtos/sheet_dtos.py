@@ -10,7 +10,7 @@ class SheetChunkDto(BaseModel):
     sheet_id: str
     sheet_name: str
     chunk: str
-    id: int
+    id: str
 
 
 class SheetColumnConfigDto(BaseModel):

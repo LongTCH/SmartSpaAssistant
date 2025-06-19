@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query, Request, status
 from fastapi.responses import PlainTextResponse
 from fastapi.responses import Response as HttpResponse
 
-router = APIRouter(prefix="/webhooks", tags=["Webhooks"])
+router = APIRouter(prefix="/v1/webhooks", tags=["Webhooks"])
 
 
 @router.get(

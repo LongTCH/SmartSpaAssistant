@@ -154,3 +154,15 @@ async def get_all_rows_of_sheet(db: AsyncSession, table_name: str) -> list[dict]
     query = text(f'SELECT * FROM "{table_name}" ORDER BY id')
     result = await db.execute(query)
     return result.mappings().all()
+
+
+async def get_rows_with_ids(
+    db: AsyncSession, table_name: str, ids: list[int]
+) -> list[dict]:
+    if not ids:
+        return []
+
+    # Sử dụng ANY() với array parameter cho PostgreSQL
+    query = text(f'SELECT * FROM "{table_name}" WHERE id = ANY(:ids)')
+    result = await db.execute(query, {"ids": ids})
+    return result.mappings().all()

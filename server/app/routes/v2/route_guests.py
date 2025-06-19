@@ -12,7 +12,7 @@ from app.services import guest_service
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-router = APIRouter(prefix="/guests", tags=["Guests"])
+router = APIRouter(prefix="/v2/guests", tags=["Guests"])
 
 
 @router.post(

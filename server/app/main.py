@@ -6,7 +6,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import uvicorn
 from app.configs import database, env_config
 from app.middleware import catch_exceptions_middleware
-from app.routes import include_router
+from app.routes import v1_include_router, v2_include_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -82,7 +82,8 @@ app.add_middleware(
 app.middleware("http")(catch_exceptions_middleware)
 
 # Include all routes
-include_router(app)
+v1_include_router(app)
+v2_include_router(app)
 
 # Only run the server directly when this script is executed as the main program
 if __name__ == "__main__":

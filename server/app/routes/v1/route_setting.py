@@ -4,7 +4,7 @@ from app.dtos import LocalDataDto, LocalDataUpdateDto, common_error_responses
 from app.services import setting_service
 from fastapi import APIRouter, HTTPException, status
 
-router = APIRouter(prefix="/settings", tags=["Settings"])
+router = APIRouter(prefix="/v1/settings", tags=["Settings"])
 
 
 @router.get(

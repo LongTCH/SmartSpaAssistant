@@ -6,6 +6,7 @@ class WS_MESSAGES(str, Enum):
     INBOX = "INBOX"
     TEST_CHAT = "TEST_CHAT"
     ALERT = "ALERT"
+    SEND_ACTION = "SEND_ACTION"
 
 
 class CHAT_SIDES(str, Enum):

@@ -12,11 +12,6 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres"]
-      interval: 10s
-      timeout: 5s
-      retries: 5
 
   qdrant:
     image: qdrant/qdrant
@@ -77,25 +72,6 @@ services:
     depends_on:
       - client
       - server
-  reset-db:
-    build:
-      context: ./server
-      dockerfile: Dockerfile.dev
-    container_name: ssa_reset_db_prod
-    networks: [ 'ssa_network' ]
-    restart: "no"
-    command: python sampling/reset_db.py
-    environment:
-      - DOTENV_FILE=.env.production
-    env_file:
-      - ./server/.env.production
-    depends_on:
-      postgres:
-        condition: service_healthy
-      qdrant:
-        condition: service_started
-    profiles:
-      - tools
 
 volumes:
   postgres_data:

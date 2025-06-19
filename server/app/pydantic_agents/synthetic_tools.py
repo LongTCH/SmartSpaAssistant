@@ -50,7 +50,7 @@ def get_type_from_param_type(param_type: str) -> str:
 
 def get_description_from_param(param_type: str, description: str) -> str:
     if param_type == "DateTime":
-        return description + " FORMAT: YYYY-MM-DD HH:MM:SS"
+        return description + " **FORMAT: YYYY-MM-DD HH:MM:SS**"
     return description
 
 
@@ -109,7 +109,8 @@ async def get_current_local_time(
     context: RunContext[SyntheticAgentDeps],
 ) -> str:
     """
-    Get the current local time (ISO Format) at local timezone in XML format.
+    Get datetime (ISO Format) at local timezone in XML format.
+    Use this when need to know the current time in the local timezone.
     """
     tz = pytz.timezone(context.deps.timezone)
     local_time = datetime.now(tz)
@@ -132,7 +133,7 @@ async def get_notify_tools(guest_id: str) -> list[Tool]:
         tool_json = {
             "notification_id": notification.id,
             "name": normalize_tool_name("send_notify_" + notification.label),
-            "description": f"Call this tool in case: {notification.description}",
+            "description": f"**Call this tool to notify admin when the following conditions are met:**\n{notification.description}",
             "parameters": {"type": "object", "properties": {}, "required": []},
         }
         for param in notification.params:
@@ -143,11 +144,11 @@ async def get_notify_tools(guest_id: str) -> list[Tool]:
                 ),
             }
             tool_json["parameters"]["required"].append(param["param_name"])
-        # tool_json["parameters"]["properties"]["tool_description"] = {
-        #     "type": "string",
-        #     "description": "Tell me the details about the tool you are using.",
-        # }
-        # tool_json["parameters"]["required"].append("tool_description")
+        tool_json["parameters"]["properties"]["tool_description"] = {
+            "type": "string",
+            "description": "Tell me the details about the tool you are using.",
+        }
+        tool_json["parameters"]["required"].append("tool_description")
         notify_tools_json.append(tool_json)
     notify_tools = [
         create_tool(tool_info["notification_id"], guest_id, tool_info)
@@ -165,7 +166,6 @@ async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> str:
 
     Results are returned as a list of text entries. Each entry represents a row from a knowledge sheet
     identified by 'sheet.id' in the 'sheet' table of database.
-    Use this tool to search relative items when 'execute_query_on_sheet_rows' tool not returning appropriate data.
 
     Args:
         sheet_id: The ID of the sheet to query.
@@ -248,9 +248,9 @@ async def execute_query_on_sheet_rows(sql_query: str) -> str:
     [LIMIT …];
 
     NOTICE: The table to query FROM is "{sheet.table_name}".
-    Prefer using normal sql query to filter the data.
     You must enclose the table name, column names, keywords in fulltext search in double quotes.
     Dont use single quotes for table name and column names.
+    If using LIMIT must be enough large number to search relative data if not require a specific number.
 
     For example:
     SELECT

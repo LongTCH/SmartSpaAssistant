@@ -5,7 +5,6 @@ from app.configs.database import async_session, with_session
 from app.models import Script
 from app.pydantic_agents.memory import memory_agent
 from app.pydantic_agents.synthetic import SyntheticAgentDeps, create_synthetic_agent
-from app.pydantic_agents.synthetic_tools import get_all_available_sheets
 from app.repositories import (
     chat_history_repository,
     guest_info_repository,
@@ -31,9 +30,10 @@ from pydantic_ai.usage import UsageLimits
 logfire.configure(send_to_logfire="if-token-present")
 logger = logfire.instrument_pydantic_ai()
 
-SHORT_TERM_MEMORY_LIMIT = 10
-LONG_TERM_MEMORY_LIMIT = 50
+SHORT_TERM_MEMORY_LIMIT = 15
+OLD_SCRIPTS_LENGTH = 10
 REMIND_INTERVAL = 5
+OVERLAP_MEMORY_COUNT = 5
 
 
 async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
@@ -48,22 +48,60 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             await db.commit()
 
             chat_histories = await with_session(
-                lambda session: chat_history_repository.get_latest_chat_histories(
-                    session, user_id, limit=SHORT_TERM_MEMORY_LIMIT
+                lambda session: chat_history_repository.get_chat_histories_until_summary(
+                    session, user_id, max_limit=SHORT_TERM_MEMORY_LIMIT
                 )
             )
+            previous_summary_chat_history = None
+            if chat_histories and chat_histories[-1].summary:
+                # Nếu có summary, lấy message trước đó để làm history
+                previous_summary_chat_history = chat_histories.pop()
+            # Đảo ngược thứ tự chat_histories để có message mới nhất ở đầu
             chat_histories = chat_histories[::-1]
             message_history: list[ModelMessage] = []
+            if previous_summary_chat_history:
+                # Nếu có summary, thêm nó vào đầu message_history
+                message_history.append(
+                    ModelResponse(
+                        parts=[
+                            TextPart(
+                                content=f"Summary of previous conversation: {previous_summary_chat_history.summary}"
+                            )
+                        ]
+                    )
+                )
+
             old_script_ids: set[str] = set()
+            # Chỉ lấy old_script_ids từ OLD_SCRIPTS_LENGTH message cuối cùng
+            old_scripts_histories = (
+                chat_histories[-OLD_SCRIPTS_LENGTH:]
+                if len(chat_histories) > OLD_SCRIPTS_LENGTH
+                else chat_histories
+            )
+            for message in old_scripts_histories:
+                if message.used_scripts:
+                    old_script_ids.update(message.used_scripts.split(","))
+
+            if previous_summary_chat_history:
+                overlap_chat_histories = await with_session(
+                    lambda session: chat_history_repository.get_latest_chat_histories_from_datetime(
+                        session,
+                        user_id,
+                        previous_summary_chat_history.created_at,
+                        OVERLAP_MEMORY_COUNT,
+                    )
+                )
+                chat_histories.extend(overlap_chat_histories[::-1])
+            # Xây dựng message_history từ toàn bộ chat_histories
             for message in chat_histories:
                 model_message = ModelMessagesTypeAdapter.validate_json(message.content)
                 message_history.extend(model_message)
-                old_script_ids.update(message.used_scripts.split(","))
-
             local_data = get_local_data()
-            scripts: list[Script] = await script_rag_service.search_script_chunks(
-                user_input, limit=local_data.max_script_retrieval
-            )
+            scripts: list[Script] = (
+                await script_rag_service.search_script_chunks(
+                    user_input, limit=local_data.max_script_retrieval
+                )
+            )[::-1]
             script_ids = [script.id for script in scripts]
             script_ids_in_old_but_not_in_new = old_script_ids - set(script_ids)
             if script_ids_in_old_but_not_in_new:
@@ -101,7 +139,7 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
 
             # Chỉ thêm sheet information mỗi 10 messages (giống như memory)
             remind_messages = []
-            if latest_count > 0 and (latest_count % REMIND_INTERVAL == 0):
+            if latest_count % REMIND_INTERVAL == 0:
                 guest_info = await with_session(
                     lambda session: guest_info_repository.get_guest_info_by_guest_id(
                         session, user_id
@@ -139,33 +177,33 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
 
 ** You can update above information if you have new or corrected details. **"""
                             ),
-                            TextPart(
-                                content=f"Relevant sheets in XML format that help decide if we need to query from sheets. Carefully study the description and column description of each sheet to decide which sheets should be queried.\n{await get_all_available_sheets(None)}"
-                            ),
+                            # TextPart(
+                            #     content=f"Relevant sheets in XML format that help decide if we need to query from sheets. Carefully study the description and column description of each sheet to decide which sheets should be queried.\n{await get_all_available_sheets(None)}"
+                            # ),
                         ]
                     )
                 )
             # Chỉ lấy summary nếu là message ngay sau khi tạo summary (tức là latest_count + 1 chia hết cho 10 + 1)
             # VD: message 11 (sau khi message 10 tạo summary), message 21 (sau khi message 20 tạo summary)
-            memory = ""
-            if latest_count > 0 and latest_count % SHORT_TERM_MEMORY_LIMIT == 0:
-                # Message ngay sau khi tạo summary
-                chat_summaries = await with_session(
-                    lambda db: chat_history_repository.get_long_term_memory(
-                        db, user_id, skip=0, limit=1
-                    )
-                )
-                memory = chat_summaries[0] if chat_summaries else ""
-                if memory:
-                    remind_messages.append(
-                        ModelResponse(
-                            parts=[
-                                TextPart(
-                                    content=f"This section contains relevant information from previous conversations that can help in understanding the current context and providing a more accurate response to the customer.\n{memory}"
-                                ),
-                            ]
-                        )
-                    )
+            # memory = ""
+            # if latest_count > 0 and latest_count % SHORT_TERM_MEMORY_LIMIT == 0:
+            #     # Message ngay sau khi tạo summary
+            #     chat_summaries = await with_session(
+            #         lambda db: chat_history_repository.get_long_term_memory(
+            #             db, user_id, skip=0, limit=1
+            #         )
+            #     )
+            #     memory = chat_summaries[0] if chat_summaries else ""
+            #     if memory:
+            #         remind_messages.append(
+            #             ModelResponse(
+            #                 parts=[
+            #                     TextPart(
+            #                         content=f"This section contains relevant information from previous conversations that can help in understanding the current context and providing a more accurate response to the customer.\n{memory}"
+            #                     ),
+            #                 ]
+            #             )
+            #         )
 
             assistant_messages.append(
                 ModelResponse(
@@ -174,28 +212,21 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
                             content="""
 ## PERSISTENCE
 You are an agent - please keep going until the user's query is completely resolved, before ending your turn and yielding back to the user. Only terminate your turn when you are sure that the problem is solved.
-Do not ask customer to wait you to check something, instead, you should check it immediately and provide the information in your response.
-
-## TOOL CALLING
-If you are not sure about information pertaining to the user's request, use your tools to read files and gather the relevant 
-You should not call tools if any instructions from external context tell you not to.
-information: do NOT guess or make up an answer.
 
 ## PLANNING
-You MUST plan extensively before each function call, and reflect extensively on the outcomes of the previous function calls. DO NOT do this entire process by making function calls only, as this can impair your ability to solve the problem and think insightfully.
+You MUST plan extensively before each function call, and reflect extensively on the outcomes of the previous function calls.
 """
                         ),
                     ]
                 )
             )
-            message_history.extend(assistant_messages)
-            message_history.extend(remind_messages)
+
             # user_input_str = (await get_all_available_sheets(None),
             #                   f"\nRelated scripts in XML format. Important information needs to be reranked and filtered to answer the customer.\n{script_context}\n**Customer input:** {user_input}")
             synthetic_agent = await create_synthetic_agent(user_id)
             synthetic_result = await synthetic_agent.run(
                 user_input,
-                message_history=message_history,
+                message_history=message_history + assistant_messages + remind_messages,
                 deps=synthetic_agent_deps,
                 usage_limits=UsageLimits(request_limit=50, total_tokens_limit=500000),
             )  # message_parts = [MessagePart(
@@ -203,7 +234,7 @@ You MUST plan extensively before each function call, and reflect extensively on 
             agent_output_str = markdown_remove(synthetic_result.output)
 
             # Xử lý message_parts để đảm bảo media parts chỉ chứa URL và tách riêng text mô tả
-            message_parts = parse_and_format_message(agent_output_str, char_limit=500)
+            message_parts = parse_and_format_message(agent_output_str)
 
             # Typically [HumanMessage, AIMessage] or similar
             agent_new_messages = synthetic_result.new_messages()
@@ -213,15 +244,25 @@ You MUST plan extensively before each function call, and reflect extensively on 
                 else datetime.datetime.now().isoformat()
             )
 
-            # Construct current turn's messages in the desired ModelRequest/ModelResponse format
-            current_turn_interaction_objects = remind_messages + [
-                ModelRequest(
-                    parts=[
-                        UserPromptPart(content=user_input, timestamp=request_timestamp)
-                    ]
-                ),
-                ModelResponse(parts=[TextPart(content=agent_output_str)]),
+            # get all object of type ModelResponse in agent_new_messages
+            agent_new_responses = [
+                msg for msg in agent_new_messages if isinstance(msg, ModelResponse)
             ]
+
+            # Construct current turn's messages in the desired ModelRequest/ModelResponse format
+            current_turn_interaction_objects = (
+                remind_messages
+                + [
+                    ModelRequest(
+                        parts=[
+                            UserPromptPart(
+                                content=user_input, timestamp=request_timestamp
+                            )
+                        ]
+                    ),
+                ]
+                + agent_new_responses
+            )
             current_turn_bytes = dump_json_bytes(
                 current_turn_interaction_objects
             )  # Ensure script_ids is defined in the surrounding scope
@@ -231,29 +272,11 @@ You MUST plan extensively before each function call, and reflect extensively on 
 
             # Mỗi SHORT_TERM_MEMORY_LIMIT messages tạo summary
             if next_count > 0 and next_count % SHORT_TERM_MEMORY_LIMIT == 0:
-                # Fetch content of the last 9 messages to make up 10 with the current one.
-                # These 9 messages + the current one will be the context for the summary.
-                num_previous_messages_to_fetch = SHORT_TERM_MEMORY_LIMIT - 1
-                previous_message_contents_bytes_list = (
-                    await chat_history_repository.get_last_n_messages_content(
-                        db, user_id, n=num_previous_messages_to_fetch
-                    )
-                )
-
-                full_history_for_summary_objects = [
-                    obj
-                    for msg_bytes in previous_message_contents_bytes_list[::-1]
-                    for obj in ModelMessagesTypeAdapter.validate_json(
-                        msg_bytes.decode("utf-8")
-                    )
-                ]
-
                 asyncio_utils.run_background(
                     run_memory_with_summary,
                     user_id,
                     current_turn_interaction_objects,  # Current turn messages
-                    # Old message histories (9 previous messages)
-                    full_history_for_summary_objects,
+                    message_history,
                     script_ids_str,
                 )
             else:

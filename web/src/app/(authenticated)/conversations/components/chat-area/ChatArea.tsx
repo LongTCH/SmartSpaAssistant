@@ -9,14 +9,17 @@ import { guestService } from "@/services/api/guest.service";
 import { Conversation, Chat } from "@/types";
 import { useApp } from "@/context/app-context";
 import { WS_MESSAGES } from "@/lib/constants";
+import { convertUTCToLocal } from "@/lib/helpers";
 import { TagRow } from "./TagRow";
 import ChatHeader from "./ChatHeader";
+import { MarkdownContent } from "@/components/markdown-content";
 import {
   Tooltip,
   TooltipContent,
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
+import { AttachmentViewer } from "@/components/attachment-viewer";
 
 interface ChatAreaProps {
   selectedConversationId: string | null; // Changed from selectedConversation object to just ID
@@ -85,13 +88,12 @@ export default function ChatArea(props: ChatAreaProps) {
           skip,
           MESSAGE_LIMIT
         );
-
         if (response && response.data) {
           // Sắp xếp tin nhắn theo thời gian để đảm bảo thứ tự đúng
           const sortedMessages = [...response.data].sort(
             (a, b) =>
-              new Date(a.created_at).getTime() -
-              new Date(b.created_at).getTime()
+              convertUTCToLocal(a.created_at).getTime() -
+              convertUTCToLocal(b.created_at).getTime()
           );
 
           if (loadMore && sortedMessages.length > 0) {
@@ -432,18 +434,17 @@ export default function ChatArea(props: ChatAreaProps) {
         ) : (
           <TooltipProvider>
             {chatList.map((chat, index) => {
-              const currentMessageDate = new Date(chat.created_at); // Ensure chat.created_at is valid
+              const currentMessageDate = convertUTCToLocal(chat.created_at); // Convert UTC to local
               let showTimestamp = true;
 
               if (index > 0) {
-                const previousMessageDate = new Date(
+                const previousMessageDate = convertUTCToLocal(
                   chatList[index - 1].created_at
                 );
                 const diffInMilliseconds =
                   currentMessageDate.getTime() - previousMessageDate.getTime();
                 const intervalMilliseconds =
                   TIMESTAMP_GROUPING_INTERVAL_MINUTES * 60 * 1000;
-
                 if (diffInMilliseconds < intervalMilliseconds) {
                   // Optional: if you also want to group by sender blocks, you could add:
                   // && chat.content.side === chatList[index - 1].content.side
@@ -459,23 +460,26 @@ export default function ChatArea(props: ChatAreaProps) {
                 <div
                   key={chat.id}
                   className={`flex flex-col ${
-                    isUserMessage ? "items-end" : "items-start"
+                    isAgentOrBotMessage ? "items-end" : "items-start"
                   } mb-1`}
                 >
                   <Tooltip>
                     <TooltipTrigger asChild>
                       <div
                         className={`max-w-xs md:max-w-md lg:max-w-lg xl:max-w-2xl p-2 px-3 rounded-lg shadow-sm ${
-                          isUserMessage
+                          isAgentOrBotMessage
+                            ? "bg-[#f0f2f5] text-black"
+                            : isUserMessage
                             ? "bg-blue-500 text-white"
-                            : isAgentOrBotMessage // staff messages are gray as per image
-                            ? "bg-gray-200 text-gray-800"
-                            : "bg-gray-200 text-gray-800" // Default for other received messages (e.g. bot if different from staff)
+                            : "bg-[#f0f2f5] text-black"
                         }`}
                       >
-                        <p className="text-sm whitespace-pre-wrap">
-                          {chat.content.message.text || ""}
-                        </p>
+                        {" "}
+                        <MarkdownContent
+                          content={chat.content.message.text || ""}
+                          className="text-sm"
+                          isDarkTheme={isUserMessage}
+                        />
                       </div>
                     </TooltipTrigger>
                     <TooltipContent side="left">
@@ -493,10 +497,22 @@ export default function ChatArea(props: ChatAreaProps) {
                       </p>
                     </TooltipContent>
                   </Tooltip>
+                  {/* Hiển thị attachments (nếu có) bên ngoài TooltipTrigger để tránh lỗi React.Children.only */}
+                  {chat.content.message.attachments &&
+                    chat.content.message.attachments.length > 0 && (
+                      <div className="mt-2 max-w-xs md:max-w-md lg:max-w-lg xl:max-w-2xl">
+                        <AttachmentViewer
+                          attachments={chat.content.message.attachments}
+                          isDarkTheme={isUserMessage}
+                        />
+                      </div>
+                    )}
                   {showTimestamp && (
                     <div
                       className={`text-xs text-gray-400 mt-1 px-1 ${
-                        isUserMessage ? "text-right w-full" : "text-left w-full"
+                        isAgentOrBotMessage
+                          ? "text-right w-full"
+                          : "text-left w-full"
                       }`}
                     >
                       {currentMessageDate.toLocaleTimeString([], {

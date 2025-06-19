@@ -8,7 +8,7 @@ from fastapi import APIRouter, WebSocket, WebSocketDisconnect
 ws_router = APIRouter()
 
 
-@ws_router.websocket("/ws")
+@ws_router.websocket("/v2/ws")
 async def websocket_endpoint(websocket: WebSocket):
     await manager.connect(websocket)
     try:
