@@ -123,6 +123,51 @@ docker-compose exec client sh
 docker-compose down -v
 ```
 
+## Cleanup and Remove Services
+
+### Remove All Services and Volumes
+
+**Development Environment:**
+
+```bash
+# Stop and remove all services, networks, and volumes
+docker-compose down -v
+
+# Remove all including built images
+docker-compose down -v --rmi all
+
+# Complete system cleanup (removes all unused containers, networks, volumes)
+docker system prune -a --volumes
+```
+
+**Production Environment:**
+
+```bash
+# Stop and remove all services, networks, and volumes for production
+docker-compose -f docker-compose.production.yml down -v
+
+# Remove all including built images
+docker-compose -f docker-compose.production.yml down -v --rmi all
+```
+
+### Additional Cleanup Commands
+
+```bash
+# List remaining volumes
+docker volume ls
+
+# Remove specific volumes if needed
+docker volume rm ssa_postgres_data ssa_qdrant_data
+
+# Remove all unused volumes
+docker volume prune
+
+# Complete system cleanup (use with caution)
+docker system prune -a --volumes
+```
+
+**⚠️ Warning**: These commands will permanently delete all data in your databases and volumes. Make sure to backup important data before running cleanup commands.
+
 ## Troubleshooting
 
 ### Environment files not found in containers

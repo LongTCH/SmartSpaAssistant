@@ -310,7 +310,7 @@ async def execute_query_on_sheet_rows(sql_query: str) -> str:
             if not rows:
                 return (
                     "No data found. Please check your query again."
-                    "Or consider using *rag_hybrid_search* tool to search for relevant data."
+                    "Consider using **rag_hybrid_search** tool to search for relevant data."
                 )
             return rows_to_xml([dict(r) for r in rows])
     except ModelRetry as model_retry:
@@ -318,7 +318,7 @@ async def execute_query_on_sheet_rows(sql_query: str) -> str:
     except Exception as e:
         print(f"Error executing query: {e}")
         raise ModelRetry(
-            f"Error executing query: {str(e)}. Please reanalyze sheets structure using *get_all_available_sheets* tool."
+            f"Error executing query: {str(e)}. Please reanalyze sheets structure using **get_all_available_sheets** tool."
         )
 
 

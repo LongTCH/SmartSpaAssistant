@@ -4,6 +4,8 @@ services:
     container_name: ssa_postgres_prod
     networks: [ 'ssa_network' ]
     restart: unless-stopped
+    env_file:
+      - .env.production
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
@@ -12,6 +14,12 @@ services:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
 
   qdrant:
     image: qdrant/qdrant
@@ -23,7 +31,6 @@ services:
       - "6334:6334"
     volumes:
       - qdrant_data:/qdrant/storage
-
   server:
     build:
       context: ./server
@@ -31,10 +38,11 @@ services:
     container_name: ssa_server_prod
     networks: [ 'ssa_network' ]
     restart: unless-stopped
+    env_file:
+      - .env.production
+      - ./server/.env.production
     environment:
       - DOTENV_FILE=.env.production
-    env_file:
-      - ./server/.env.production
     expose:
       - 8080    
     depends_on:

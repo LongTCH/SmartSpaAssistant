@@ -2,6 +2,8 @@ import asyncio
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from app.configs.database import async_session
 from app.models import Chat, Guest, GuestInfo, Interest, guest_interests
 from sampling.chats import insert_chats
@@ -9,8 +11,6 @@ from sampling.guest_interests import insert_guest_interests
 from sampling.guests import insert_guests
 from sampling.interests import insert_interests
 from sqlalchemy import delete
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 
 async def delete_all_tables_row() -> None:
