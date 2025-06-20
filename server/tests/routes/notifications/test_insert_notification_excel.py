@@ -1,8 +1,17 @@
+import os
+import sys
 from datetime import datetime
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from tests.base_excel_test import BaseExcelTest
+
+# Add project root to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+sys.path.insert(0, project_root)
+if True:
+    from tests.base_excel_test import BaseExcelTest
+    from tests.routes import Routes
 
 
 class InsertNotificationExcelTester(BaseExcelTest):
@@ -54,7 +63,7 @@ class InsertNotificationExcelTester(BaseExcelTest):
                 "app.services.notification_service.insert_notification"
             ) as mock_insert:
                 mock_insert.return_value = None
-                response = self.client.post("/notifications", json=payload)
+                response = self.client.post(Routes.NOTIFICATION.value, json=payload)
 
             # Determine test result
             logical_test_result = self._determine_test_result(
@@ -76,9 +85,8 @@ class InsertNotificationExcelTester(BaseExcelTest):
             elif expected_result.lower() == "false":
                 result_record["ExpectedResult"] = "False"
             else:
+                # Standardize error logging in 'Log' column
                 result_record["ExpectedResult"] = expected_result
-
-            # Standardize error logging in 'Log' column
             if response.status_code != 201:
                 try:
                     error_detail = response.json().get("detail", {})

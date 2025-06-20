@@ -3,12 +3,15 @@ import sys
 from datetime import datetime
 from unittest.mock import patch
 
-from base_excel_test import BaseExcelTest
 from fastapi.testclient import TestClient
 
 # Add parent directories to path
 current_dir = os.path.dirname(os.path.abspath(__file__))
 server_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+sys.path.insert(0, server_root)
+if True:
+    from tests.base_excel_test import BaseExcelTest
+    from tests.routes import Routes
 tests_root = os.path.abspath(os.path.join(current_dir, "..", ".."))
 if server_root not in sys.path:
     sys.path.insert(0, server_root)
@@ -59,7 +62,7 @@ class InsertInterestExcelTester(BaseExcelTest):
             # Make API request using TestClient
             with patch("app.services.interest_service.insert_interest") as mock_insert:
                 mock_insert.return_value = None
-                response = self.client.post("/interests", json=payload)
+                response = self.client.post(Routes.INTEREST.value, json=payload)
 
             # Determine test result
             logical_test_result = self._determine_test_result(

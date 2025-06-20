@@ -1,4 +1,6 @@
 import json
+import os
+import sys
 from datetime import datetime
 from io import BytesIO
 from unittest.mock import patch
@@ -6,6 +8,15 @@ from unittest.mock import patch
 from fastapi.testclient import TestClient
 from openpyxl import Workbook
 from tests.base_excel_test import BaseExcelTest
+from tests.routes import Routes
+
+# Add project root to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+sys.path.insert(0, project_root)
+if True:
+    from tests.base_excel_test import BaseExcelTest
+    from tests.routes import Routes
 
 
 class CreateSheetExcelTester(BaseExcelTest):
@@ -65,7 +76,9 @@ class CreateSheetExcelTester(BaseExcelTest):
                 "app.utils.asyncio_utils.run_background"
             ) as mock_background:
                 mock_insert.return_value = "test-sheet-id"  # Return string ID, not dict
-                response = self.client.post("/sheets", data=form_data, files=files)
+                response = self.client.post(
+                    Routes.SHEET.value, data=form_data, files=files
+                )
 
                 # Determine test result
                 logical_test_result = self._determine_test_result(
@@ -84,9 +97,7 @@ class CreateSheetExcelTester(BaseExcelTest):
                 expected = str(test_case.get("ExpectedResult", "")).strip().lower()
                 result_record["ExpectedResult"] = (
                     "True" if expected == "true" else "False"
-                )
-
-                # Standardize error logging in 'Log' column
+                )  # Standardize error logging in 'Log' column
                 if response.status_code != 201:
                     try:
                         error_data = response.json()

@@ -1,8 +1,18 @@
+import os
+import sys
 from datetime import datetime
 from unittest.mock import patch
 
 from fastapi.testclient import TestClient
-from tests.base_excel_test import BaseExcelTest
+
+# Add project root to path for imports
+current_dir = os.path.dirname(os.path.abspath(__file__))
+project_root = os.path.abspath(os.path.join(current_dir, "..", "..", ".."))
+sys.path.insert(0, project_root)
+
+if True:
+    from tests.base_excel_test import BaseExcelTest
+    from tests.routes import Routes
 
 
 class InsertScriptExcelTester(BaseExcelTest):
@@ -56,7 +66,7 @@ class InsertScriptExcelTester(BaseExcelTest):
                 }
                 mock_get_script.return_value = mock_script_response
 
-                response = self.client.post("/scripts", json=payload)
+                response = self.client.post(Routes.SCRIPT.value, json=payload)
 
             # Determine test result
             logical_test_result = self._determine_test_result(
@@ -77,9 +87,8 @@ class InsertScriptExcelTester(BaseExcelTest):
             elif expected_result.lower() == "false":
                 result_record["ExpectedResult"] = "False"
             else:
+                # Standardize error logging in 'Log' column
                 result_record["ExpectedResult"] = expected_result
-
-            # Standardize error logging in 'Log' column
             if response.status_code != 201:
                 try:
                     error_detail = response.json().get("detail", {})

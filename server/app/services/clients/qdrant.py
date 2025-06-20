@@ -1,3 +1,6 @@
+import os
+import sys
+
 from app.configs import env_config
 from app.utils import asyncio_utils
 from qdrant_client import AsyncQdrantClient
@@ -27,4 +30,6 @@ async def init_qdrant():
         )
 
 
-asyncio_utils.run_async(init_qdrant())
+# Only initialize Qdrant if not running in test mode
+if not (os.getenv("PYTEST_CURRENT_TEST") or "pytest" in sys.argv[0]):
+    asyncio_utils.run_async(init_qdrant())
