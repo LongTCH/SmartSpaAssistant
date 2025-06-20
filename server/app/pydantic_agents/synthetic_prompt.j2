@@ -12,10 +12,3 @@
 - Rely on sample phrases whenever appropriate, but never repeat a sample phrase in the same conversation. Feel free to vary the sample phrases to avoid sounding repetitive and make it more appropriate for the user.
 - You should divide your response into multiple parts using markdown separator --- for easier reading.
 </instructions>
-
-{% if sheets_context %}
-<sheets_context>
-<description>Relevant sheets in XML format that help decide if we need to query from sheets. Carefully study the description and column description of each sheet to decide which sheets should be queried.</description>
-{{ sheets_context }}
-</sheets_context>
-{% endif %}

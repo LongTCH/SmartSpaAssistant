@@ -5,6 +5,7 @@ from app.configs.database import async_session, with_session
 from app.models import Script
 from app.pydantic_agents.memory import memory_agent
 from app.pydantic_agents.synthetic import SyntheticAgentDeps, create_synthetic_agent
+from app.pydantic_agents.synthetic_tools import get_all_available_sheets
 from app.repositories import (
     chat_history_repository,
     guest_info_repository,
@@ -59,6 +60,15 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             # Đảo ngược thứ tự chat_histories để có message mới nhất ở đầu
             chat_histories = chat_histories[::-1]
             message_history: list[ModelMessage] = []
+            message_history.append(
+                ModelResponse(
+                    parts=[
+                        TextPart(
+                            content=f"Relevant sheets in XML format that help decide if we need to query from sheets. Carefully study the description and column description of each sheet to decide which sheets should be queried.\n{await get_all_available_sheets(None)}"
+                        ),
+                    ]
+                )
+            )
             if previous_summary_chat_history:
                 # Nếu có summary, thêm nó vào đầu message_history
                 message_history.append(
@@ -175,11 +185,8 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
 - Address: { customer_address }
 - Birthday (YYYY-MM-DD): { customer_birthday }
 
-** You can update above information if you have new or corrected details. **"""
+**You can update above information if you have new or corrected details.**"""
                             ),
-                            # TextPart(
-                            #     content=f"Relevant sheets in XML format that help decide if we need to query from sheets. Carefully study the description and column description of each sheet to decide which sheets should be queried.\n{await get_all_available_sheets(None)}"
-                            # ),
                         ]
                     )
                 )
@@ -250,19 +257,13 @@ You MUST plan extensively before each function call, and reflect extensively on 
             ]
 
             # Construct current turn's messages in the desired ModelRequest/ModelResponse format
-            current_turn_interaction_objects = (
-                remind_messages
-                + [
-                    ModelRequest(
-                        parts=[
-                            UserPromptPart(
-                                content=user_input, timestamp=request_timestamp
-                            )
-                        ]
-                    ),
-                ]
-                + agent_new_responses
-            )
+            current_turn_interaction_objects = [
+                ModelRequest(
+                    parts=[
+                        UserPromptPart(content=user_input, timestamp=request_timestamp)
+                    ]
+                ),
+            ] + agent_new_responses
             current_turn_bytes = dump_json_bytes(
                 current_turn_interaction_objects
             )  # Ensure script_ids is defined in the surrounding scope

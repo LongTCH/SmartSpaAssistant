@@ -161,13 +161,16 @@ def parse_and_format_message(message, char_limit=2000) -> List[MessagePart]:
 
 
 def _find_all_media_matches(message):
-    """Tìm tất cả media matches trong message"""
+    """Tìm tất cả media matches trong message - chỉ tách image, video, audio, file"""
     media_patterns = {
-        "image": r"(?:!\[.*?\]\((https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp))[^\)]*\))|(?:\[(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp))\])|(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp))",
-        "video": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp4|mov|avi|mkv|flv))[^\)]*\))|(?:\[(https?://\S+?\.(?:mp4|mov|avi|mkv|flv))\])|(https?://\S+?\.(?:mp4|mov|avi|mkv|flv))",
-        "audio": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma))[^\)]*\))|(?:\[(https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma))\])|(https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma))",
-        "file": r"(?:!\[.*?\]\((https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))[^\)]*\))|(?:\[(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))\])|(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip))",
-        "link": r"(?:!\[.*?\]\((https?://[^\)]+?)\))|(?:\[.*?\]\((https?://[^\)]+?)\))|(https?://[^\s\)]+)",
+        # Image patterns: prioritize markdown syntax, then bare URLs
+        "image": r"(?:!\[.*?\]\((https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\)]*)?)\))|(?:(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\s\)]*)?))(?!\))",
+        # Video patterns
+        "video": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\)]*)?)\))|(?:(https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\s\)]*)?))(?!\))",
+        # Audio patterns
+        "audio": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\)]*)?)\))|(?:(https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\s\)]*)?))(?!\))",
+        # File patterns
+        "file": r"(?:!\[.*?\]\((https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\)]*)?)\))|(?:(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\s\)]*)?))(?!\))",
     }
 
     all_matches = []
@@ -191,7 +194,9 @@ def _find_all_media_matches(message):
 def _extract_url_from_match(match):
     """Trích xuất URL từ regex match"""
     url = None
-    for i in range(1, 4):  # Kiểm tra group 1, 2, 3
+
+    # Ưu tiên group 1 (URL trong markdown) trước, sau đó group 2 (bare URL)
+    for i in [1, 2]:
         try:
             if match.group(i):
                 url = match.group(i)
@@ -202,24 +207,21 @@ def _extract_url_from_match(match):
     if not url:
         url = match.group(0)
 
-    # Làm sạch URL
-    if "](" in url:
-        url = url.split("](")[-1]
-    if "(" in url and ")" in url:
+    # Làm sạch URL - chỉ xử lý nếu không phải là URL từ markdown link
+    if "](" in match.group(0):
+        # Đây là markdown link, URL đã clean
+        return url
+
+    # Làm sạch URL cho bare URLs
+    if "(" in url and ")" in url and not url.startswith("http"):
         url = url.split("(")[-1].split(")")[0]
 
     return url
 
 
 def _clean_markdown_urls(text):
-    """Làm sạch các markdown URL trong text và format markdown"""
-    # Thay thế [text](url) bằng url
-    text = re.sub(r"\[(.*?)\]\((.*?)\)", r"\2", text)
-    # Loại bỏ các link markdown rỗng
-    text = re.sub(r"\[\]\((.*?)\)", r"\1", text)
-    text = re.sub(r"\((https?://[^)]+)\)", r"\1", text)
-
-    # Xử lý markdown list formatting
+    """Làm sạch text - chỉ xử lý markdown list formatting, giữ nguyên các markdown links"""
+    # Chỉ xử lý markdown list formatting
     lines = text.split("\n")
     clean_lines = []
 
@@ -234,65 +236,38 @@ def _clean_markdown_urls(text):
 
 
 def _filter_matches(all_matches):
-    """Lọc và loại bỏ matches trùng lặp"""
+    """Lọc và loại bỏ matches trùng lặp - chỉ áp dụng cho media files"""
     if not all_matches:
         return []
 
     # Sắp xếp theo vị trí
     all_matches.sort(key=lambda x: x["start"])
 
-    # Định nghĩa các extension để kiểm tra
-    MEDIA_EXTENSIONS = {
-        ".jpg",
-        ".jpeg",
-        ".png",
-        ".gif",
-        ".bmp",
-        ".svg",
-        ".webp",  # image
-        ".mp4",
-        ".mov",
-        ".avi",
-        ".mkv",
-        ".flv",  # video
-        ".mp3",
-        ".wav",
-        ".flac",
-        ".aac",
-        ".ogg",
-        ".m4a",
-        ".wma",  # audio
-        ".pdf",
-        ".doc",
-        ".docx",
-        ".xls",
-        ".xlsx",
-        ".ppt",
-        ".pptx",
-        ".txt",
-        ".csv",
-        ".zip",  # file
-    }
-
     filtered_matches = []
-    seen_urls = set()
+    seen_positions = set()
 
     for match in all_matches:
-        url = match["url"]
+        # Sử dụng position để tránh duplicate
+        position_key = f"{match['start']}-{match['end']}"
 
-        # Kiểm tra URL đã tồn tại chưa
-        if url in seen_urls:
+        if position_key in seen_positions:
             continue
 
-        # Nếu là link, kiểm tra xem có phải media/file URL không
-        if match["type"] == "link":
-            url_lower = url.lower()
-            is_media_file = any(url_lower.endswith(ext) for ext in MEDIA_EXTENSIONS)
-            if is_media_file:
-                continue  # Bỏ qua link này vì nó sẽ được xử lý bởi media pattern khác
+        # Kiểm tra overlap với existing matches
+        should_add = True
+        for existing_match in filtered_matches:
+            # Kiểm tra overlap
+            if (
+                match["start"] <= existing_match["end"]
+                and match["end"] >= existing_match["start"]
+            ):
+                # Có overlap, skip match này
+                should_add = False
+                break
 
-        filtered_matches.append(match)
-        seen_urls.add(url)
+        if should_add:
+            filtered_matches.append(match)
+            seen_positions.add(position_key)
 
     return filtered_matches
 
@@ -301,18 +276,30 @@ def _create_media_part(match):
     """Tạo MessagePart cho media"""
     media_type = match["type"]
     url = match["url"]
+    payload = url
 
-    # Ánh xạ trực tiếp type
-    return MessagePart(type=media_type, payload=url)
+    return MessagePart(type=media_type, payload=payload)
 
 
-def _clean_remaining_text(text, extracted_urls):
-    """Làm sạch text còn lại sau khi loại bỏ media - bao gồm full cleaning"""
-    # Loại bỏ URLs đã được trích xuất
-    for url in extracted_urls:
-        text = text.replace(url, "")
+def _clean_remaining_text(text, extracted_matches):
+    """Làm sạch text còn lại sau khi loại bỏ media - chỉ xóa những gì đã được extract"""
+    # Sắp xếp matches theo vị trí từ cuối về đầu để tránh thay đổi index
+    sorted_matches = sorted(
+        extracted_matches, key=lambda x: x.get("start", 0), reverse=True
+    )
 
-    # Làm sạch markdown URLs còn sót lại
+    # Loại bỏ chính xác những match đã được extract
+    for match in sorted_matches:
+        if "start" in match and "end" in match:
+            # Xóa chính xác vị trí đã được extract
+            start, end = match["start"], match["end"]
+            if end <= len(text):
+                text = text[:start] + text[end:]
+        elif "full_match" in match:
+            # Fallback: thay thế exact match
+            text = text.replace(match["full_match"], "", 1)
+
+    # Làm sạch markdown URLs còn sót lại (không được extract)
     text = _clean_markdown_urls(text)
 
     # Loại bỏ dấu ngoặc rỗng do việc remove URL
@@ -320,8 +307,10 @@ def _clean_remaining_text(text, extracted_urls):
     text = re.sub(r"\[\s*\]", "", text)
     text = text.replace("()", "")
 
-    # Chỉ chuẩn hóa dòng trống thừa (4+ newlines liên tiếp)
-    text = re.sub(r"\n{4,}", "\n\n\n", text)
+    # Chuẩn hóa whitespace
+    # Giảm nhiều newlines thành tối đa 2
+    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = re.sub(r"[ \t]+", " ", text)  # Chuẩn hóa spaces và tabs
 
     # Loại bỏ spaces ở cuối dòng
     lines = text.split("\n")
@@ -522,7 +511,7 @@ def _build_section_parts(section, filtered_matches, char_limit):
         if text_after:
             # Clean remaining text
             cleaned_text = _clean_remaining_text(
-                text_after, [match["url"] for match in filtered_matches]
+                text_after, []  # Không cần pass matches vì đã được process ở trên
             )
 
             if cleaned_text.strip():
