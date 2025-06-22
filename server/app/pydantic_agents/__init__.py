@@ -222,7 +222,7 @@ You are an agent - please keep going until the user's query is completely resolv
 
 ## PLANNING
 You MUST plan extensively before each function call, and reflect extensively on the outcomes of the previous function calls.
-Response in customer language by translating between languages.
+Do not expose any sensitive technical details to the user, such as the function names or parameters, and raw data in xml, json, code.
 """
                         ),
                     ]
