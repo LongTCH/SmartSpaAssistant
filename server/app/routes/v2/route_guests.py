@@ -1,13 +1,5 @@
 from app.configs.database import get_session
-from app.dtos import (
-    ErrorDetail,
-    GuestDeleteMultipleRequest,
-    GuestDeleteMultipleResponse,
-    GuestDeleteResponse,
-    GuestFilterRequest,
-    GuestUpdate,
-    common_error_responses,
-)
+from app.dtos import GuestFilterRequest, GuestUpdate, common_error_responses
 from app.services import guest_service
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -101,40 +93,40 @@ async def filter_guests(
     return guests
 
 
-@router.post(
-    "/delete-multiple",
-    summary="Delete multiple guests",
-    description="Deletes multiple guests from the database by their IDs.",
-    responses={
-        status.HTTP_200_OK: {
-            "description": "Guests deleted successfully",
-            "content": {
-                "application/json": {
-                    "example": {"message": "Guests deleted successfully"}
-                }
-            },
-        },
-        status.HTTP_400_BAD_REQUEST: {
-            "model": ErrorDetail,
-            "description": "guest_ids is required",
-            "content": {
-                "application/json": {"example": {"detail": "guest_ids is required"}}
-            },
-        },
-        **common_error_responses,
-    },
-)
-async def delete_multiple_guests(
-    request_data: GuestDeleteMultipleRequest, db: AsyncSession = Depends(get_session)
-):
-    """
-    Delete multiple guests from the database by their IDs.
-    """
-    guest_ids = request_data.guest_ids
-    if not guest_ids:
-        raise HTTPException(status_code=400, detail="guest_ids is required")
-    await guest_service.delete_multiple_guests(db, guest_ids)
-    return GuestDeleteMultipleResponse(message="Guests deleted successfully")
+# @router.post(
+#     "/delete-multiple",
+#     summary="Delete multiple guests",
+#     description="Deletes multiple guests from the database by their IDs.",
+#     responses={
+#         status.HTTP_200_OK: {
+#             "description": "Guests deleted successfully",
+#             "content": {
+#                 "application/json": {
+#                     "example": {"message": "Guests deleted successfully"}
+#                 }
+#             },
+#         },
+#         status.HTTP_400_BAD_REQUEST: {
+#             "model": ErrorDetail,
+#             "description": "guest_ids is required",
+#             "content": {
+#                 "application/json": {"example": {"detail": "guest_ids is required"}}
+#             },
+#         },
+#         **common_error_responses,
+#     },
+# )
+# async def delete_multiple_guests(
+#     request_data: GuestDeleteMultipleRequest, db: AsyncSession = Depends(get_session)
+# ):
+#     """
+#     Delete multiple guests from the database by their IDs.
+#     """
+#     guest_ids = request_data.guest_ids
+#     if not guest_ids:
+#         raise HTTPException(status_code=400, detail="guest_ids is required")
+#     await guest_service.delete_multiple_guests(db, guest_ids)
+#     return GuestDeleteMultipleResponse(message="Guests deleted successfully")
 
 
 @router.get(
@@ -220,27 +212,27 @@ async def update_guest_by_id(
     return guest
 
 
-@router.delete(
-    "/{guest_id}",
-    summary="Delete a guest",
-    description="Deletes a guest from the database by their ID.",
-    responses={
-        status.HTTP_200_OK: {
-            "description": "Guest deleted successfully",
-            "content": {
-                "application/json": {
-                    "example": {"message": "Guest deleted successfully"}
-                }
-            },
-        },
-        **common_error_responses,
-    },
-)
-async def delete_guest_by_id(guest_id: str, db: AsyncSession = Depends(get_session)):
-    """
-    Delete guest by guest_id in the database.
-    """
-    guest = await guest_service.delete_guest_by_id(db, guest_id)
-    if not guest:
-        raise HTTPException(status_code=404, detail="Guest not found")
-    return GuestDeleteResponse(message="Guest deleted successfully")
+# @router.delete(
+#     "/{guest_id}",
+#     summary="Delete a guest",
+#     description="Deletes a guest from the database by their ID.",
+#     responses={
+#         status.HTTP_200_OK: {
+#             "description": "Guest deleted successfully",
+#             "content": {
+#                 "application/json": {
+#                     "example": {"message": "Guest deleted successfully"}
+#                 }
+#             },
+#         },
+#         **common_error_responses,
+#     },
+# )
+# async def delete_guest_by_id(guest_id: str, db: AsyncSession = Depends(get_session)):
+#     """
+#     Delete guest by guest_id in the database.
+#     """
+#     guest = await guest_service.delete_guest_by_id(db, guest_id)
+#     if not guest:
+#         raise HTTPException(status_code=404, detail="Guest not found")
+#     return GuestDeleteResponse(message="Guest deleted successfully")

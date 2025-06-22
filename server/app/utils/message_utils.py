@@ -162,15 +162,26 @@ def parse_and_format_message(message, char_limit=2000) -> List[MessagePart]:
 
 def _find_all_media_matches(message):
     """Tìm tất cả media matches trong message - chỉ tách image, video, audio, file"""
+    # Tìm tất cả markdown LINKS (không phải media) để loại trừ
+    # Pattern này chỉ match [text](url) chứ không match ![alt](url)
+    markdown_links = re.findall(r"(?<!\!)\[.*?\]\([^)]+\)", message)
+
+    # Tạo set chứa tất cả URLs trong markdown links (không phải media)
+    markdown_urls = set()
+    for link in markdown_links:
+        url_match = re.search(r"\]\(([^)]+)\)", link)
+        if url_match:
+            markdown_urls.add(url_match.group(1))
+
     media_patterns = {
-        # Image patterns: prioritize markdown syntax, then bare URLs
-        "image": r"(?:!\[.*?\]\((https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\)]*)?)\))|(?:(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\s\)]*)?))(?!\))",
+        # Image patterns: markdown media syntax ![alt](url) và bare URLs
+        "image": r"(?:!\[.*?\]\((https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\s]*)?)",
         # Video patterns
-        "video": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\)]*)?)\))|(?:(https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\s\)]*)?))(?!\))",
+        "video": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\s]*)?)",
         # Audio patterns
-        "audio": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\)]*)?)\))|(?:(https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\s\)]*)?))(?!\))",
+        "audio": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\s]*)?)",
         # File patterns
-        "file": r"(?:!\[.*?\]\((https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\)]*)?)\))|(?:(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\s\)]*)?))(?!\))",
+        "file": r"(?:!\[.*?\]\((https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\s]*)?)",
     }
 
     all_matches = []
@@ -178,15 +189,18 @@ def _find_all_media_matches(message):
         for match in re.finditer(pattern, message):
             url = _extract_url_from_match(match)
             if url:
-                all_matches.append(
-                    {
-                        "type": media_type,
-                        "url": url,
-                        "start": match.start(),
-                        "end": match.end(),
-                        "full_match": match.group(0),
-                    }
-                )
+                # Chỉ loại trừ nếu URL nằm trong markdown link (không phải media)
+                # Và match này không phải là markdown media syntax
+                if url not in markdown_urls or match.group(0).startswith("!["):
+                    all_matches.append(
+                        {
+                            "type": media_type,
+                            "url": url,
+                            "start": match.start(),
+                            "end": match.end(),
+                            "full_match": match.group(0),
+                        }
+                    )
 
     return all_matches
 
