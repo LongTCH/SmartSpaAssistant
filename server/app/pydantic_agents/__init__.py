@@ -101,7 +101,7 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
                         OVERLAP_MEMORY_COUNT,
                     )
                 )
-                chat_histories.extend(overlap_chat_histories[::-1])
+                chat_histories = overlap_chat_histories[::-1] + chat_histories
             # Xây dựng message_history từ toàn bộ chat_histories
             for message in chat_histories:
                 model_message = ModelMessagesTypeAdapter.validate_json(message.content)
@@ -222,6 +222,7 @@ You are an agent - please keep going until the user's query is completely resolv
 
 ## PLANNING
 You MUST plan extensively before each function call, and reflect extensively on the outcomes of the previous function calls.
+Response in customer language by translating between languages.
 """
                         ),
                     ]

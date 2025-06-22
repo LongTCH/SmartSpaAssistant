@@ -90,9 +90,8 @@ export function OverviewTab() {
       </div>
     );
   }
-
   return (
-    <div className="max-w-4xl">
+    <div className="w-full max-w-none">
       {/* Sticky header with title and save button */}
       <div className="sticky top-0 z-10 bg-background pt-2 pb-4 flex justify-between items-center border-b mb-8">
         <h1 className="text-2xl font-bold">TỔNG QUAN</h1>

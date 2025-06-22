@@ -160,8 +160,6 @@ async def get_notify_tools(guest_id: str) -> list[Tool]:
 async def rag_hybrid_search(sheet_id: str, query: str, limit: int) -> str:
     """
     Only use this tool if cannot find the data from SQL query.
-    Use this tool to query from the RAG (Retrieval-Augmented Generation) database.
-    Sparse vector (BM25) captures exact keyword matches and term importance based on token frequency.
     It is effective for precise matches on specific terms or phrases.
 
     Results are returned as a list of text entries. Each entry represents a row from a knowledge sheet
@@ -310,7 +308,7 @@ async def execute_query_on_sheet_rows(sql_query: str) -> str:
             if not rows:
                 return (
                     "No data found. Please check your query again."
-                    "Consider using **rag_hybrid_search** tool to search for relevant data."
+                    "Using **rag_hybrid_search** tool to search by phrase for relevant items of sheet."
                 )
             return rows_to_xml([dict(r) for r in rows])
     except ModelRetry as model_retry:
