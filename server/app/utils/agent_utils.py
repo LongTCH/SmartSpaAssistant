@@ -179,3 +179,63 @@ class CurrentTimeResponse(BaseModel):
     current_time: str = Field(
         description="The current time in ISO 8601 format (YYYY-MM-DDTHH:MM:SS±HH:MM)."
     )
+
+
+def contains_xml_tags(output: str) -> bool:
+    """
+    Kiểm tra xem output có chứa các thẻ XML có thể bị lộ do prompt injection hay không.
+
+    Args:
+        output: Chuỗi output từ agent cần kiểm tra
+
+    Returns:
+        True nếu phát hiện thẻ XML nguy hiểm, False nếu an toàn
+    """
+    if not output or not isinstance(output, str):
+        return False
+
+    # Danh sách các thẻ XML nguy hiểm cần phát hiện
+    dangerous_xml_patterns = [
+        # Thẻ dữ liệu system
+        r"<sheets\s*[^>]*>",
+        r"<sheet\s*[^>]*>",
+        r"<scripts\s*[^>]*>",
+        r"<script\s*[^>]*>",
+        r"<user\s*[^>]*>",
+        r"<assistant\s*[^>]*>",
+        r"<system\s*[^>]*>",
+        r"<context\s*[^>]*>",
+        r"<data\s*[^>]*>",
+        r"<metadata\s*[^>]*>",
+        # Thẻ cấu trúc dữ liệu
+        r"<columns\s*[^>]*>",
+        r"<column\s*[^>]*>",
+        r"<description\s*[^>]*>",
+        r"<sample_data\s*[^>]*>",
+        r"<rows\s*[^>]*>",
+        r"<row\s*[^>]*>",
+        # Thẻ đóng tương ứng
+        r"</sheets\s*>",
+        r"</sheet\s*>",
+        r"</scripts\s*>",
+        r"</script\s*>",
+        r"</user\s*>",
+        r"</assistant\s*>",
+        r"</system\s*>",
+        r"</context\s*>",
+        r"</data\s*>",
+        r"</metadata\s*>",
+        r"</columns\s*>",
+        r"</column\s*>",
+        r"</description\s*>",
+        r"</sample_data\s*>",
+        r"</rows\s*>",
+        r"</row\s*>",
+    ]
+
+    # Kiểm tra từng pattern nguy hiểm
+    for pattern in dangerous_xml_patterns:
+        if re.search(pattern, output, flags=re.IGNORECASE):
+            return True
+
+    return False

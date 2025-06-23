@@ -150,19 +150,22 @@ def parse_and_format_message(message, char_limit=2000) -> List[MessagePart]:
     # Luôn kiểm tra xem có separator lines không
     sections = _split_by_markdown_separators_first(message)
 
-    # Nếu không có separator lines (chỉ có 1 section), áp dụng logic ngắn/dài
+    # Nếu không có separator lines (chỉ có 1 section), và message ngắn, xử lý nhanh
     if len(sections) == 1:
-        all_media_matches = _find_all_media_matches(message)
+        single_section = sections[0].strip()
+        all_media_matches = _find_all_media_matches(single_section)
+
         # Nếu message ngắn VÀ không có media, giữ nguyên một piece nhưng vẫn clean markdown
-        if len(message) <= char_limit and not all_media_matches:
-            cleaned_message = _clean_markdown_urls(message)
+        if len(single_section) <= char_limit and not all_media_matches:
+            cleaned_message = _clean_markdown_urls(single_section)
             return [MessagePart(type="text", payload=cleaned_message)]
 
         # Nếu message ngắn NHƯNG có media, chỉ tách media ra
-        if len(message) <= char_limit and all_media_matches:
+        if len(single_section) <= char_limit and all_media_matches:
             return _process_short_message_with_media(
-                message, all_media_matches, char_limit
+                single_section, all_media_matches, char_limit
             )
+        # Nếu message dài, nó sẽ được xử lý bởi vòng lặp bên dưới
 
     # Xử lý từng section - tách media và text
     result = []

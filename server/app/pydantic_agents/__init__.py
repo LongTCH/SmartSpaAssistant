@@ -1,5 +1,6 @@
 import logfire
 from app.configs.database import async_session, with_session
+from app.exceptions.custom_exception import ForbiddenError
 from app.models import Script
 from app.pydantic_agents.info import InfoAgentDeps, info_agent
 from app.pydantic_agents.memory import memory_agent
@@ -14,7 +15,7 @@ from app.services import alert_service, interest_service, script_service
 from app.services.integrations import script_rag_service
 from app.stores.store import get_local_data
 from app.utils import asyncio_utils
-from app.utils.agent_utils import MessagePart, dump_json_bytes
+from app.utils.agent_utils import MessagePart, contains_xml_tags, dump_json_bytes
 from app.utils.message_utils import markdown_remove, parse_and_format_message
 from pydantic_ai.messages import (
     ModelMessage,
@@ -177,8 +178,6 @@ You MUST plan extensively before each function call, and reflect extensively on 
                 )
             )
 
-            # user_input_str = (await get_all_available_sheets(None),
-            #                   f"\nRelated scripts in XML format. Important information needs to be reranked and filtered to answer the customer.\n{script_context}\n**Customer input:** {user_input}")
             synthetic_agent = await create_synthetic_agent(user_id)
             synthetic_result = await synthetic_agent.run(
                 user_input,
@@ -186,8 +185,11 @@ You MUST plan extensively before each function call, and reflect extensively on 
                 deps=synthetic_agent_deps,
                 usage_limits=UsageLimits(request_limit=10, total_tokens_limit=100000),
             )
-
-            agent_output_str = markdown_remove(synthetic_result.output)
+            agent_output_str = synthetic_result.output
+            # Làm sạch output để loại bỏ các thẻ XML có thể bị lộ do prompt injection
+            if contains_xml_tags(agent_output_str):
+                raise ForbiddenError("Phát hiện thẻ XML nguy hiểm trong phản hồi")
+            agent_output_str = markdown_remove(agent_output_str)
 
             # Xử lý message_parts để đảm bảo media parts chỉ chứa URL và tách riêng text mô tả
             message_parts = parse_and_format_message(agent_output_str)
@@ -253,6 +255,14 @@ You MUST plan extensively before each function call, and reflect extensively on 
                 )
 
             return message_parts
+        except ForbiddenError as e:
+            print(e)
+            await alert_service.insert_system_alert(db, user_id, f"{e.message}")
+            return [
+                MessagePart(
+                    type="text", payload="Xin lỗi, tôi không thể xử lí yêu cầu này."
+                )
+            ]
         except Exception as e:
             print(e)
             await alert_service.insert_system_alert(
