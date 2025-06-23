@@ -228,7 +228,9 @@ You MUST plan extensively before each function call, and reflect extensively on 
 
             next_count = latest_count + 1
             if next_count > 0 and next_count % UPDATE_GUEST_INFO_INTERVAL == 0:
-                asyncio_utils.run_background(run_info_agent_background, user_id)
+                asyncio_utils.run_background(
+                    run_info_agent_background, user_id, current_qa_content_str
+                )
 
             # Mỗi SHORT_TERM_MEMORY_LIMIT messages tạo summary
             if next_count > 0 and next_count % SHORT_TERM_MEMORY_LIMIT == 0:
@@ -276,6 +278,7 @@ async def run_memory_with_summary(
         list_qa_content_str = [byte.decode("utf-8") for byte in list_qa_content_bytes]
         list_qa_content_str.reverse()
         qa_content_histories = "".join(list_qa_content_str).strip('"')
+        qa_content_histories = qa_content_histories + f"\n{current_qa_content_str}"
         memory_agent_output = await memory_agent.run(
             f"Below are the conversation messages that need summarization:\n{qa_content_histories}"
         )
@@ -304,7 +307,7 @@ async def save_message_without_summary(
         await session.commit()
 
 
-async def run_info_agent_background(user_id: str):
+async def run_info_agent_background(user_id: str, current_qa_content_str: str = None):
     """Chạy info agent trong background để cập nhật thông tin khách hàng"""
     try:
         list_qa_content_bytes = await with_session(
@@ -315,7 +318,10 @@ async def run_info_agent_background(user_id: str):
         list_qa_content_str = [byte.decode("utf-8") for byte in list_qa_content_bytes]
         list_qa_content_str.reverse()
         qa_content_str = "".join(list_qa_content_str).strip('"')
-
+        if current_qa_content_str:
+            qa_content_str += f"\n{current_qa_content_str}"
+        if not qa_content_str:
+            return
         info_agent_deps = InfoAgentDeps(user_id=user_id)
         await info_agent.run(
             qa_content_str,
