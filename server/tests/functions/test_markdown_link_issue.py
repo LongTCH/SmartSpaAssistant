@@ -40,13 +40,15 @@ def test_markdown_link_with_url_as_text():
 
     # Check media URLs
     assert image_parts[0].payload == "https://example.com/photo.jpg"
+    # Check that markdown links đã được chuyển thành URL thuần túy
     assert video_parts[0].payload == "https://example.com/video.mp4"
-
-    # Check that markdown links are preserved in text
     full_text = " ".join([part.payload for part in text_parts])
-    assert "[https://example.com](https://example.com)" in full_text
-    assert "[https://docs.example.com](https://docs.example.com)" in full_text
-    assert "[https://github.com/user/repo](https://github.com/user/repo)" in full_text
+    assert "https://example.com" in full_text
+    assert "https://docs.example.com" in full_text
+    assert "https://github.com/user/repo" in full_text
+
+    # Không còn markdown syntax
+    assert "[https://example.com]" not in full_text
 
     print("✅ Test markdown link with URL as text PASSED")
 
@@ -78,21 +80,28 @@ def test_mixed_markdown_and_bare_urls():
 
     print(f"\nTotal parts: {len(result)}")
     for i, part in enumerate(result, 1):
+        # Should extract media files (bao gồm cả PDF trong markdown link)
         print(f"  Part {i}: [{part.type}] {part.payload}")
-
-    # Should extract media files
     assert len(image_parts) == 1
     assert len(video_parts) == 1
 
-    # All markdown links should be preserved
+    # File parts should include PDF từ markdown link
+    file_parts = [part for part in result if part.type == "file"]
+    assert len(file_parts) == 1
+    assert file_parts[0].payload == "https://example.com/document.pdf"
+
+    # All markdown links đã được chuyển thành URL thuần túy
     full_text = " ".join([part.payload for part in text_parts])
-    assert "[Google](https://google.com)" in full_text
-    assert "[https://example.com](https://example.com)" in full_text
-    assert "[Download PDF](https://example.com/document.pdf)" in full_text
+    assert "https://google.com" in full_text
+    assert "https://example.com" in full_text
+    assert "https://example.com/document.pdf" in full_text  # PDF URL vẫn trong text
 
     # Bare non-media URLs should be preserved
     assert "https://website.com" in full_text
     assert "https://api.example.com/endpoint" in full_text
+
+    # Không còn markdown syntax
+    assert "[Google]" not in full_text
 
     print("✅ Test mixed markdown and bare URLs PASSED")
 
@@ -117,12 +126,11 @@ def test_edge_case_markdown_links():
 
     print(f"\nTotal parts: {len(result)}")
     for i, part in enumerate(result, 1):
+        # Should extract media files bao gồm cả trong markdown links
         print(f"  Part {i}: [{part.type}] {part.payload}")
-
-    # Should extract only bare media URLs (not those in markdown links)
     assert (
-        len(image_parts) == 0
-    ), f"Expected 0 image parts (all in markdown), got {len(image_parts)}"
+        len(image_parts) == 2
+    ), f"Expected 2 image parts (both from markdown links), got {len(image_parts)}"
     assert (
         len(video_parts) == 1
     ), f"Expected 1 video part (bare URL), got {len(video_parts)}"
@@ -130,12 +138,20 @@ def test_edge_case_markdown_links():
     # Check that bare media URL is extracted
     assert video_parts[0].payload == "https://example.com/video.mp4"
 
-    # Check that ALL markdown links are preserved (even those with media URLs)
+    # Check image URLs from markdown links
+    image_urls = [part.payload for part in image_parts]
+    assert "https://example.com/photo.jpg" in image_urls
+
+    # Check that ALL markdown links đã được chuyển thành URL thuần túy (even those with media URLs)
     full_text = " ".join([part.payload for part in text_parts])
-    assert "[Image](https://example.com/photo.jpg)" in full_text
-    assert "[https://example.com/photo.jpg](https://example.com/photo.jpg)" in full_text
-    assert "[Website](https://example.com)" in full_text
-    assert "[API](https://api.example.com?param=value)" in full_text
+    assert "https://example.com/photo.jpg" in full_text  # From markdown links
+    assert "https://example.com" in full_text
+    assert "https://api.example.com?param=value" in full_text
+
+    # Không còn markdown syntax
+    assert "[Image]" not in full_text
+    assert "[Website]" not in full_text
+    assert "[API]" not in full_text
 
     print("✅ Test edge case markdown links PASSED")
 

@@ -308,6 +308,7 @@ class ChatHistory(Base):
     id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
     guest_id = Column(String, nullable=False)
     content = Column(LargeBinary, nullable=False)
+    qa_content = Column(LargeBinary, nullable=True)
     summary = Column(Text, nullable=False)
     used_scripts = Column(Text, nullable=True)
     history_count = Column(Integer, default=0)

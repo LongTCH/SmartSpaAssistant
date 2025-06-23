@@ -1,14 +1,12 @@
-import datetime
-
 import logfire
 from app.configs.database import async_session, with_session
 from app.models import Script
+from app.pydantic_agents.info import InfoAgentDeps, info_agent
 from app.pydantic_agents.memory import memory_agent
 from app.pydantic_agents.synthetic import SyntheticAgentDeps, create_synthetic_agent
 from app.pydantic_agents.synthetic_tools import get_all_available_sheets
 from app.repositories import (
     chat_history_repository,
-    guest_info_repository,
     guest_repository,
     script_repository,
 )
@@ -24,17 +22,33 @@ from pydantic_ai.messages import (
     ModelRequest,
     ModelResponse,
     TextPart,
-    UserPromptPart,
 )
 from pydantic_ai.usage import UsageLimits
 
 logfire.configure(send_to_logfire="if-token-present")
 logger = logfire.instrument_pydantic_ai()
 
-SHORT_TERM_MEMORY_LIMIT = 15
+SHORT_TERM_MEMORY_LIMIT = 10
 OLD_SCRIPTS_LENGTH = 10
 REMIND_INTERVAL = 5
 OVERLAP_MEMORY_COUNT = 5
+UPDATE_GUEST_INFO_INTERVAL = 3
+
+
+def convert_messages_to_xml(message_histories: list[ModelMessage]) -> str:
+    """Chuyển đổi message_histories thành chuỗi XML"""
+    xml_messages = []
+    for msg in message_histories:
+        if isinstance(msg, ModelRequest):
+            # User message
+            user_content = msg.parts[0].content if msg.parts else ""
+            xml_messages.append(f"<user>{user_content}</user>")
+        elif isinstance(msg, ModelResponse):
+            # Assistant message
+            assistant_content = msg.parts[0].content if msg.parts else ""
+            xml_messages.append(f"<assistant>{assistant_content}</assistant>")
+
+    return "\n".join(xml_messages)
 
 
 async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
@@ -147,71 +161,6 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
                     )
                 )
 
-            # Chỉ thêm sheet information mỗi 10 messages (giống như memory)
-            remind_messages = []
-            if latest_count % REMIND_INTERVAL == 0:
-                guest_info = await with_session(
-                    lambda session: guest_info_repository.get_guest_info_by_guest_id(
-                        session, user_id
-                    )
-                )
-                if not guest_info:
-                    customer_name = ""
-                    customer_gender = ""
-                    customer_phone = ""
-                    customer_email = ""
-                    customer_address = ""
-                    customer_birthday = ""
-                else:
-                    customer_name = guest_info.fullname or ""
-                    customer_gender = guest_info.gender or ""
-                    customer_phone = guest_info.phone or ""
-                    customer_email = guest_info.email or ""
-                    customer_address = guest_info.address or ""
-                    customer_birthday = (
-                        guest_info.birthday.strftime("%Y-%m-%d")
-                        if guest_info.birthday
-                        else ""
-                    )
-                remind_messages.append(
-                    ModelResponse(
-                        parts=[
-                            TextPart(
-                                content=f"""Here is information about current customer (blank if not available):
-- Name: { customer_name }
-- Gender: { customer_gender }
-- Phone: { customer_phone }
-- Email: { customer_email }
-- Address: { customer_address }
-- Birthday (YYYY-MM-DD): { customer_birthday }
-
-**You can update above information if you have new or corrected details.**"""
-                            ),
-                        ]
-                    )
-                )
-            # Chỉ lấy summary nếu là message ngay sau khi tạo summary (tức là latest_count + 1 chia hết cho 10 + 1)
-            # VD: message 11 (sau khi message 10 tạo summary), message 21 (sau khi message 20 tạo summary)
-            # memory = ""
-            # if latest_count > 0 and latest_count % SHORT_TERM_MEMORY_LIMIT == 0:
-            #     # Message ngay sau khi tạo summary
-            #     chat_summaries = await with_session(
-            #         lambda db: chat_history_repository.get_long_term_memory(
-            #             db, user_id, skip=0, limit=1
-            #         )
-            #     )
-            #     memory = chat_summaries[0] if chat_summaries else ""
-            #     if memory:
-            #         remind_messages.append(
-            #             ModelResponse(
-            #                 parts=[
-            #                     TextPart(
-            #                         content=f"This section contains relevant information from previous conversations that can help in understanding the current context and providing a more accurate response to the customer.\n{memory}"
-            #                     ),
-            #                 ]
-            #             )
-            #         )
-
             assistant_messages.append(
                 ModelResponse(
                     parts=[
@@ -222,7 +171,6 @@ You are an agent - please keep going until the user's query is completely resolv
 
 ## PLANNING
 You MUST plan extensively before each function call, and reflect extensively on the outcomes of the previous function calls.
-Do not expose any sensitive technical details to the user, such as the function names or parameters, and raw data in xml, json, code.
 """
                         ),
                     ]
@@ -234,61 +182,72 @@ Do not expose any sensitive technical details to the user, such as the function 
             synthetic_agent = await create_synthetic_agent(user_id)
             synthetic_result = await synthetic_agent.run(
                 user_input,
-                message_history=message_history + assistant_messages + remind_messages,
+                message_history=message_history + assistant_messages,
                 deps=synthetic_agent_deps,
-                usage_limits=UsageLimits(request_limit=50, total_tokens_limit=500000),
-            )  # message_parts = [MessagePart(
-            #     payload=synthetic_result.output, type="text")]
+                usage_limits=UsageLimits(request_limit=10, total_tokens_limit=100000),
+            )
+
             agent_output_str = markdown_remove(synthetic_result.output)
 
             # Xử lý message_parts để đảm bảo media parts chỉ chứa URL và tách riêng text mô tả
             message_parts = parse_and_format_message(agent_output_str)
 
             # Typically [HumanMessage, AIMessage] or similar
-            agent_new_messages = synthetic_result.new_messages()
-            request_timestamp = (
-                agent_new_messages[0].parts[0].timestamp
-                if agent_new_messages
-                else datetime.datetime.now().isoformat()
-            )
+            # agent_new_messages = synthetic_result.new_messages()
+            # request_timestamp = (
+            #     agent_new_messages[0].parts[0].timestamp
+            #     if agent_new_messages
+            #     else datetime.datetime.now().isoformat()
+            # )
 
             # get all object of type ModelResponse in agent_new_messages
-            agent_new_responses = [
-                msg for msg in agent_new_messages if isinstance(msg, ModelResponse)
-            ]
+            # agent_new_responses = [
+            #     msg for msg in agent_new_messages if isinstance(msg, ModelResponse)
+            # ]
 
             # Construct current turn's messages in the desired ModelRequest/ModelResponse format
-            current_turn_interaction_objects = [
-                ModelRequest(
-                    parts=[
-                        UserPromptPart(content=user_input, timestamp=request_timestamp)
-                    ]
-                ),
-            ] + agent_new_responses
-            current_turn_bytes = dump_json_bytes(
-                current_turn_interaction_objects
-            )  # Ensure script_ids is defined in the surrounding scope
+            # current_turn_interaction_objects = [
+            #     ModelRequest(
+            #         parts=[
+            #             UserPromptPart(content=user_input,
+            #                            timestamp=request_timestamp)
+            #         ]
+            #     ),
+            # ] + agent_new_responses
+            # current_turn_bytes = dump_json_bytes(
+            #     current_turn_interaction_objects
+            # )
+            current_qa_content_str = "".join(
+                [
+                    f"<user>{user_input}</user>\n",
+                    f"<assistant>{synthetic_result.output}</assistant>\n",
+                ]
+            )
+            current_qa_content_bytes = dump_json_bytes(current_qa_content_str)
             script_ids_str = ",".join(script_ids)
 
             next_count = latest_count + 1
+            if next_count > 0 and next_count % UPDATE_GUEST_INFO_INTERVAL == 0:
+                asyncio_utils.run_background(run_info_agent_background, user_id)
 
             # Mỗi SHORT_TERM_MEMORY_LIMIT messages tạo summary
             if next_count > 0 and next_count % SHORT_TERM_MEMORY_LIMIT == 0:
                 asyncio_utils.run_background(
                     run_memory_with_summary,
                     user_id,
-                    current_turn_interaction_objects,  # Current turn messages
-                    message_history,
+                    synthetic_result.new_messages_json(),
                     script_ids_str,
+                    current_qa_content_str,
+                    current_qa_content_bytes,
                 )
             else:
                 # Lưu message mà không tạo summary
                 asyncio_utils.run_background(
                     save_message_without_summary,
                     user_id,
-                    current_turn_bytes,
+                    synthetic_result.new_messages_json(),
                     script_ids_str,
-                    # history_count (next_count) should be handled by save_message_without_summary
+                    current_qa_content_bytes,
                 )
 
             return message_parts
@@ -301,46 +260,67 @@ Do not expose any sensitive technical details to the user, such as the function 
 
 
 async def run_memory_with_summary(
-    user_id, current_turn_interaction_objects, old_message_histories, script_ids
+    user_id,
+    new_messages,
+    script_ids,
+    current_qa_content_str,
+    current_qa_content_bytes: bytes = None,
 ):
     """Chạy memory agent và tạo summary cho 10 messages gần nhất"""
     async with async_session() as session:
-        # Nối old_message_histories với current_turn_interaction_objects để tạo message_histories cho agent
-        message_histories = old_message_histories + current_turn_interaction_objects
-
-        # Chuyển đổi message_histories thành chuỗi XML
-        xml_messages = []
-        for msg in message_histories:
-            if isinstance(msg, ModelRequest):
-                # User message
-                user_content = msg.parts[0].content if msg.parts else ""
-                xml_messages.append(f"<user>{user_content}</user>")
-            elif isinstance(msg, ModelResponse):
-                # Assistant message
-                assistant_content = msg.parts[0].content if msg.parts else ""
-                xml_messages.append(f"<assistant>{assistant_content}</assistant>")
-
-        conversation_xml = "\n".join(xml_messages)
-
+        list_qa_content_bytes = await with_session(
+            lambda session: chat_history_repository.get_latest_qa_content(
+                session, user_id, limit=SHORT_TERM_MEMORY_LIMIT
+            )
+        )
+        list_qa_content_str = [byte.decode("utf-8") for byte in list_qa_content_bytes]
+        list_qa_content_str.reverse()
+        qa_content_histories = "".join(list_qa_content_str).strip('"')
         memory_agent_output = await memory_agent.run(
-            f"Below are the conversation messages that need summarization:\n{conversation_xml}"
+            f"Below are the conversation messages that need summarization:\n{qa_content_histories}"
         )
         summary = memory_agent_output.output
 
-        # Serialize current turn để lưu vào database
-        current_turn_bytes = dump_json_bytes(current_turn_interaction_objects)
-
         # Lưu message hiện tại với summary
         chat_history = await chat_history_repository.insert_chat_history(
-            session, user_id, current_turn_bytes, summary, script_ids
+            session,
+            user_id,
+            new_messages,
+            summary,
+            script_ids,
+            current_qa_content_bytes,
         )
         await session.commit()
 
 
-async def save_message_without_summary(user_id, new_messages, script_ids):
+async def save_message_without_summary(
+    user_id, new_messages, script_ids, current_qa_content_bytes: bytes = None
+):
     """Lưu message mà không tạo summary"""
     async with async_session() as session:
         await chat_history_repository.insert_chat_history_without_summary(
-            session, user_id, new_messages, script_ids
+            session, user_id, new_messages, script_ids, current_qa_content_bytes
         )
         await session.commit()
+
+
+async def run_info_agent_background(user_id: str):
+    """Chạy info agent trong background để cập nhật thông tin khách hàng"""
+    try:
+        list_qa_content_bytes = await with_session(
+            lambda session: chat_history_repository.get_latest_qa_content(
+                session, user_id, limit=SHORT_TERM_MEMORY_LIMIT
+            )
+        )
+        list_qa_content_str = [byte.decode("utf-8") for byte in list_qa_content_bytes]
+        list_qa_content_str.reverse()
+        qa_content_str = "".join(list_qa_content_str).strip('"')
+
+        info_agent_deps = InfoAgentDeps(user_id=user_id)
+        await info_agent.run(
+            qa_content_str,
+            usage_limits=UsageLimits(request_limit=5, total_tokens_limit=100000),
+            deps=info_agent_deps,
+        )
+    except Exception as e:
+        print(f"Error running info agent for user {user_id}: {e}")

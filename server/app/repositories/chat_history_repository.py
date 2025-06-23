@@ -19,7 +19,12 @@ async def get_latest_history_count(db: AsyncSession, guest_id: str) -> int:
 
 
 async def insert_chat_history(
-    db: AsyncSession, guest_id: str, content: str, summary: str, script_ids: str
+    db: AsyncSession,
+    guest_id: str,
+    content: str,
+    summary: str,
+    script_ids: str,
+    qa_content: bytes,
 ) -> ChatHistory:
     # Lấy history_count hiện tại và tăng lên 1
     latest_count = await get_latest_history_count(db, guest_id)
@@ -31,6 +36,7 @@ async def insert_chat_history(
         summary=summary,
         used_scripts=script_ids,
         history_count=new_count,
+        qa_content=qa_content,
     )
     db.add(chat_history)
     await db.flush()
@@ -82,7 +88,7 @@ async def get_last_n_messages_content(
 
 
 async def insert_chat_history_without_summary(
-    db: AsyncSession, guest_id: str, content: bytes, script_ids: str
+    db: AsyncSession, guest_id: str, content: bytes, script_ids: str, qa_content: bytes
 ) -> ChatHistory:
     """Chèn chat history mới mà không có summary, history_count tự động tăng."""
     latest_count = await get_latest_history_count(db, guest_id)
@@ -94,6 +100,7 @@ async def insert_chat_history_without_summary(
         summary="",  # Summary rỗng
         used_scripts=script_ids,
         history_count=new_count,
+        qa_content=qa_content,
     )
     db.add(chat_history)
     await db.flush()
@@ -139,6 +146,23 @@ async def get_latest_chat_histories_from_datetime(
         select(ChatHistory)
         .where(ChatHistory.guest_id == guest_id)
         .where(ChatHistory.created_at <= datetime)
+        .order_by(ChatHistory.created_at.desc())
+        .limit(limit)
+    )
+    result = await db.execute(stmt)
+    return result.scalars().all()
+
+
+async def get_latest_qa_content(
+    db: AsyncSession, guest_id: str, limit: int = 5
+) -> list[bytes]:
+    """
+    Lấy các chat history mới nhất của guest, bao gồm cả những history có summary khác rỗng.
+    """
+    stmt = (
+        select(ChatHistory.qa_content)
+        .where(ChatHistory.guest_id == guest_id)
+        .where(ChatHistory.qa_content != None)
         .order_by(ChatHistory.created_at.desc())
         .limit(limit)
     )

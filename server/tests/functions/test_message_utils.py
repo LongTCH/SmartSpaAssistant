@@ -21,8 +21,8 @@ def test_text_only():
     print("✓ Test text only passed")
 
 
-def test_markdown_links_preserved():
-    """Test markdown links được giữ nguyên trong text"""
+def test_markdown_links_converted():
+    """Test markdown links được chuyển thành URL thuần túy trong text"""
     message = """
     Đây là một số links hữu ích:
     - [Google](https://google.com) để tìm kiếm
@@ -42,12 +42,16 @@ def test_markdown_links_preserved():
     assert len(media_parts) == 0, "Không nên có media parts"
     assert len(text_parts) > 0, "Phải có text parts"
 
-    # Kiểm tra markdown links vẫn còn trong text
+    # Kiểm tra markdown links đã được chuyển thành URL thuần túy
     full_text = " ".join([part.payload for part in text_parts])
-    assert "[Google](https://google.com)" in full_text
-    assert "[GitHub](https://github.com)" in full_text
+    assert "https://google.com" in full_text
+    assert "https://github.com" in full_text
     assert "https://example.com" in full_text
-    print("✓ Test markdown links preserved passed")
+
+    # Không còn markdown syntax
+    assert "[Google]" not in full_text
+    assert "[GitHub]" not in full_text
+    print("✓ Test markdown links converted passed")
 
 
 def test_image_extraction():
@@ -67,11 +71,13 @@ def test_image_extraction():
 
     assert len(image_parts) == 2, f"Expected 2 image parts, got {len(image_parts)}"
     assert "https://example.com/image.jpg" in [part.payload for part in image_parts]
+    # Kiểm tra links đã được chuyển thành URL thuần túy
     assert "https://example.com/photo.png" in [part.payload for part in image_parts]
-
-    # Kiểm tra links vẫn còn trong text
     full_text = " ".join([part.payload for part in text_parts])
-    assert "[một link](https://example.com)" in full_text
+    assert "https://example.com" in full_text
+
+    # Không còn markdown syntax
+    assert "[một link]" not in full_text
     print("✓ Test image extraction passed")
 
 
@@ -106,12 +112,15 @@ def test_multiple_media_types():
     assert image_parts[0].payload == "https://example.com/image.jpg"
     assert video_parts[0].payload == "https://example.com/video.mp4"
     assert audio_parts[0].payload == "https://example.com/song.mp3"
+    # Kiểm tra links đã được chuyển thành URL thuần túy
     assert file_parts[0].payload == "https://example.com/document.pdf"
-
-    # Kiểm tra links vẫn còn trong text
     full_text = " ".join([part.payload for part in text_parts])
-    assert "[Website](https://example.com)" in full_text
-    assert "[Documentation](https://docs.example.com)" in full_text
+    assert "https://example.com" in full_text
+    assert "https://docs.example.com" in full_text
+
+    # Không còn markdown syntax
+    assert "[Website]" not in full_text
+    assert "[Documentation]" not in full_text
     print("✓ Test multiple media types passed")
 
 
@@ -140,11 +149,10 @@ def test_markdown_separators():
     video_parts = [part for part in result if part.type == "video"]
 
     assert len(image_parts) == 1
+    # Kiểm tra links đã được chuyển thành URL thuần túy
     assert len(video_parts) == 1
-
-    # Kiểm tra links vẫn trong text
     full_text = " ".join([part.payload for part in text_parts])
-    assert "[link](https://example.com)" in full_text
+    assert "https://example.com" in full_text
     print("✓ Test markdown separators passed")
 
 
@@ -235,13 +243,12 @@ def test_mixed_content():
     assert len(image_parts) == 1
     assert len(video_parts) == 1
     assert len(audio_parts) == 1
+    # Kiểm tra tất cả links đã được chuyển thành URL thuần túy
     assert len(file_parts) == 1
-
-    # Kiểm tra tất cả links vẫn trong text
     full_text = " ".join([part.payload for part in text_parts])
-    assert "[Tài liệu API](https://docs.example.com/api)" in full_text
-    assert "[Hướng dẫn](https://guide.example.com)" in full_text
-    assert "[email](mailto:admin@example.com)" in full_text
+    assert "https://docs.example.com/api" in full_text
+    assert "https://guide.example.com" in full_text
+    assert "mailto:admin@example.com" in full_text
 
     print("✓ Test mixed content passed")
 
@@ -253,7 +260,7 @@ def run_all_tests():
 
     try:
         test_text_only()
-        test_markdown_links_preserved()
+        test_markdown_links_converted()
         test_image_extraction()
         test_multiple_media_types()
         test_markdown_separators()

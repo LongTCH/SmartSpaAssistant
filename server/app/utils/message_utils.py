@@ -130,9 +130,10 @@ def parse_and_format_message(message, char_limit=2000) -> List[MessagePart]:
     Parses and formats a message for Messenger, splitting it into multiple parts if it exceeds the character limit.
 
     New logic order:
-    1. Split by markdown separators first (---, ###, etc.)
-    2. Extract media parts from each section
-    3. Clean remaining text parts
+    1. Check if message is short enough to keep as one piece
+    2. Split by markdown separators only if needed (---, ###, etc.)
+    3. Extract media parts from each section
+    4. Clean remaining text parts
 
     Args:
         message: The message in markdown format to parse
@@ -144,10 +145,26 @@ def parse_and_format_message(message, char_limit=2000) -> List[MessagePart]:
     if not message or not message.strip():
         return []
 
-    # Bước 1: Chia theo markdown separators trước
-    sections = _split_by_markdown_separators_first(message.strip())
+    message = message.strip()
 
-    # Bước 2: Xử lý từng section - tách media và text
+    # Luôn kiểm tra xem có separator lines không
+    sections = _split_by_markdown_separators_first(message)
+
+    # Nếu không có separator lines (chỉ có 1 section), áp dụng logic ngắn/dài
+    if len(sections) == 1:
+        all_media_matches = _find_all_media_matches(message)
+        # Nếu message ngắn VÀ không có media, giữ nguyên một piece nhưng vẫn clean markdown
+        if len(message) <= char_limit and not all_media_matches:
+            cleaned_message = _clean_markdown_urls(message)
+            return [MessagePart(type="text", payload=cleaned_message)]
+
+        # Nếu message ngắn NHƯNG có media, chỉ tách media ra
+        if len(message) <= char_limit and all_media_matches:
+            return _process_short_message_with_media(
+                message, all_media_matches, char_limit
+            )
+
+    # Xử lý từng section - tách media và text
     result = []
     for section in sections:
         if not section.strip():
@@ -162,26 +179,15 @@ def parse_and_format_message(message, char_limit=2000) -> List[MessagePart]:
 
 def _find_all_media_matches(message):
     """Tìm tất cả media matches trong message - chỉ tách image, video, audio, file"""
-    # Tìm tất cả markdown LINKS (không phải media) để loại trừ
-    # Pattern này chỉ match [text](url) chứ không match ![alt](url)
-    markdown_links = re.findall(r"(?<!\!)\[.*?\]\([^)]+\)", message)
-
-    # Tạo set chứa tất cả URLs trong markdown links (không phải media)
-    markdown_urls = set()
-    for link in markdown_links:
-        url_match = re.search(r"\]\(([^)]+)\)", link)
-        if url_match:
-            markdown_urls.add(url_match.group(1))
-
     media_patterns = {
-        # Image patterns: markdown media syntax ![alt](url) và bare URLs
-        "image": r"(?:!\[.*?\]\((https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\s]*)?)",
+        # Image patterns: markdown media syntax ![alt](url), markdown links [text](url), và bare URLs
+        "image": r"(!\[.*?\]\(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\)]*)?)\)|(\[.*?\]\((https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:jpg|jpeg|png|gif|bmp|svg|webp)(?:\?[^\s]*)?)",
         # Video patterns
-        "video": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\s]*)?)",
+        "video": r"(!\[.*?\]\(https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\)]*)?)\)|(\[.*?\]\((https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:mp4|mov|avi|mkv|flv|webm)(?:\?[^\s]*)?)",
         # Audio patterns
-        "audio": r"(?:!\[.*?\]\((https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\s]*)?)",
+        "audio": r"(!\[.*?\]\(https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\)]*)?)\)|(\[.*?\]\((https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:mp3|wav|flac|aac|ogg|m4a|wma)(?:\?[^\s]*)?)",
         # File patterns
-        "file": r"(?:!\[.*?\]\((https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\s]*)?)",
+        "file": r"(!\[.*?\]\(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\)]*)?)\)|(\[.*?\]\((https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\)]*)?)\))|(https?://\S+?\.(?:pdf|doc|docx|xls|xlsx|ppt|pptx|txt|csv|zip|rar|7z)(?:\?[^\s]*)?)",
     }
 
     all_matches = []
@@ -189,18 +195,15 @@ def _find_all_media_matches(message):
         for match in re.finditer(pattern, message):
             url = _extract_url_from_match(match)
             if url:
-                # Chỉ loại trừ nếu URL nằm trong markdown link (không phải media)
-                # Và match này không phải là markdown media syntax
-                if url not in markdown_urls or match.group(0).startswith("!["):
-                    all_matches.append(
-                        {
-                            "type": media_type,
-                            "url": url,
-                            "start": match.start(),
-                            "end": match.end(),
-                            "full_match": match.group(0),
-                        }
-                    )
+                all_matches.append(
+                    {
+                        "type": media_type,
+                        "url": url,
+                        "start": match.start(),
+                        "end": match.end(),
+                        "full_match": match.group(0),
+                    }
+                )
 
     return all_matches
 
@@ -209,33 +212,42 @@ def _extract_url_from_match(match):
     """Trích xuất URL từ regex match"""
     url = None
 
-    # Ưu tiên group 1 (URL trong markdown) trước, sau đó group 2 (bare URL)
-    for i in [1, 2]:
-        try:
-            if match.group(i):
-                url = match.group(i)
-                break
-        except IndexError:
-            continue
+    # Group 1: markdown media ![alt](url) - lấy URL từ trong match
+    if match.group(1):
+        # Tìm URL trong markdown media
+        media_match = re.search(r"\((https?://[^)]+)\)", match.group(1))
+        if media_match:
+            url = media_match.group(1)
+    # Group 2: markdown link [text](url) - lấy URL từ trong match
+    elif match.group(2):
+        # Tìm URL trong markdown link
+        link_match = re.search(r"\((https?://[^)]+)\)", match.group(2))
+        if link_match:
+            url = link_match.group(1)
+    # Group 3: bare URL
+    elif match.group(3):
+        url = match.group(3)
 
     if not url:
-        url = match.group(0)
+        # Fallback: cố gắng tìm URL trong toàn bộ match
+        url_match = re.search(r"https?://[^\s)]+", match.group(0))
+        if url_match:
+            url = url_match.group(0)
 
-    # Làm sạch URL - chỉ xử lý nếu không phải là URL từ markdown link
-    if "](" in match.group(0):
-        # Đây là markdown link, URL đã clean
-        return url
-
-    # Làm sạch URL cho bare URLs
-    if "(" in url and ")" in url and not url.startswith("http"):
-        url = url.split("(")[-1].split(")")[0]
+    # Làm sạch URL - xóa dấu ngoặc thừa ở cuối nếu có
+    if url and url.endswith(")") and url.count("(") < url.count(")"):
+        url = url.rstrip(")")
 
     return url
 
 
 def _clean_markdown_urls(text):
-    """Làm sạch text - chỉ xử lý markdown list formatting, giữ nguyên các markdown links"""
-    # Chỉ xử lý markdown list formatting
+    """Làm sạch text - chuyển markdown links thành URL thuần túy và xử lý markdown list formatting"""
+    # Chuyển markdown links [text](url) thành chỉ url
+    # Pattern để match [text](url) nhưng không match ![alt](url) (media)
+    text = re.sub(r"(?<!\!)\[.*?\]\(([^)]+)\)", r"\1", text)
+
+    # Xử lý markdown list formatting
     lines = text.split("\n")
     clean_lines = []
 
@@ -296,22 +308,37 @@ def _create_media_part(match):
 
 
 def _clean_remaining_text(text, extracted_matches):
-    """Làm sạch text còn lại sau khi loại bỏ media - chỉ xóa những gì đã được extract"""
+    """Làm sạch text còn lại sau khi loại bỏ media - thay thế markdown links chứa media bằng URL"""
     # Sắp xếp matches theo vị trí từ cuối về đầu để tránh thay đổi index
     sorted_matches = sorted(
         extracted_matches, key=lambda x: x.get("start", 0), reverse=True
     )
 
-    # Loại bỏ chính xác những match đã được extract
+    # Xử lý từng match đã được extract
     for match in sorted_matches:
-        if "start" in match and "end" in match:
-            # Xóa chính xác vị trí đã được extract
+        if "start" in match and "end" in match and "full_match" in match:
+            full_match = match["full_match"]
             start, end = match["start"], match["end"]
-            if end <= len(text):
-                text = text[:start] + text[end:]
+            url = match["url"]
+
+            # Kiểm tra xem đây có phải là markdown link không
+            if full_match.startswith("[") and "](" in full_match:
+                # Đây là markdown link chứa media, thay thế bằng URL
+                if end <= len(text):
+                    text = text[:start] + url + text[end:]
+            else:
+                # Đây là bare URL, xóa bỏ hoàn toàn
+                if end <= len(text):
+                    text = text[:start] + text[end:]
         elif "full_match" in match:
             # Fallback: thay thế exact match
-            text = text.replace(match["full_match"], "", 1)
+            full_match = match["full_match"]
+            if full_match.startswith("[") and "](" in full_match:
+                # Thay thế markdown link bằng URL
+                text = text.replace(full_match, match["url"], 1)
+            else:
+                # Xóa bare URL
+                text = text.replace(full_match, "", 1)
 
     # Làm sạch markdown URLs còn sót lại (không được extract)
     text = _clean_markdown_urls(text)
@@ -437,13 +464,13 @@ def split_text_into_chunks_messagepart(text, char_limit=2000) -> List[MessagePar
 
 
 def _split_by_markdown_separators_first(text):
-    """Chia text theo markdown separators trước tiên"""
+    """Chia text theo markdown separators trước tiên - chỉ chia theo horizontal rules, không chia theo headers"""
     markdown_separators = [
         r"^---+\s*$",  # Horizontal rule: ---
         r"^\*\*\*+\s*$",  # Horizontal rule: ***
         r"^___+\s*$",  # Horizontal rule: ___
         r"^===+\s*$",  # Alternative separator: ===
-        r"^#{1,6}\s+.*$",  # Headers: # ## ### #### ##### ######
+        # Bỏ header pattern vì headers là nội dung, không phải separators
     ]
 
     # Combine all separator patterns
@@ -454,12 +481,13 @@ def _split_by_markdown_separators_first(text):
     current_section = []
 
     for line in lines:
-        # Check if line matches any separator
+        # Check if line matches any separator (chỉ horizontal rules)
         if re.match(separator_pattern, line.strip(), re.MULTILINE):
             # Add current section if it has content
             if current_section:
                 sections.append("\n".join(current_section))
                 current_section = []
+            # Không thêm separator line vào section mới
         else:
             current_section.append(line)
 
@@ -506,12 +534,15 @@ def _build_section_parts(section, filtered_matches, char_limit):
     result = []
     current_pos = 0
 
-    for match in filtered_matches:
-        # Thêm text trước match
+    for match in filtered_matches:  # Thêm text trước match
         if match["start"] > current_pos:
             text_before = section[current_pos : match["start"]].strip()
             if text_before:
-                text_parts = _process_text_segment_cleaned(text_before, char_limit)
+                # Clean markdown links trước khi xử lý
+                cleaned_text_before = _clean_markdown_urls(text_before)
+                text_parts = _process_text_segment_cleaned(
+                    cleaned_text_before, char_limit
+                )
                 result.extend(text_parts)
 
         # Thêm media part
@@ -788,3 +819,31 @@ def markdown_remove(text):
     # text = re.sub(r"~~(.*?)~~", r"\1", text)  # Gạch ngang
 
     return text.strip()
+
+
+def _process_short_message_with_media(message, all_media_matches, char_limit):
+    """Xử lý message ngắn có media - tách media ra nhưng giữ text liền nhau"""
+    if not all_media_matches:
+        cleaned_message = _clean_markdown_urls(message)
+        return [MessagePart(type="text", payload=cleaned_message)]
+
+    # Lọc matches
+    filtered_matches = _filter_matches(all_media_matches)
+
+    # Tạo media parts
+    media_parts = [_create_media_part(match) for match in filtered_matches]
+
+    # Clean text còn lại (loại bỏ media và clean markdown links)
+    cleaned_text = _clean_remaining_text(message, filtered_matches)
+
+    # Xây dựng result
+    result = []
+
+    # Thêm text trước (nếu có)
+    if cleaned_text.strip():
+        result.append(MessagePart(type="text", payload=cleaned_text.strip()))
+
+    # Thêm tất cả media parts
+    result.extend(media_parts)
+
+    return result

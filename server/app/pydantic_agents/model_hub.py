@@ -23,8 +23,9 @@ ModelName = Literal[
     "gemini-1.5-flash-8b",
     "gemini-1.5-flash",
     "gemini-1.5-pro",
-    "gemini-2.5-flash-lite" "gemini-2.5-flash",
-    "gemini-2.5-flash-thinking",
+    "gemini-2.5-flash-lite",
+    "gemini-2.5-flash",
+    # "gemini-2.5-flash-thinking",
     "gemini-2.5-pro",
     "qwen-2.5-coder",
     "deepseek-reasoner",
@@ -78,10 +79,10 @@ model_hub: Dict[ModelName, ModelType] = {
         "qwen/qwen-2.5-coder-32b-instruct:free",
         provider=OpenRouterProvider(api_key=env_config.OPENROUTER_API_KEY),
     ),
-    "gemini-2.5-flash-thinking": OpenAIModel(
-        "google/gemini-2.5-flash-preview-05-20:thinking",
-        provider=OpenRouterProvider(api_key=env_config.OPENROUTER_API_KEY),
-    ),
+    # "gemini-2.5-flash-thinking": OpenAIModel(
+    #     "google/gemini-2.5-flash-preview-05-20:thinking",
+    #     provider=OpenRouterProvider(api_key=env_config.OPENROUTER_API_KEY),
+    # ),
     "gemini-2.5-flash-lite": GeminiModel(
         "gemini-2.5-flash-lite-preview-06-17",
         provider=GoogleGLAProvider(
@@ -107,13 +108,13 @@ model_hub: Dict[ModelName, ModelType] = {
         ),
     ),
     "gemini-2.5-flash": GeminiModel(
-        "gemini-2.5-flash-preview-05-20",
+        "gemini-2.5-flash",
         provider=GoogleGLAProvider(
             api_key=env_config.GEMINI_API_KEY,
         ),
     ),
     "gemini-2.5-pro": GeminiModel(
-        "gemini-2.5-pro-preview-06-05",
+        "gemini-2.5-pro",
         provider=GoogleGLAProvider(
             api_key=env_config.GEMINI_API_KEY,
         ),
