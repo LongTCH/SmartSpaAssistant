@@ -322,7 +322,8 @@ class Notification(Base):
             "index": "",
             "param_name": "",
             "param_type": "",
-            "description": ""
+            "description": "",
+            "validation": ""
         }
     ]
     """

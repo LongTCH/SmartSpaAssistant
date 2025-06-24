@@ -299,6 +299,7 @@ async def download_notifications_as_excel(db: AsyncSession) -> BytesIO:
                                     "param_name": param.get("param_name", ""),
                                     "param_type": param.get("param_type", ""),
                                     "description": param.get("description", ""),
+                                    "validation": param.get("validation", ""),
                                 }
                             )
 
@@ -316,7 +317,13 @@ async def download_notifications_as_excel(db: AsyncSession) -> BytesIO:
                     else:
                         # Create empty sheet with headers
                         df_empty = pd.DataFrame(
-                            columns=["index", "param_name", "param_type", "description"]
+                            columns=[
+                                "index",
+                                "param_name",
+                                "param_type",
+                                "description",
+                                "validation",
+                            ]
                         )
                         df_empty.to_excel(writer, index=False, sheet_name=sheet_name)
 
@@ -392,7 +399,13 @@ async def upload_notifications_from_excel(
                 param_df = sheets_dict[param_sheet_name]
 
                 # Check if the parameter sheet has the required columns
-                param_columns = ["index", "param_name", "param_type", "description"]
+                param_columns = [
+                    "index",
+                    "param_name",
+                    "param_type",
+                    "description",
+                    "validation",
+                ]
                 for col in param_columns:
                     if col not in param_df.columns:
                         raise HTTPException(
@@ -456,6 +469,11 @@ async def upload_notifications_from_excel(
                             "description": (
                                 str(param_row["description"])
                                 if not pd.isna(param_row["description"])
+                                else ""
+                            ),
+                            "validation": (
+                                str(param_row["validation"])
+                                if not pd.isna(param_row["validation"])
                                 else ""
                             ),
                         }
@@ -528,6 +546,7 @@ async def get_notification_template() -> BytesIO:
                 "param_name": "param2",
                 "param_type": "number",
                 "description": "Second parameter example",
+                "validation": "phone",
             },
         ]
         df_params = pd.DataFrame(params_data)
@@ -550,7 +569,13 @@ async def get_notification_template() -> BytesIO:
 
             # Write 'n_2' sheet (empty example with headers)
             df_empty = pd.DataFrame(
-                columns=["index", "param_name", "param_type", "description"]
+                columns=[
+                    "index",
+                    "param_name",
+                    "param_type",
+                    "description",
+                    "validation",
+                ]
             )
             df_empty.to_excel(writer, index=False, sheet_name="n_2")
             worksheet_empty = writer.sheets["n_2"]

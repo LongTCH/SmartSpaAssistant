@@ -5,6 +5,7 @@ from datetime import datetime
 from typing import Any, Dict
 
 import pytz
+from app.configs.constants import PARAM_VALIDATION
 from app.configs.database import async_session, with_session
 from app.repositories import notification_repository, sheet_repository
 from app.services import alert_service, sheet_service
@@ -44,10 +45,28 @@ def get_type_from_param_type(param_type: str) -> str:
     return "string"
 
 
-def get_description_from_param(param_type: str, description: str) -> str:
+def get_description_from_param(
+    param_type: str, description: str, validation: str
+) -> str:
+    result = description
     if param_type == "DateTime":
-        return description + " **FORMAT: YYYY-MM-DD HH:MM:SS**"
-    return description
+        result = result + " **FORMAT: YYYY-MM-DD HH:MM:SS**"
+    if validation == PARAM_VALIDATION.PHONE.value:
+        result = (
+            result
+            + f" **VALIDATION: {validation} - Vietnam phone number format: +84xxxxxxxxx (10-11 digits after +84) or 0xxxxxxxxx (10-11 digits starting with 0). Examples: +84912345678, +84901234567, 0912345678, 0901234567**"
+        )
+    elif validation == PARAM_VALIDATION.EMAIL.value:
+        result = (
+            result
+            + f" **VALIDATION: {validation} - Valid email format: username@domain.extension. Must contain @ symbol and valid domain. Examples: user@example.com, test.email@domain.vn**"
+        )
+    elif validation == PARAM_VALIDATION.ADDRESS.value:
+        result = (
+            result
+            + f" **VALIDATION: {validation} - Complete address format: Street number + Street name, Ward/Commune, District, City/Province, Country (if international). Must include specific location details. Examples: 123 Nguyen Trai Street, Ben Thanh Ward, District 1, Ho Chi Minh City**"
+        )
+    return result
 
 
 def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) -> Tool:
@@ -63,11 +82,35 @@ def create_tool(notification_id: str, guest_id: str, tool_info: Dict[str, Any]) 
         if empty_params:
             raise ModelRetry(
                 f"Missing required parameters, can't not send notification now: {', '.join(empty_params)}"
-            )
+            )  # Validate parameters based on notification params configuration
         async with async_session() as session:
             notification = await notification_repository.get_notification_by_id(
                 session, notification_id
             )
+
+            # Collect all validation errors
+            validation_errors = []
+            if notification.params:
+                for param_config in notification.params:
+                    param_name = param_config.get("param_name")
+                    param_type = param_config.get("param_type", "String")
+                    validation = param_config.get("validation", "")
+
+                    if param_name in kwargs:
+                        param_value = str(kwargs[param_name])
+                        error_message = validate_param_value(
+                            param_name, param_value, param_type, validation
+                        )
+                        if error_message:  # If there's a validation error
+                            validation_errors.append(error_message)
+
+            # If there are validation errors, raise ModelRetry with all errors
+            if validation_errors:
+                all_errors = "\n".join([f"- {error}" for error in validation_errors])
+                raise ModelRetry(
+                    f"Parameter validation failed. Please fix the following errors:\n{all_errors}"
+                )
+
             template_str = notification.content
             alert_content = string_utils.render_tool_template(template_str, **kwargs)
             await alert_service.insert_custom_alert(
@@ -132,7 +175,9 @@ async def get_notify_tools(guest_id: str) -> list[Tool]:
             tool_json["parameters"]["properties"][param["param_name"]] = {
                 "type": get_type_from_param_type(param["param_type"]),
                 "description": get_description_from_param(
-                    param["param_type"], param["description"]
+                    param["param_type"],
+                    param["description"],
+                    param.get("validation", ""),
                 ),
             }
             tool_json["parameters"]["required"].append(param["param_name"])
@@ -360,3 +405,72 @@ def replace_table_if_needed(
         query = query.replace(table_in_query, best_table)
 
     return query
+
+
+def validate_param_value(
+    param_name: str, param_value: str, param_type: str, validation: str
+) -> str:
+    """
+    Validate parameter value based on param_type and validation rules.
+    Returns error message if validation fails, empty string if valid.
+
+    Args:
+        param_name: Name of the parameter
+        param_value: Value to validate
+        param_type: Type of the parameter (String, DateTime, etc.)
+        validation: Validation rule (phone, email, address, etc.)
+
+    Returns:
+        str: Error message if validation fails, empty string if valid
+    """
+    # Check DateTime format
+    if param_type == "DateTime":
+        try:
+            datetime.strptime(param_value, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return (
+                f"Invalid {param_name}: '{param_value}'. DateTime must be in format YYYY-MM-DD HH:MM:SS. "
+                f"Example: 2024-12-25 14:30:00"
+            )
+
+    # Check validation rules
+    if validation == PARAM_VALIDATION.PHONE.value:
+        # Vietnam phone number validation - exactly matching the description format
+        phone_pattern = r"^(\+84[0-9]{9,10}|0[0-9]{9,10})$"
+        if not re.match(phone_pattern, param_value.replace(" ", "").replace("-", "")):
+            return (
+                f"Invalid {param_name}: '{param_value}'. Vietnam phone number format required: "
+                f"+84xxxxxxxxx (10-11 digits after +84) or 0xxxxxxxxx (10-11 digits starting with 0). "
+                f"Examples: +84912345678, +84901234567, 0912345678, 0901234567"
+            )
+
+    elif validation == PARAM_VALIDATION.EMAIL.value:
+        # Email validation - exactly matching the description format
+        email_pattern = r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$"
+        if not re.match(email_pattern, param_value):
+            return (
+                f"Invalid {param_name}: '{param_value}'. Valid email format required: "
+                f"username@domain.extension. Must contain @ symbol and valid domain. "
+                f"Examples: user@example.com, test.email@domain.vn"
+            )
+
+    elif validation == PARAM_VALIDATION.ADDRESS.value:
+        # Address validation - exactly matching the description format
+        if len(param_value.strip()) < 10:
+            return (
+                f"Invalid {param_name}: '{param_value}'. Complete address format required: "
+                f"Street number + Street name, Ward/Commune, District, City/Province, Country (if international). "
+                f"Must include specific location details. "
+                f"Examples: 123 Nguyen Trai Street, Ben Thanh Ward, District 1, Ho Chi Minh City"
+            )
+
+        # Check if address contains some basic components (comma separated parts)
+        address_parts = [part.strip() for part in param_value.split(",")]
+        if len(address_parts) < 3:
+            return (
+                f"Invalid {param_name}: '{param_value}'. Address must include at least 3 components separated by commas: "
+                f"Street number + Street name, Ward/Commune, District, City/Province. "
+                f"Examples: 123 Nguyen Trai Street, Ben Thanh Ward, District 1, Ho Chi Minh City"
+            )
+
+    return ""  # No validation errors

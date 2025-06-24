@@ -13,6 +13,7 @@ class NotificationParam(BaseModel):
     param_name: str = Field(..., description="Parameter name")
     param_type: str = Field(..., description="Parameter type")
     description: str = Field(..., description="Parameter description")
+    validation: Optional[str] = Field(None, description="Parameter validation rule")
 
 
 class NotificationBase(BaseModel):
@@ -60,6 +61,13 @@ class NotificationCreate(NotificationBase):
                     },
                     {
                         "index": 1,
+                        "param_name": "customer_phone",
+                        "param_type": "Numeric",
+                        "description": "Phone number of the customer",
+                        "validation": "phone",
+                    },
+                    {
+                        "index": 2,
                         "param_name": "total",
                         "param_type": "Numeric",
                         "description": "Total order value",

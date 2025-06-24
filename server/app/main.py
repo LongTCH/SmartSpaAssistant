@@ -3,14 +3,14 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 import uvicorn
-from app.configs import database, env_config
-from app.middleware import catch_exceptions_middleware
-from app.routes import v1_include_router, v2_include_router
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
+if True:
+    from app.configs import database, env_config
+    from app.middleware import catch_exceptions_middleware
+    from app.routes import v1_include_router, v2_include_router
 # cors config
 origins = env_config.CLIENT_URLS.split(",")
 

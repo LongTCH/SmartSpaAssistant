@@ -26,12 +26,17 @@ interface Parameter {
   name: string;
   type: string;
   description: string;
+  validation?: string;
 }
 
 interface ConfigStepProps {
   parameters: Parameter[];
   addParameter: () => void;
-  updateParameter: (id: string, field: keyof Parameter, value: string) => void;
+  updateParameter: (
+    id: string,
+    field: keyof Parameter,
+    value: string | undefined
+  ) => void;
   deleteParameter: (id: string) => void;
   content: string;
   setContent: (content: string) => void;
@@ -52,9 +57,10 @@ export function ConfigStep({
           <Table>
             <TableHeader className="sticky top-0 bg-white z-10">
               <TableRow>
-                <TableHead className="w-1/4">Tham số</TableHead>
-                <TableHead className="w-1/4">Kiểu dữ liệu</TableHead>
-                <TableHead className="w-1/2">Mô tả</TableHead>
+                <TableHead className="w-1/5">Tham số</TableHead>
+                <TableHead className="w-1/5">Kiểu dữ liệu</TableHead>
+                <TableHead className="w-1/3">Mô tả</TableHead>
+                <TableHead className="w-1/5">Validation</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>
@@ -100,6 +106,28 @@ export function ConfigStep({
                     />
                   </TableCell>
                   <TableCell className="p-2">
+                    <Select
+                      value={param.validation || "none"}
+                      onValueChange={(value) =>
+                        updateParameter(
+                          param.id,
+                          "validation",
+                          value === "none" ? undefined : value
+                        )
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Chọn validation" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">Không có</SelectItem>
+                        <SelectItem value="email">Email</SelectItem>
+                        <SelectItem value="phone">Số điện thoại</SelectItem>
+                        <SelectItem value="address">Địa chỉ</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </TableCell>
+                  <TableCell className="p-2">
                     <Button
                       variant="ghost"
                       size="sm"
@@ -114,15 +142,16 @@ export function ConfigStep({
               {parameters.length === 0 && (
                 <TableRow>
                   <TableCell
-                    colSpan={4}
+                    colSpan={5}
                     className="text-center py-4 text-gray-500"
                   >
-                    Chưa có tham số nào. Bấm &quot;Thêm hàng&quot; để thêm tham số.
+                    Chưa có tham số nào. Bấm &quot;Thêm hàng&quot; để thêm tham
+                    số.
                   </TableCell>
                 </TableRow>
               )}
               <TableRow>
-                <TableCell colSpan={4} className="p-2">
+                <TableCell colSpan={5} className="p-2">
                   <Button
                     variant="outline"
                     size="sm"
@@ -140,7 +169,7 @@ export function ConfigStep({
         <p className="text-xs text-gray-500 italic">
           Lưu ý: Tên tham số nên đặt đơn giản, không chứa khoảng trắng hay ký tự
           đặc biệt. Nếu gồm nhiều từ, hãy dùng chữ thường và nối với nhau bằng
-          dấu gạch dưới (ví dụ: <code>ten_khach_hang</code>,{" "}
+          dấu gạch dưới (ví dụ: <code>ten_khach_hang</code>,
           <code>ma_san_pham</code>).
         </p>
       </div>
@@ -153,10 +182,10 @@ export function ConfigStep({
           className="min-h-[200px]"
         />
         <p className="text-xs text-gray-500 italic">
-          Sử dụng cú pháp{" "}
+          Sử dụng cú pháp
           <code className="bg-gray-100 px-1 rounded">
             {"{{ tên_tham_số }}"}
-          </code>{" "}
+          </code>
           để chèn giá trị động vào nội dung thông báo.
         </p>
       </div>

@@ -22,3 +22,9 @@ class PROVIDERS(str, Enum):
 class CHAT_ASSIGNMENT(str, Enum):
     AI = "ai"
     ME = "me"
+
+
+class PARAM_VALIDATION(str, Enum):
+    EMAIL = "email"
+    PHONE = "phone"
+    ADDRESS = "address"

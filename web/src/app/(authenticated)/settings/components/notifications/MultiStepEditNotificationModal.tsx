@@ -23,6 +23,7 @@ interface Parameter {
   name: string;
   type: string;
   description: string;
+  validation?: string;
 }
 
 interface MultiStepEditNotificationModalProps {
@@ -59,7 +60,6 @@ export function MultiStepEditNotificationModal({
   const [formContent, setFormContent] = useState(
     notification?.content || defaultContent || ""
   );
-
   // Convert API parameters format to internal format
   const initialParams: Parameter[] = notification?.params
     ? notification.params.map((param) => ({
@@ -67,6 +67,7 @@ export function MultiStepEditNotificationModal({
         name: param.param_name,
         type: param.param_type,
         description: param.description,
+        validation: param.validation,
       }))
     : [...defaultParameters];
 
@@ -89,12 +90,11 @@ export function MultiStepEditNotificationModal({
 
     setFormParameters([...formParameters, newParameter]);
   };
-
   // Update parameter
   const updateParameter = (
     id: string,
     field: keyof Parameter,
-    value: string
+    value: string | undefined
   ) => {
     if (field === "name") {
       const validNameRegex = /^[a-zA-Z_][a-zA-Z0-9_]*$/;
@@ -128,13 +128,13 @@ export function MultiStepEditNotificationModal({
       setFormColor(notification.color);
       setFormUseCase(notification.description);
       setFormContent(notification.content || defaultContent);
-
       const mappedParams =
         notification.params?.map((param) => ({
           id: param.index.toString(),
           name: param.param_name,
           type: param.param_type,
           description: param.description,
+          validation: param.validation,
         })) || [];
 
       setFormParameters(
@@ -198,15 +198,14 @@ export function MultiStepEditNotificationModal({
     }
 
     try {
-      setIsSubmitting(true);
-
-      // Convert parameters to the API format
+      setIsSubmitting(true); // Convert parameters to the API format
       const apiParams: NotificationParams[] = formParameters.map(
         (param, index) => ({
           index: index,
           param_name: param.name,
           param_type: param.type,
           description: param.description,
+          validation: param.validation,
         })
       );
 

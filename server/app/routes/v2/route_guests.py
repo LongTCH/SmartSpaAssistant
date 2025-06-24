@@ -1,5 +1,5 @@
 from app.configs.database import get_session
-from app.dtos import GuestFilterRequest, GuestUpdate, common_error_responses
+from app.dtos import GuestFilterRequest, common_error_responses
 from app.services import guest_service
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -167,49 +167,49 @@ async def get_guest_by_id(guest_id: str, db: AsyncSession = Depends(get_session)
     return guest
 
 
-@router.put(
-    "/{guest_id}",
-    summary="Update an existing guest",
-    description="Updates an existing guest by their ID. Only provided fields will be updated.",
-    responses={
-        status.HTTP_200_OK: {
-            "description": "Guest updated successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "id": "67b04bcb64e8b3ee69c17a4b",
-                        "fullname": "Nguyễn Văn An (Đã cập nhật)",
-                        "gender": "Nam",
-                        "birthday": "1990-01-15",
-                        "phone": "0901234567",
-                        "email": "nguyenvanan.updated@email.com",
-                        "address": "456 Phố Cổ, Hoàn Kiếm, Hà Nội",
-                        "interest_ids": [
-                            "67b04b5c64e8b3ee69c17a32",
-                            "67b04b5c64e8b3ee69c17a33",
-                        ],
-                        "created_by": "system",
-                        "created_at": "2024-01-15T10:30:00.000000",
-                        "updated_at": "2024-01-15T16:45:00.000000",
-                    }
-                }
-            },
-        },
-        **common_error_responses,
-    },
-)
-async def update_guest_by_id(
-    guest_id: str, guest_data: GuestUpdate, db: AsyncSession = Depends(get_session)
-):
-    """
-    Update guest by guest_id in the database.
-    """
-    guest = await guest_service.update_guest_by_id(
-        db, guest_id, guest_data.model_dump(exclude_unset=True)
-    )
-    if not guest:
-        raise HTTPException(status_code=404, detail="Guest not found")
-    return guest
+# @router.put(
+#     "/{guest_id}",
+#     summary="Update an existing guest",
+#     description="Updates an existing guest by their ID. Only provided fields will be updated.",
+#     responses={
+#         status.HTTP_200_OK: {
+#             "description": "Guest updated successfully",
+#             "content": {
+#                 "application/json": {
+#                     "example": {
+#                         "id": "67b04bcb64e8b3ee69c17a4b",
+#                         "fullname": "Nguyễn Văn An (Đã cập nhật)",
+#                         "gender": "Nam",
+#                         "birthday": "1990-01-15",
+#                         "phone": "0901234567",
+#                         "email": "nguyenvanan.updated@email.com",
+#                         "address": "456 Phố Cổ, Hoàn Kiếm, Hà Nội",
+#                         "interest_ids": [
+#                             "67b04b5c64e8b3ee69c17a32",
+#                             "67b04b5c64e8b3ee69c17a33",
+#                         ],
+#                         "created_by": "system",
+#                         "created_at": "2024-01-15T10:30:00.000000",
+#                         "updated_at": "2024-01-15T16:45:00.000000",
+#                     }
+#                 }
+#             },
+#         },
+#         **common_error_responses,
+#     },
+# )
+# async def update_guest_by_id(
+#     guest_id: str, guest_data: GuestUpdate, db: AsyncSession = Depends(get_session)
+# ):
+#     """
+#     Update guest by guest_id in the database.
+#     """
+#     guest = await guest_service.update_guest_by_id(
+#         db, guest_id, guest_data.model_dump(exclude_unset=True)
+#     )
+#     if not guest:
+#         raise HTTPException(status_code=404, detail="Guest not found")
+#     return guest
 
 
 # @router.delete(

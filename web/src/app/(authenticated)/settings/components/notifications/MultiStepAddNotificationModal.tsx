@@ -19,6 +19,7 @@ interface Parameter {
   name: string;
   type: string;
   description: string;
+  validation?: string;
 }
 
 interface MultiStepAddNotificationModalProps {
@@ -112,12 +113,11 @@ Tổng tiền: {{ total_money }} VND`,
 
     setFormParameters([...formParameters, newParameter]);
   };
-
   // Update parameter
   const updateParameter = (
     id: string,
     field: keyof Parameter,
-    value: string
+    value: string | undefined
   ) => {
     setFormParameters(
       formParameters.map((param) =>
@@ -186,15 +186,14 @@ Tổng tiền: {{ total_money }} VND`,
     }
 
     try {
-      setIsSubmitting(true);
-
-      // Convert parameters to the API format
+      setIsSubmitting(true); // Convert parameters to the API format
       const apiParams: NotificationParams[] = formParameters.map(
         (param, index) => ({
           index: index,
           param_name: param.name,
           param_type: param.type,
           description: param.description,
+          validation: param.validation,
         })
       );
 

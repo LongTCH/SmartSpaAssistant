@@ -2,7 +2,7 @@ from typing import Optional
 
 from app.configs.database import get_session
 from app.services import guest_service
-from fastapi import APIRouter, Depends, HTTPException, Path, Query
+from fastapi import APIRouter, Depends, Path, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -142,90 +142,90 @@ async def get_conversations(
     return conversations.model_dump()
 
 
-@router.patch(
-    "/{guest_id}/assignment",
-    summary="Update conversation assignment",
-    description="""
-    Assign a conversation to a specific user for handling.
-    
-    **Use Cases:**
-    - Assign new conversations to available agents
-    - Transfer conversations between agents
-    - Re-assign conversations when agents are unavailable
-    """,
-    responses={
-        200: {
-            "description": "Conversation assignment updated successfully",
-            "content": {
-                "application/json": {
-                    "example": {
-                        "id": "ebc89767-fb50-4b84-bdc3-59cd78214c09",
-                        "provider": "web",
-                        "account_id": "709685455386382",
-                        "account_name": "jane71",
-                        "avatar": "https://res.cloudinary.com/dgmopesja/image/upload/v1748501596/samples/people/jazz.jpg",
-                        "created_at": "2025-06-05T04:48:41.213595",
-                        "assigned_to": "user_789",
-                        "info": {
-                            "id": "a1ebf760-51fc-4435-af22-d8218ba8ce32",
-                            "fullname": "Bảo Đặng",
-                            "gender": "male",
-                            "birthday": "2000-07-09T00:00:00",
-                            "phone": "+84 25 7923564",
-                            "email": "john65@example.org",
-                            "address": "826 John Số, Quận JaneThành phố, 778730",
-                        },
-                        "interests": [
-                            {
-                                "id": "1b5be923-b87c-4b02-ab14-e21cb5934bb2",
-                                "name": "trẻ hóa da",
-                                "related_terms": "trẻ hóa da, làm trẻ, trẻ hóa làn da",
-                                "status": "published",
-                                "color": "#3357FF",
-                                "created_at": "2025-06-05T04:48:39.900131",
-                            }
-                        ],
-                        "last_chat_message": {
-                            "id": "24c2b5ef-4d8a-4741-b957-4cc673cf9e5e",
-                            "guest_id": "ebc89767-fb50-4b84-bdc3-59cd78214c09",
-                            "content": {
-                                "side": "staff",
-                                "message": {
-                                    "text": "Conversation assigned successfully"
-                                },
-                            },
-                            "created_at": "2025-06-05T01:34:42.704046",
-                        },
-                    }
-                }
-            },
-        },
-        400: {
-            "description": "Bad request - missing assigned_to",
-            "content": {
-                "application/json": {"example": {"detail": "assigned_to is required"}}
-            },
-        },
-        404: {
-            "description": "Guest/conversation not found",
-            "content": {"application/json": {"example": {"detail": "Guest not found"}}},
-        },
-    },
-)
-async def update_assignment(
-    request_body: AssignmentUpdate,
-    guest_id: str = Path(..., description="ID of the guest/conversation to update"),
-    db: AsyncSession = Depends(get_session),
-):
-    """
-    Update the assignment of a conversation.
-    """
-    guest = await guest_service.update_assignment(
-        db, guest_id, request_body.assigned_to
-    )
-    if not guest:
-        raise HTTPException(status_code=404, detail="Guest not found")
-    return guest
+# @router.patch(
+#     "/{guest_id}/assignment",
+#     summary="Update conversation assignment",
+#     description="""
+#     Assign a conversation to a specific user for handling.
+
+#     **Use Cases:**
+#     - Assign new conversations to available agents
+#     - Transfer conversations between agents
+#     - Re-assign conversations when agents are unavailable
+#     """,
+#     responses={
+#         200: {
+#             "description": "Conversation assignment updated successfully",
+#             "content": {
+#                 "application/json": {
+#                     "example": {
+#                         "id": "ebc89767-fb50-4b84-bdc3-59cd78214c09",
+#                         "provider": "web",
+#                         "account_id": "709685455386382",
+#                         "account_name": "jane71",
+#                         "avatar": "https://res.cloudinary.com/dgmopesja/image/upload/v1748501596/samples/people/jazz.jpg",
+#                         "created_at": "2025-06-05T04:48:41.213595",
+#                         "assigned_to": "user_789",
+#                         "info": {
+#                             "id": "a1ebf760-51fc-4435-af22-d8218ba8ce32",
+#                             "fullname": "Bảo Đặng",
+#                             "gender": "male",
+#                             "birthday": "2000-07-09T00:00:00",
+#                             "phone": "+84 25 7923564",
+#                             "email": "john65@example.org",
+#                             "address": "826 John Số, Quận JaneThành phố, 778730",
+#                         },
+#                         "interests": [
+#                             {
+#                                 "id": "1b5be923-b87c-4b02-ab14-e21cb5934bb2",
+#                                 "name": "trẻ hóa da",
+#                                 "related_terms": "trẻ hóa da, làm trẻ, trẻ hóa làn da",
+#                                 "status": "published",
+#                                 "color": "#3357FF",
+#                                 "created_at": "2025-06-05T04:48:39.900131",
+#                             }
+#                         ],
+#                         "last_chat_message": {
+#                             "id": "24c2b5ef-4d8a-4741-b957-4cc673cf9e5e",
+#                             "guest_id": "ebc89767-fb50-4b84-bdc3-59cd78214c09",
+#                             "content": {
+#                                 "side": "staff",
+#                                 "message": {
+#                                     "text": "Conversation assigned successfully"
+#                                 },
+#                             },
+#                             "created_at": "2025-06-05T01:34:42.704046",
+#                         },
+#                     }
+#                 }
+#             },
+#         },
+#         400: {
+#             "description": "Bad request - missing assigned_to",
+#             "content": {
+#                 "application/json": {"example": {"detail": "assigned_to is required"}}
+#             },
+#         },
+#         404: {
+#             "description": "Guest/conversation not found",
+#             "content": {"application/json": {"example": {"detail": "Guest not found"}}},
+#         },
+#     },
+# )
+# async def update_assignment(
+#     request_body: AssignmentUpdate,
+#     guest_id: str = Path(..., description="ID of the guest/conversation to update"),
+#     db: AsyncSession = Depends(get_session),
+# ):
+#     """
+#     Update the assignment of a conversation.
+#     """
+#     guest = await guest_service.update_assignment(
+#         db, guest_id, request_body.assigned_to
+#     )
+#     if not guest:
+#         raise HTTPException(status_code=404, detail="Guest not found")
+#     return guest
 
 
 @router.get(
