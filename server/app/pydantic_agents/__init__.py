@@ -188,7 +188,7 @@ You MUST plan extensively before each function call, and reflect extensively on 
             agent_output_str = synthetic_result.output
             # Làm sạch output để loại bỏ các thẻ XML có thể bị lộ do prompt injection
             if contains_xml_tags(agent_output_str):
-                raise ForbiddenError("Phát hiện thẻ XML nguy hiểm trong phản hồi")
+                raise ForbiddenError("Phát hiện nguy hiểm khai thác dữ liệu")
             agent_output_str = markdown_remove(agent_output_str)
 
             # Xử lý message_parts để đảm bảo media parts chỉ chứa URL và tách riêng text mô tả
