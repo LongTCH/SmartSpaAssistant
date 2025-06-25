@@ -1,4 +1,4 @@
-# import logfire
+import logfire
 from app.configs.database import async_session, with_session
 from app.dtos.setting_dtos import SettingDetailsDto
 from app.exceptions.custom_exception import ForbiddenError
@@ -31,8 +31,8 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.usage import UsageLimits
 
-# logfire.configure(send_to_logfire=False)
-# logger = logfire.instrument_pydantic_ai()
+logfire.configure(send_to_logfire=False)
+logger = logfire.instrument_pydantic_ai()
 
 SHORT_TERM_MEMORY_LIMIT = 10
 OLD_SCRIPTS_LENGTH = 10
