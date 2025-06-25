@@ -46,8 +46,6 @@ async def get_instruction(context: RunContext[SyntheticAgentDeps]) -> str:
             guest_info.birthday.strftime("%Y-%m-%d") if guest_info.birthday else ""
         )
 
-    await get_all_available_sheets(context)
-
     # Template as Python string
     rendered = f"""<customer_id>
 {guest_id}

@@ -25,7 +25,7 @@ services:
     volumes:
       - qdrant_data:/qdrant/storage
   server:
-    image: graduation-server
+    image: longtch/chatbot-server
     container_name: server
     networks: [ 'chatbot_network' ]
     restart: unless-stopped
@@ -45,7 +45,7 @@ services:
         condition: service_started
 
   client:
-    image: graduation-client
+    image: longtch/chatbot-client
     container_name: client
     networks: [ 'chatbot_network' ]
     restart: unless-stopped
@@ -76,7 +76,7 @@ services:
       - server
 
   nginx:
-    image: chatbot-nginx
+    image: longtch/chatbot-nginx
     container_name: nginx
     networks: [ 'chatbot_network' ]
     restart: unless-stopped
