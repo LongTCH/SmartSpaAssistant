@@ -394,3 +394,18 @@ class Alert(Base):
         if "notification" in include and self.notification:
             result["notification"] = self.notification.to_dict()
         return result
+
+
+class Setting(Base):
+    __tablename__ = "settings"
+
+    id = Column(String, primary_key=True, default=lambda: str(uuid.uuid4()))
+    details = Column(JSONB, nullable=True)
+    created_at = Column(DateTime, default=datetime.datetime.now)
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "details": self.details if self.details else {},
+            "created_at": self.created_at.isoformat() if self.created_at else None,
+        }

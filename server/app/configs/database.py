@@ -111,6 +111,24 @@ async def init_models():
     finally:
         await conn.close()
 
+    # Initialize default setting
+    await init_default_setting()
+
+
+async def init_default_setting():
+    """Initialize default setting if it doesn't exist"""
+    from app.scripts.init_default_setting import init_default_setting as init_setting
+
+    async with async_session() as session:
+        try:
+            await init_setting(session)
+            await session.commit()
+            print("Default setting initialization completed")
+        except Exception as e:
+            await session.rollback()
+            print(f"Error initializing default setting: {e}")
+            raise
+
 
 async def shutdown_models():
     """Close all connections during application shutdown"""

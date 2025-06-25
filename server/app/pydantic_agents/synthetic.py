@@ -1,5 +1,3 @@
-import os
-
 from app.configs.database import with_session
 from app.pydantic_agents.model_hub import model_hub
 from app.pydantic_agents.synthetic_tools import (
@@ -11,22 +9,17 @@ from app.pydantic_agents.synthetic_tools import (
     rag_hybrid_search,
 )
 from app.repositories import guest_info_repository
-from app.stores.store import get_local_data
-from jinja2 import Environment, FileSystemLoader
+from app.services import setting_service
 from pydantic_ai import Agent, RunContext, Tool
 from pydantic_ai.models.google import GoogleModelSettings, ThinkingConfigDict
 
 
 async def get_instruction(context: RunContext[SyntheticAgentDeps]) -> str:
-    current_dir = os.path.dirname(os.path.abspath(__file__))
-
-    # Tạo Jinja environment từ thư mục đó
-    env = Environment(loader=FileSystemLoader(current_dir))
     guest_id = context.deps.user_id
 
-    local_data = get_local_data()
-    bot_identity = local_data.identity
-    bot_instructions = local_data.instructions
+    settings = setting_service.get_setting_details()
+    bot_identity = settings.identity
+    bot_instructions = settings.instructions
     guest_info = await with_session(
         lambda session: guest_info_repository.get_guest_info_by_guest_id(
             session, guest_id
@@ -48,20 +41,33 @@ async def get_instruction(context: RunContext[SyntheticAgentDeps]) -> str:
         customer_birthday = (
             guest_info.birthday.strftime("%Y-%m-%d") if guest_info.birthday else ""
         )
-    # Load template
-    template = env.get_template("synthetic_prompt.j2")
-    rendered = template.render(
-        customer_id=guest_id,
-        bot_identity=bot_identity,
-        bot_instructions=bot_instructions,
-        sheets_context=await get_all_available_sheets(context),
-        customer_name=customer_name,
-        customer_gender=customer_gender,
-        customer_phone=customer_phone,
-        customer_email=customer_email,
-        customer_address=customer_address,
-        customer_birthday=customer_birthday,
-    )
+
+    await get_all_available_sheets(context)
+
+    # Template as Python string
+    rendered = f"""<customer_id>
+{guest_id}
+</customer_id>
+<identity>
+{bot_identity}
+</identity>
+<customer>
+<customer_info>
+    <name>{customer_name}</name>
+    <gender>{customer_gender}</gender>
+    <phone>{customer_phone}</phone>
+    <email>{customer_email}</email>
+    <address>{customer_address}</address>
+    <birthday>{customer_birthday}</birthday>
+</customer_info>
+<instructions>
+{bot_instructions}
+- Only use retrieved context and never rely on your own knowledge for any of these questions.
+- However, if you don't have enough information to properly call the tool, ask the user for the information you need.
+- Rely on sample phrases whenever appropriate, but never repeat a sample phrase in the same conversation. Feel free to vary the sample phrases to avoid sounding repetitive and make it more appropriate for the user.
+- You should divide your response into multiple parts using markdown separator --- for easier reading.
+</instructions>"""
+
     return rendered
 
 

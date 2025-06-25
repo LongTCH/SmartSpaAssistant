@@ -50,7 +50,7 @@ from .script_dtos import (
     ScriptUpdate,
     UploadSuccessResponse,
 )
-from .setting_dtos import LocalDataDto, LocalDataUpdateDto
+from .setting_dtos import SettingDetailsDto, SettingUpdateDto
 from .sheet_dtos import (
     PaginatedSheetResponse,
     SheetBase,
@@ -133,8 +133,8 @@ __all__ = [
     "SheetRowResponse",
     "SheetUploadSuccessResponse",
     # Setting DTOs
-    "LocalDataDto",
-    "LocalDataUpdateDto",
+    "SettingDetailsDto",
+    "SettingUpdateDto",
     # Webhook DTOs
     "MessengerSenderDto",
     "MessengerRecipientDto",

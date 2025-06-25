@@ -28,3 +28,6 @@ class PARAM_VALIDATION(str, Enum):
     EMAIL = "email"
     PHONE = "phone"
     ADDRESS = "address"
+
+
+DEFAULT_SETTING_ID = "fe25ab8b-59ea-4e5b-b9b8-6f3a4dfea98a"

@@ -1,5 +1,6 @@
-import logfire
+# import logfire
 from app.configs.database import async_session, with_session
+from app.dtos.setting_dtos import SettingDetailsDto
 from app.exceptions.custom_exception import ForbiddenError
 from app.models import Script
 from app.pydantic_agents.info import InfoAgentDeps, info_agent
@@ -11,9 +12,13 @@ from app.repositories import (
     guest_repository,
     script_repository,
 )
-from app.services import alert_service, interest_service, script_service
+from app.services import (
+    alert_service,
+    interest_service,
+    script_service,
+    setting_service,
+)
 from app.services.integrations import script_rag_service
-from app.stores.store import get_local_data
 from app.utils import asyncio_utils
 from app.utils.agent_utils import MessagePart, contains_xml_tags, dump_json_bytes
 from app.utils.message_utils import markdown_remove, parse_and_format_message
@@ -26,8 +31,8 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.usage import UsageLimits
 
-logfire.configure(send_to_logfire="if-token-present")
-logger = logfire.instrument_pydantic_ai()
+# logfire.configure(send_to_logfire=False)
+# logger = logfire.instrument_pydantic_ai()
 
 SHORT_TERM_MEMORY_LIMIT = 10
 OLD_SCRIPTS_LENGTH = 10
@@ -121,10 +126,11 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             for message in chat_histories:
                 model_message = ModelMessagesTypeAdapter.validate_json(message.content)
                 message_history.extend(model_message)
-            local_data = get_local_data()
+            setting_details = await setting_service.get_setting_details()
+            setting_details = SettingDetailsDto(**setting_details)
             scripts: list[Script] = (
                 await script_rag_service.search_script_chunks(
-                    user_input, limit=local_data.max_script_retrieval
+                    user_input, limit=setting_details.max_script_retrieval
                 )
             )[::-1]
             script_ids = [script.id for script in scripts]

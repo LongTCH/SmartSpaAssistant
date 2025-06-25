@@ -7,12 +7,12 @@ import aiohttp
 from app.configs import env_config
 from app.configs.constants import CHAT_ASSIGNMENT, CHAT_SIDES, PROVIDERS
 from app.configs.database import async_session, with_session
+from app.dtos.setting_dtos import SettingDetailsDto
 from app.models import Guest, GuestInfo
 from app.pydantic_agents import invoke_agent
 from app.repositories import guest_info_repository, guest_repository
-from app.services import chat_service
+from app.services import chat_service, setting_service
 from app.services.clients import cloudinary
-from app.stores.store import get_local_data
 from app.utils.message_utils import (
     get_attachment_type_name,
     markdown_to_messenger,
@@ -152,9 +152,12 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                     map_message[sender_psid]["timer"] = None
 
                 # Tạo timer mới với db session được truyền vào
-                local_data = get_local_data()
+                setting_details = await setting_service.get_setting_details()
+                setting_details = SettingDetailsDto(**setting_details)
                 map_message[sender_psid]["timer"] = asyncio.create_task(
-                    process_after_wait(sender_psid, local_data.chat_wait_seconds, guest)
+                    process_after_wait(
+                        sender_psid, setting_details.chat_wait_seconds, guest
+                    )
                 )
         except Exception as e:
             print(f"Error in process_message: {e}")

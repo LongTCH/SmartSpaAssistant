@@ -60,7 +60,7 @@ export function ConfigStep({
                 <TableHead className="w-1/5">Tham số</TableHead>
                 <TableHead className="w-1/5">Kiểu dữ liệu</TableHead>
                 <TableHead className="w-1/3">Mô tả</TableHead>
-                <TableHead className="w-1/5">Validation</TableHead>
+                <TableHead className="w-1/5">Xác thực</TableHead>
                 <TableHead className="w-[50px]"></TableHead>
               </TableRow>
             </TableHeader>

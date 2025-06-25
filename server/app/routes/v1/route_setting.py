@@ -1,8 +1,10 @@
 from typing import Any, Dict
 
-from app.dtos import LocalDataDto, LocalDataUpdateDto, common_error_responses
+from app.configs.database import get_session
+from app.dtos import SettingDetailsDto, SettingUpdateDto, common_error_responses
 from app.services import setting_service
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy.ext.asyncio import AsyncSession
 
 router = APIRouter(prefix="/v1/settings", tags=["Settings"])
 
@@ -24,11 +26,11 @@ router = APIRouter(prefix="/v1/settings", tags=["Settings"])
             "content": {
                 "application/json": {
                     "example": {
-                        "CHAT_WAIT_SECONDS": 2.5,
-                        "MAX_SCRIPT_RETRIEVAL": 10,
-                        "REACTION_MESSAGE": "Thank you for your message!",
-                        "IDENTITY": "I am a helpful assistant",
-                        "INSTRUCTIONS": "Be helpful and polite in all interactions",
+                        "chat_wait_seconds": 2.5,
+                        "max_script_retrieval": 10,
+                        "reaction_message": "Thank you for your message!",
+                        "identity": "I am a helpful assistant",
+                        "instructions": "Be helpful and polite in all interactions",
                     }
                 }
             },
@@ -36,20 +38,17 @@ router = APIRouter(prefix="/v1/settings", tags=["Settings"])
         **common_error_responses,
     },
 )
-async def get_local_data() -> Dict[str, Any]:
+async def get_settings(db: AsyncSession = Depends(get_session)) -> Dict[str, Any]:
     """Get current local configuration data."""
     try:
-        return await setting_service.get_local_data_dict()
+        return await setting_service.get_setting_details(db)
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to retrieve local data: {str(e)}",
-        )
+        raise HTTPException(status_code=status.HTTP_500_INTERNAL_SERVER_ERROR)
 
 
 @router.put(
     "",
-    response_model=LocalDataDto,
+    response_model=SettingDetailsDto,
     status_code=status.HTTP_200_OK,
     summary="Update local configuration data",
     description="""
@@ -59,11 +58,11 @@ async def get_local_data() -> Dict[str, Any]:
     to the system. Only the provided fields will be updated, others remain unchanged.
     
     **Configuration Fields:**
-    - `CHAT_WAIT_SECONDS`: Delay between chat responses (float, >= 0)
-    - `MAX_SCRIPT_RETRIEVAL`: Maximum scripts to retrieve (integer, >= 1)
-    - `REACTION_MESSAGE`: Default reaction message (string)
-    - `IDENTITY`: Bot identity description (string)
-    - `INSTRUCTIONS`: Bot behavior instructions (string)
+    - `chat_wait_seconds`: Delay between chat responses (float, >= 0)
+    - `max_script_retrieval`: Maximum scripts to retrieve (integer, >= 1)
+    - `reaction_message`: Default reaction message (string)
+    - `identity`: Bot identity description (string)
+    - `instructions`: Bot behavior instructions (string)
     """,
     responses={
         200: {
@@ -93,49 +92,35 @@ async def get_local_data() -> Dict[str, Any]:
         **common_error_responses,
     },
 )
-async def update_local_data(data: LocalDataUpdateDto) -> LocalDataDto:
+async def update_settings(
+    data: SettingUpdateDto, db: AsyncSession = Depends(get_session)
+) -> SettingDetailsDto:
     """Update local configuration data."""
     try:
-        # Convert Pydantic model to dict, excluding None values
-        update_dict = data.model_dump(exclude_none=True)
-
-        if not update_dict:
+        # Validate numeric constraints (Pydantic already validates ge constraints, but we can add custom validation)
+        if data.chat_wait_seconds is not None and data.chat_wait_seconds < 0:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="No valid configuration fields provided",
+                detail="chat_wait_seconds must be >= 0",
             )
 
-        # Validate numeric constraints
-        if "CHAT_WAIT_SECONDS" in update_dict and update_dict["CHAT_WAIT_SECONDS"] < 0:
+        if data.max_script_retrieval is not None and data.max_script_retrieval < 1:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail="CHAT_WAIT_SECONDS must be >= 0",
+                detail="max_script_retrieval must be >= 1",
             )
 
-        if (
-            "MAX_SCRIPT_RETRIEVAL" in update_dict
-            and update_dict["MAX_SCRIPT_RETRIEVAL"] < 1
-        ):
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail="MAX_SCRIPT_RETRIEVAL must be >= 1",
-            )
+        # Update settings through service
+        setting = await setting_service.update_settings(db, data)
+        details = setting.details
 
-        updated_data = await setting_service.save_local_data(update_dict)
-
-        # Convert LocalData object to LocalDataDto format
-        return LocalDataDto(
-            chat_wait_seconds=updated_data.chat_wait_seconds,
-            max_script_retrieval=updated_data.max_script_retrieval,
-            reaction_message=updated_data.reaction_message,
-            identity=updated_data.identity,
-            instructions=updated_data.instructions,
-        )
+        # Convert Setting object to SettingDetailsDto format
+        return SettingDetailsDto(**details)
 
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to update local data: {str(e)}",
+            detail="Failed to update settings",
         )

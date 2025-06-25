@@ -1,7 +1,7 @@
 export type SettingsState = {
-  CHAT_WAIT_SECONDS: number;
-  REACTION_MESSAGE: string;
-  IDENTITY: string;
-  INSTRUCTIONS: string;
-  MAX_SCRIPT_RETRIEVAL: number;
+  chat_wait_seconds: number;
+  reaction_message: string;
+  identity: string;
+  instructions: string;
+  max_script_retrieval: number;
 };

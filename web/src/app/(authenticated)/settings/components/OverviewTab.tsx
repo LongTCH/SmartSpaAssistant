@@ -17,11 +17,11 @@ import { settingsService } from "@/services/api/setting.service";
 export function OverviewTab() {
   // Global settings state to manage all form values
   const [settings, setSettings] = useState<SettingsState>({
-    CHAT_WAIT_SECONDS: 1,
-    REACTION_MESSAGE: "Dạ quý khách cần em hỗ trợ gì thêm không ạ",
-    IDENTITY: "",
-    INSTRUCTIONS: "",
-    MAX_SCRIPT_RETRIEVAL: 7,
+    chat_wait_seconds: 1,
+    reaction_message: "Dạ quý khách cần em hỗ trợ gì thêm không ạ",
+    identity: "",
+    instructions: "",
+    max_script_retrieval: 7,
   });
 
   const [isSaving, setIsSaving] = useState(false);
@@ -156,8 +156,8 @@ export function OverviewTab() {
           <Textarea
             className="min-h-[200px]"
             placeholder="You are Nguyen Thi Phuong Thao..."
-            value={settings.IDENTITY}
-            onChange={(e) => updateSettings("IDENTITY", e.target.value)}
+            value={settings.identity}
+            onChange={(e) => updateSettings("identity", e.target.value)}
           />
         </div>
         {/* Instructions */}
@@ -182,8 +182,8 @@ export function OverviewTab() {
           <Textarea
             className="min-h-[200px]"
             placeholder="- Just provide information from trusted context..."
-            value={settings.INSTRUCTIONS}
-            onChange={(e) => updateSettings("INSTRUCTIONS", e.target.value)}
+            value={settings.instructions}
+            onChange={(e) => updateSettings("instructions", e.target.value)}
           />{" "}
         </div>
         {/* Auto Response Time */}
@@ -210,9 +210,9 @@ export function OverviewTab() {
           <div className="flex items-center space-x-2 max-w-xs">
             <Input
               type="number"
-              value={settings.CHAT_WAIT_SECONDS}
+              value={settings.chat_wait_seconds}
               onChange={(e) =>
-                updateSettings("CHAT_WAIT_SECONDS", Number(e.target.value))
+                updateSettings("chat_wait_seconds", Number(e.target.value))
               }
               className="text-center h-10 w-24"
             />
@@ -244,9 +244,9 @@ export function OverviewTab() {
           <div className="flex items-center space-x-2 max-w-xs">
             <Input
               type="number"
-              value={settings.MAX_SCRIPT_RETRIEVAL}
+              value={settings.max_script_retrieval}
               onChange={(e) =>
-                updateSettings("MAX_SCRIPT_RETRIEVAL", Number(e.target.value))
+                updateSettings("max_script_retrieval", Number(e.target.value))
               }
               className="text-center h-10 w-24"
             />
@@ -276,8 +276,8 @@ export function OverviewTab() {
           <Textarea
             className="min-h-[100px]"
             placeholder="Dạ quý khách cần em hỗ trợ gì thêm không ạ"
-            value={settings.REACTION_MESSAGE}
-            onChange={(e) => updateSettings("REACTION_MESSAGE", e.target.value)}
+            value={settings.reaction_message}
+            onChange={(e) => updateSettings("reaction_message", e.target.value)}
           />
         </div>
         {/* Empty div as padding */}
