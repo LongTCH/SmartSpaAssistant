@@ -31,7 +31,7 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.usage import UsageLimits
 
-logfire.configure(send_to_logfire=False)
+logfire.configure(send_to_logfire="if-token-present")
 logger = logfire.instrument_pydantic_ai()
 
 SHORT_TERM_MEMORY_LIMIT = 10
