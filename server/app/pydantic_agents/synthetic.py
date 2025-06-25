@@ -1,4 +1,5 @@
 from app.configs.database import with_session
+from app.dtos.setting_dtos import SettingDetailsDto
 from app.pydantic_agents.model_hub import model_hub
 from app.pydantic_agents.synthetic_tools import (
     SyntheticAgentDeps,
@@ -17,9 +18,12 @@ from pydantic_ai.models.google import GoogleModelSettings, ThinkingConfigDict
 async def get_instruction(context: RunContext[SyntheticAgentDeps]) -> str:
     guest_id = context.deps.user_id
 
-    settings = setting_service.get_setting_details()
-    bot_identity = settings.identity
-    bot_instructions = settings.instructions
+    setting = await with_session(
+        lambda session: setting_service.get_setting_details(session)
+    )
+    setting = SettingDetailsDto(**setting)
+    bot_identity = setting.identity
+    bot_instructions = setting.instructions
     guest_info = await with_session(
         lambda session: guest_info_repository.get_guest_info_by_guest_id(
             session, guest_id

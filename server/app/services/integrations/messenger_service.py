@@ -152,7 +152,7 @@ async def process_message(sender_psid, receipient_psid, timestamp, webhook_event
                     map_message[sender_psid]["timer"] = None
 
                 # Tạo timer mới với db session được truyền vào
-                setting_details = await setting_service.get_setting_details()
+                setting_details = await setting_service.get_setting_details(db)
                 setting_details = SettingDetailsDto(**setting_details)
                 map_message[sender_psid]["timer"] = asyncio.create_task(
                     process_after_wait(

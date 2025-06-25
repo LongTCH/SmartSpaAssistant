@@ -126,7 +126,7 @@ async def invoke_agent(user_id, user_input: str) -> list[MessagePart]:
             for message in chat_histories:
                 model_message = ModelMessagesTypeAdapter.validate_json(message.content)
                 message_history.extend(model_message)
-            setting_details = await setting_service.get_setting_details()
+            setting_details = await setting_service.get_setting_details(db)
             setting_details = SettingDetailsDto(**setting_details)
             scripts: list[Script] = (
                 await script_rag_service.search_script_chunks(
